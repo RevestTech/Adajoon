@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-export default function RadioPlayer({ station, onClose }) {
+export default function RadioPlayer({ station, onClose, isFavorite, onToggleFavorite }) {
   const audioRef = useRef(null);
   const [playing, setPlaying] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
@@ -43,7 +43,19 @@ export default function RadioPlayer({ station, onClose }) {
               {station.bitrate > 0 && ` · ${station.bitrate} kbps`}
             </span>
           </div>
-          <button className="modal-close" onClick={onClose}>×</button>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <button
+              className={`favorite-btn ${isFavorite ? "favorited" : ""}`}
+              onClick={onToggleFavorite}
+              title={isFavorite ? "Remove from favorites" : "Add to favorites"}
+              style={{ position: "static" }}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill={isFavorite ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+              </svg>
+            </button>
+            <button className="modal-close" onClick={onClose}>×</button>
+          </div>
         </div>
         <div className="radio-player-body">
           <div className="radio-player-visual">

@@ -5,7 +5,7 @@ import ChannelGrid from "./components/ChannelGrid";
 import RadioGrid from "./components/RadioGrid";
 import VideoPlayer from "./components/VideoPlayer";
 import RadioPlayer from "./components/RadioPlayer";
-import useFavorites from "./hooks/useFavorites";
+import useFavorites, { useRadioFavorites } from "./hooks/useFavorites";
 import { fetchChannels, fetchCategories, fetchCountries, fetchStats } from "./api/channels";
 import { fetchRadioStations, fetchRadioTags, fetchRadioCountries } from "./api/radio";
 
@@ -50,8 +50,15 @@ export default function App() {
   const [radioTotalPages, setRadioTotalPages] = useState(0);
   const [radioTotal, setRadioTotal] = useState(0);
   const [selectedStation, setSelectedStation] = useState(null);
+  const [showRadioFavorites, setShowRadioFavorites] = useState(false);
 
   const { favoritesList, favoritesCount, toggleFavorite, isFavorite } = useFavorites();
+  const {
+    favoritesList: radioFavoritesList,
+    favoritesCount: radioFavoritesCount,
+    toggleFavorite: toggleRadioFavorite,
+    isFavorite: isRadioFavorite,
+  } = useRadioFavorites();
 
   // TV: load metadata
   const loadMeta = useCallback(async () => {
@@ -101,6 +108,7 @@ export default function App() {
 
   // Radio: load stations
   const loadRadio = useCallback(async () => {
+    if (showRadioFavorites) return;
     setRadioLoading(true);
     setRadioError(null);
     try {
@@ -119,7 +127,7 @@ export default function App() {
     } finally {
       setRadioLoading(false);
     }
-  }, [radioSearch, activeTag, activeRadioCountry, workingOnly, radioPage]);
+  }, [radioSearch, activeTag, activeRadioCountry, workingOnly, radioPage, showRadioFavorites]);
 
   useEffect(() => {
     loadMeta();
@@ -134,17 +142,21 @@ export default function App() {
     if (mode === "radio") { loadRadioMeta(); loadRadio(); }
   }, [mode, loadRadioMeta, loadRadio]);
 
-  useEffect(() => { setRadioPage(1); }, [radioSearch, activeTag, activeRadioCountry, workingOnly]);
+  useEffect(() => { setRadioPage(1); }, [radioSearch, activeTag, activeRadioCountry, workingOnly, showRadioFavorites]);
 
   const displayedChannels = showFavorites ? favoritesList : channels;
   const displayedTotal = showFavorites ? favoritesCount : total;
   const displayedTotalPages = showFavorites ? 1 : totalPages;
 
+  const displayedRadioStations = showRadioFavorites ? radioFavoritesList : radioStations;
+  const displayedRadioTotal = showRadioFavorites ? radioFavoritesCount : radioTotal;
+  const displayedRadioTotalPages = showRadioFavorites ? 1 : radioTotalPages;
+
   const clearFilter = (type) => {
     if (type === "category") setActiveCategory(null);
     if (type === "country") { if (mode === "tv") setActiveCountry(null); else setActiveRadioCountry(null); }
     if (type === "search") { if (mode === "tv") setSearch(""); else setRadioSearch(""); }
-    if (type === "favorites") setShowFavorites(false);
+    if (type === "favorites") { if (mode === "tv") setShowFavorites(false); else setShowRadioFavorites(false); }
     if (type === "liveOnly") setLiveOnly(false);
     if (type === "tag") setActiveTag(null);
     if (type === "workingOnly") setWorkingOnly(false);
@@ -153,6 +165,11 @@ export default function App() {
   const handleToggleFavorites = () => {
     setShowFavorites((prev) => !prev);
     if (!showFavorites) { setActiveCategory(null); setActiveCountry(null); setSearch(""); }
+  };
+
+  const handleToggleRadioFavorites = () => {
+    setShowRadioFavorites((prev) => !prev);
+    if (!showRadioFavorites) { setActiveTag(null); setActiveRadioCountry(null); setRadioSearch(""); }
   };
 
   const handleModeSwitch = (newMode) => {
@@ -187,15 +204,15 @@ export default function App() {
           onSelectCategory={(id) => { setActiveCategory(id === activeCategory ? null : id); setShowFavorites(false); }}
           onSelectCountry={(code) => {
             if (mode === "tv") { setActiveCountry(code === activeCountry ? null : code); setShowFavorites(false); }
-            else setActiveRadioCountry(code === activeRadioCountry ? null : code);
+            else { setActiveRadioCountry(code === activeRadioCountry ? null : code); setShowRadioFavorites(false); }
           }}
-          favoritesCount={favoritesCount}
-          showFavorites={showFavorites}
-          onToggleFavorites={handleToggleFavorites}
+          favoritesCount={mode === "tv" ? favoritesCount : radioFavoritesCount}
+          showFavorites={mode === "tv" ? showFavorites : showRadioFavorites}
+          onToggleFavorites={mode === "tv" ? handleToggleFavorites : handleToggleRadioFavorites}
           radioTags={radioTags}
           radioCountries={radioCountries}
           activeTag={activeTag}
-          onSelectTag={(t) => setActiveTag(t === activeTag ? null : t)}
+          onSelectTag={(t) => { setActiveTag(t === activeTag ? null : t); setShowRadioFavorites(false); }}
           liveOnly={mode === "tv" ? liveOnly : workingOnly}
           onToggleLiveOnly={() => {
             if (mode === "tv") setLiveOnly((v) => !v);
@@ -227,20 +244,23 @@ export default function App() {
             />
           ) : (
             <RadioGrid
-              stations={radioStations}
-              loading={radioLoading}
-              error={radioError}
-              total={radioTotal}
+              stations={displayedRadioStations}
+              loading={!showRadioFavorites && radioLoading}
+              error={!showRadioFavorites ? radioError : null}
+              total={displayedRadioTotal}
               page={radioPage}
-              totalPages={radioTotalPages}
+              totalPages={displayedRadioTotalPages}
               onPageChange={setRadioPage}
               onSelect={setSelectedStation}
               activeTag={activeTag}
               activeCountry={activeRadioCountry}
               search={radioSearch}
+              showFavorites={showRadioFavorites}
               workingOnly={workingOnly}
               onClearFilter={clearFilter}
               onRetry={loadRadio}
+              isFavorite={isRadioFavorite}
+              onToggleFavorite={toggleRadioFavorite}
               viewMode={viewMode}
               onViewToggle={handleViewToggle}
             />
@@ -259,6 +279,8 @@ export default function App() {
         <RadioPlayer
           station={selectedStation}
           onClose={() => setSelectedStation(null)}
+          isFavorite={isRadioFavorite(selectedStation.id)}
+          onToggleFavorite={() => toggleRadioFavorite(selectedStation)}
         />
       )}
     </>

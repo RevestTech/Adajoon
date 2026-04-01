@@ -25,24 +25,44 @@ export default function Sidebar({
   const [radioTab, setRadioTab] = useState("genres");
   const [filterText, setFilterText] = useState("");
   const [expanded, setExpanded] = useState(false);
+  const [sortBy, setSortBy] = useState("name");
 
   const lowerFilter = filterText.toLowerCase();
 
+  const sortItems = (items, getName, getCount) => {
+    const sorted = [...items];
+    if (sortBy === "name") sorted.sort((a, b) => getName(a).localeCompare(getName(b)));
+    else if (sortBy === "count") sorted.sort((a, b) => getCount(b) - getCount(a));
+    return sorted;
+  };
+
   const filteredCategories = useMemo(
-    () => categories.filter((c) => c.name.toLowerCase().includes(lowerFilter)),
-    [categories, lowerFilter]
+    () => sortItems(
+      categories.filter((c) => c.name.toLowerCase().includes(lowerFilter)),
+      (c) => c.name, (c) => c.channel_count
+    ),
+    [categories, lowerFilter, sortBy]
   );
   const filteredCountries = useMemo(
-    () => countries.filter((c) => c.name.toLowerCase().includes(lowerFilter) || c.code.toLowerCase().includes(lowerFilter)),
-    [countries, lowerFilter]
+    () => sortItems(
+      countries.filter((c) => c.name.toLowerCase().includes(lowerFilter) || c.code.toLowerCase().includes(lowerFilter)),
+      (c) => c.name, (c) => c.channel_count
+    ),
+    [countries, lowerFilter, sortBy]
   );
   const filteredRadioTags = useMemo(
-    () => radioTags.filter((t) => t.name.toLowerCase().includes(lowerFilter)),
-    [radioTags, lowerFilter]
+    () => sortItems(
+      radioTags.filter((t) => t.name.toLowerCase().includes(lowerFilter)),
+      (t) => t.name, (t) => t.station_count
+    ),
+    [radioTags, lowerFilter, sortBy]
   );
   const filteredRadioCountries = useMemo(
-    () => radioCountries.filter((c) => c.country.toLowerCase().includes(lowerFilter) || c.country_code.toLowerCase().includes(lowerFilter)),
-    [radioCountries, lowerFilter]
+    () => sortItems(
+      radioCountries.filter((c) => c.country.toLowerCase().includes(lowerFilter) || c.country_code.toLowerCase().includes(lowerFilter)),
+      (c) => c.country, (c) => c.station_count
+    ),
+    [radioCountries, lowerFilter, sortBy]
   );
 
   const handleTabChange = (t) => {
@@ -67,6 +87,20 @@ export default function Sidebar({
       <aside className={`sidebar ${className || ""}`}>
         <div className="sidebar-section">
           <div
+            className={`sidebar-item favorites-item ${showFavorites ? "active" : ""}`}
+            onClick={onToggleFavorites}
+          >
+            <span className="favorites-label">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill={showFavorites ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+              </svg>
+              Favorites
+            </span>
+            {favoritesCount > 0 && (
+              <span className="sidebar-count favorites-count">{favoritesCount}</span>
+            )}
+          </div>
+          <div
             className={`sidebar-item live-filter-item ${liveOnly ? "active" : ""}`}
             onClick={onToggleLiveOnly}
           >
@@ -85,10 +119,13 @@ export default function Sidebar({
           <TabButton active={radioTab === "countries"} onClick={() => handleRadioTabChange("countries")}>Countries</TabButton>
         </div>
 
-        <SidebarSearch value={filterText} onChange={setFilterText} placeholder={placeholder} />
+        <div className="sidebar-toolbar">
+          <SidebarSearch value={filterText} onChange={setFilterText} placeholder={placeholder} />
+          <SortToggle sortBy={sortBy} onChange={setSortBy} />
+        </div>
 
         {radioTab === "genres" && (
-          <ChipCloud
+          <SidebarList
             items={filteredRadioTags}
             activeId={activeTag}
             onSelect={onSelectTag}
@@ -105,7 +142,7 @@ export default function Sidebar({
         )}
 
         {radioTab === "countries" && (
-          <ChipCloud
+          <SidebarList
             items={filteredRadioCountries}
             activeId={activeCountry}
             onSelect={onSelectCountry}
@@ -160,13 +197,16 @@ export default function Sidebar({
         <TabButton active={tab === "countries"} onClick={() => handleTabChange("countries")}>Countries</TabButton>
       </div>
 
-      <SidebarSearch value={filterText} onChange={setFilterText} placeholder={placeholder} />
+      <div className="sidebar-toolbar">
+        <SidebarSearch value={filterText} onChange={setFilterText} placeholder={placeholder} />
+        <SortToggle sortBy={sortBy} onChange={setSortBy} />
+      </div>
 
       {tab === "categories" && (
-        <ChipCloud
+        <SidebarList
           items={filteredCategories}
           activeId={activeCategory}
-          onSelect={(id) => { onSelectCategory(id); if (!id) return; }}
+          onSelect={(id) => { onSelectCategory(id); }}
           getId={(c) => c.id}
           getLabel={(c) => c.name}
           getCount={(c) => c.channel_count}
@@ -176,18 +216,16 @@ export default function Sidebar({
           expanded={expanded}
           onToggleExpand={() => setExpanded((v) => !v)}
           filterText={filterText}
-          clearFavorites={() => { onSelectCategory(null); }}
-          isAllActive={!activeCategory && !showFavorites}
         />
       )}
 
       {tab === "countries" && (
-        <ChipCloud
+        <SidebarList
           items={filteredCountries}
           activeId={activeCountry}
           onSelect={(code) => { onSelectCountry(code); }}
           getId={(c) => c.code}
-          getLabel={(c) => `${c.flag || ""} ${c.name}`.trim()}
+          getLabel={(c) => c.name}
           getCount={(c) => c.channel_count}
           allLabel="All"
           emptyMsg={`No countries match "${filterText}"`}
@@ -195,40 +233,38 @@ export default function Sidebar({
           expanded={expanded}
           onToggleExpand={() => setExpanded((v) => !v)}
           filterText={filterText}
-          isAllActive={!activeCountry && !showFavorites}
         />
       )}
     </aside>
   );
 }
 
-function ChipCloud({ items, activeId, onSelect, getId, getLabel, getCount, allLabel, emptyMsg, showAll, expanded, onToggleExpand, filterText, isAllActive }) {
+function SidebarList({ items, activeId, onSelect, getId, getLabel, getCount, allLabel, emptyMsg, showAll, expanded, onToggleExpand, filterText }) {
   const visible = showAll ? items : items.slice(0, INITIAL_VISIBLE);
   const hasMore = items.length > INITIAL_VISIBLE;
 
   return (
-    <div className="chip-cloud-section">
-      <div className="chip-cloud">
+    <div className="sidebar-list-section">
+      <div className="sidebar-filter-list">
         {!filterText && (
-          <button
-            className={`chip ${isAllActive !== undefined ? (isAllActive ? "active" : "") : (!activeId ? "active" : "")}`}
+          <div
+            className={`sidebar-item ${!activeId ? "active" : ""}`}
             onClick={() => onSelect(null)}
           >
-            {allLabel}
-          </button>
+            <span className="sidebar-item-label">{allLabel}</span>
+          </div>
         )}
         {visible.map((item) => {
           const id = getId(item);
           return (
-            <button
+            <div
               key={id}
-              className={`chip ${activeId === id ? "active" : ""}`}
+              className={`sidebar-item ${activeId === id ? "active" : ""}`}
               onClick={() => onSelect(id)}
-              title={`${getLabel(item)} (${getCount(item).toLocaleString()})`}
             >
-              {getLabel(item)}
-              <span className="chip-count">{getCount(item).toLocaleString()}</span>
-            </button>
+              <span className="sidebar-item-label">{getLabel(item)}</span>
+              <span className="sidebar-count">{getCount(item).toLocaleString()}</span>
+            </div>
           );
         })}
       </div>
@@ -236,7 +272,7 @@ function ChipCloud({ items, activeId, onSelect, getId, getLabel, getCount, allLa
         <div className="sidebar-empty">{emptyMsg}</div>
       )}
       {!filterText && hasMore && (
-        <button className="chip-expand" onClick={onToggleExpand}>
+        <button className="sidebar-list-expand" onClick={onToggleExpand}>
           {expanded ? "Show less" : `Show all ${items.length}`}
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: expanded ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}>
             <polyline points="6 9 12 15 18 9" />
@@ -262,6 +298,27 @@ function SidebarSearch({ value, onChange, placeholder }) {
       {value && (
         <button onClick={() => onChange("")} className="sidebar-search-clear">×</button>
       )}
+    </div>
+  );
+}
+
+function SortToggle({ sortBy, onChange }) {
+  return (
+    <div className="sort-toggle">
+      <button
+        className={`sort-btn ${sortBy === "name" ? "active" : ""}`}
+        onClick={() => onChange("name")}
+        title="Sort A-Z"
+      >
+        A-Z
+      </button>
+      <button
+        className={`sort-btn ${sortBy === "count" ? "active" : ""}`}
+        onClick={() => onChange("count")}
+        title="Sort by most channels"
+      >
+        #
+      </button>
     </div>
   );
 }
