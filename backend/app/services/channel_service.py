@@ -31,6 +31,10 @@ async def search_channels(db: AsyncSession, params: ChannelSearchParams):
         query = query.where(Channel.languages.ilike(f"%{params.language}%"))
         count_query = count_query.where(Channel.languages.ilike(f"%{params.language}%"))
 
+    if params.live_only:
+        query = query.where(Channel.stream_url != "")
+        count_query = count_query.where(Channel.stream_url != "")
+
     total = (await db.execute(count_query)).scalar() or 0
 
     offset = (params.page - 1) * params.per_page

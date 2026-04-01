@@ -11,12 +11,13 @@ export default function ChannelGrid({
   activeCountry,
   search,
   showFavorites,
+  liveOnly,
   onClearFilter,
   onRetry,
   isFavorite,
   onToggleFavorite,
 }) {
-  const hasFilters = activeCategory || activeCountry || search || showFavorites;
+  const hasFilters = activeCategory || activeCountry || search || showFavorites || liveOnly;
 
   if (loading) {
     return (
@@ -71,6 +72,11 @@ export default function ChannelGrid({
           {showFavorites && (
             <span className="filter-tag" onClick={() => onClearFilter("favorites")}>
               Favorites ✕
+            </span>
+          )}
+          {liveOnly && (
+            <span className="filter-tag" onClick={() => onClearFilter("liveOnly")}>
+              Live only ✕
             </span>
           )}
           {search && (

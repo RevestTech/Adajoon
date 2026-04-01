@@ -20,13 +20,14 @@ async def list_channels(
     category: str | None = Query(None),
     country: str | None = Query(None),
     language: str | None = Query(None),
+    live_only: bool = Query(False, description="Only show channels with a stream"),
     page: int = Query(1, ge=1),
     per_page: int = Query(40, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
 ):
     params = ChannelSearchParams(
         query=query, category=category, country=country,
-        language=language, page=page, per_page=per_page,
+        language=language, live_only=live_only, page=page, per_page=per_page,
     )
     channels, total = await search_channels(db, params)
     return PaginatedChannels(

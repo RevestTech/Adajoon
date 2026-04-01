@@ -57,6 +57,7 @@ class ChannelSearchParams(BaseModel):
     category: Optional[str] = None
     country: Optional[str] = None
     language: Optional[str] = None
+    live_only: bool = False
     page: int = 1
     per_page: int = 40
 

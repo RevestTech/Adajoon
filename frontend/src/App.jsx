@@ -18,6 +18,7 @@ export default function App() {
   const [activeCategory, setActiveCategory] = useState(null);
   const [activeCountry, setActiveCountry] = useState(null);
   const [showFavorites, setShowFavorites] = useState(false);
+  const [liveOnly, setLiveOnly] = useState(false);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
   const [total, setTotal] = useState(0);
@@ -50,6 +51,7 @@ export default function App() {
         query: search || undefined,
         category: activeCategory || undefined,
         country: activeCountry || undefined,
+        liveOnly: liveOnly || undefined,
         page,
       });
       setChannels(data.channels);
@@ -60,7 +62,7 @@ export default function App() {
     } finally {
       setLoading(false);
     }
-  }, [search, activeCategory, activeCountry, page, showFavorites]);
+  }, [search, activeCategory, activeCountry, liveOnly, page, showFavorites]);
 
   useEffect(() => {
     loadMeta();
@@ -74,7 +76,7 @@ export default function App() {
 
   useEffect(() => {
     setPage(1);
-  }, [search, activeCategory, activeCountry, showFavorites]);
+  }, [search, activeCategory, activeCountry, showFavorites, liveOnly]);
 
   const displayedChannels = showFavorites ? favoritesList : channels;
   const displayedTotal = showFavorites ? favoritesCount : total;
@@ -85,6 +87,7 @@ export default function App() {
     if (type === "country") setActiveCountry(null);
     if (type === "search") setSearch("");
     if (type === "favorites") setShowFavorites(false);
+    if (type === "liveOnly") setLiveOnly(false);
   };
 
   const handleToggleFavorites = () => {
@@ -105,6 +108,8 @@ export default function App() {
         favoritesCount={favoritesCount}
         showFavorites={showFavorites}
         onToggleFavorites={handleToggleFavorites}
+        liveOnly={liveOnly}
+        onToggleLiveOnly={() => setLiveOnly((v) => !v)}
       />
       <div className="layout">
         <Sidebar
@@ -132,6 +137,7 @@ export default function App() {
             activeCountry={activeCountry}
             search={search}
             showFavorites={showFavorites}
+            liveOnly={liveOnly}
             onClearFilter={clearFilter}
             onRetry={loadChannels}
             isFavorite={isFavorite}

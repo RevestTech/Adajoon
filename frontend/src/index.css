@@ -547,31 +547,39 @@ body {
   font-weight: 600;
 }
 
-.header-favorites-btn {
+.header-toggle-btn {
   position: relative;
   background: var(--bg-primary);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  width: 40px;
   height: 40px;
+  padding: 0 14px;
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 6px;
   cursor: pointer;
   color: var(--text-muted);
   transition: all 0.15s;
   flex-shrink: 0;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
 }
 
-.header-favorites-btn:hover {
+.header-toggle-btn:hover {
   border-color: var(--accent);
   color: var(--accent);
 }
 
-.header-favorites-btn.active {
+.header-toggle-btn.active {
   border-color: var(--accent);
   color: var(--accent);
   background: rgba(233, 69, 96, 0.1);
+}
+
+.header-toggle-label {
+  white-space: nowrap;
 }
 
 .header-favorites-count {
