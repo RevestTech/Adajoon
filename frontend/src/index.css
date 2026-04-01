@@ -135,14 +135,14 @@ body {
   padding: 8px 16px;
   cursor: pointer;
   font-size: 13px;
-  color: var(--text-secondary);
+  color: #e0e0e0;
   transition: background 0.15s, color 0.15s;
   border-left: 3px solid transparent;
 }
 
 .sidebar-filter-list .sidebar-item:hover {
   background: var(--bg-hover);
-  color: var(--text-primary);
+  color: #fff;
 }
 
 .sidebar-filter-list .sidebar-item.active {
@@ -286,10 +286,10 @@ body {
 
 .sidebar-count {
   font-size: 11px;
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.08);
   padding: 2px 8px;
   border-radius: 10px;
-  color: var(--text-muted);
+  color: #fff;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   min-width: 36px;
