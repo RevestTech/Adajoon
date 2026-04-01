@@ -1087,21 +1087,46 @@ body {
 
 .favorites-item {
   font-weight: 500;
-  border-bottom: 1px solid var(--border);
-  padding-bottom: 12px !important;
-  margin-bottom: 4px;
+  margin: 8px 12px 4px;
+  padding: 10px 14px !important;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg-primary);
+}
+
+.favorites-item:hover {
+  border-color: var(--accent) !important;
+  background: rgba(233, 69, 96, 0.06) !important;
+}
+
+.favorites-item.active {
+  border-color: var(--accent) !important;
+  background: rgba(233, 69, 96, 0.1) !important;
+  border-right: 1px solid var(--accent) !important;
 }
 
 .favorites-label {
   display: flex;
   align-items: center;
   gap: 8px;
+  color: #e0e0e0;
+}
+
+.favorites-item.active .favorites-label {
+  color: var(--accent);
 }
 
 .favorites-item .favorites-count {
   background: var(--accent);
   color: #fff;
-  font-weight: 600;
+  font-weight: 700;
+  font-size: 11px;
+  min-width: 22px;
+  height: 22px;
+  line-height: 22px;
+  text-align: center;
+  padding: 0 7px;
+  border-radius: 11px;
 }
 
 .header-toggle-btn {
@@ -1141,26 +1166,42 @@ body {
 
 .live-filter-item {
   cursor: pointer;
+  margin: 4px 12px 8px;
+  padding: 10px 14px !important;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg-primary);
+}
+
+.live-filter-item:hover {
+  border-color: #00e676 !important;
+  background: rgba(0, 230, 118, 0.06) !important;
 }
 
 .live-filter-item.active {
+  border-color: #00e676 !important;
   background: rgba(0, 230, 118, 0.08) !important;
-  border-left: 3px solid #00e676 !important;
+  border-right: 1px solid #00e676 !important;
 }
 
 .live-filter-label {
   display: flex;
   align-items: center;
   gap: 8px;
+  color: #e0e0e0;
+}
+
+.live-filter-item.active .live-filter-label {
+  color: #00e676;
 }
 
 .live-filter-status {
   font-size: 11px;
   font-weight: 700;
-  padding: 2px 8px;
+  padding: 3px 10px;
   border-radius: 10px;
-  color: var(--text-secondary);
-  background: var(--bg-primary);
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.06);
   letter-spacing: 0.5px;
 }
 
