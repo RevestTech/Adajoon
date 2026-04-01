@@ -94,6 +94,7 @@ export default function App() {
 
   const handleLogout = useCallback(() => {
     auth.logout();
+    setShowLogin(true);
   }, [auth]);
 
   useEffect(() => {
