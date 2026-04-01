@@ -8,6 +8,12 @@ class Settings(BaseSettings):
     refresh_interval_hours: int = 6
     port: int = 8000
 
+    jwt_secret: str = "change-me-in-production"
+    jwt_algorithm: str = "HS256"
+    jwt_expiry_days: int = 30
+    google_client_id: str = ""
+    google_client_secret: str = ""
+
     class Config:
         env_file = ".env"
 

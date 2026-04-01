@@ -1,9 +1,11 @@
 import { useState, useRef, useEffect } from "react";
+import UserMenu from "./UserMenu";
 
 export default function Header({
   mode, onModeSwitch,
   search, onSearch, stats,
   sidebarOpen, onToggleSidebar,
+  user, onLogin, onLogout,
 }) {
   const [localSearch, setLocalSearch] = useState(search);
   const debounceRef = useRef(null);
@@ -86,6 +88,8 @@ export default function Header({
           </span>
         </div>
       )}
+
+      <UserMenu user={user} onLogin={onLogin} onLogout={onLogout} />
     </header>
   );
 }

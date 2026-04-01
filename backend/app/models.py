@@ -1,8 +1,38 @@
-from sqlalchemy import Column, String, Text, Boolean, Integer, ForeignKey, Index
+from sqlalchemy import Column, String, Text, Boolean, Integer, ForeignKey, Index, DateTime, func
 from sqlalchemy.orm import relationship
-from datetime import datetime
 
 from app.database import Base
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    email = Column(String(320), unique=True, nullable=False, index=True)
+    name = Column(String(255), default="")
+    picture = Column(Text, default="")
+    provider = Column(String(50), default="google")
+    provider_id = Column(String(255), default="")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    favorites = relationship("UserFavorite", back_populates="user", cascade="all, delete-orphan")
+
+
+class UserFavorite(Base):
+    __tablename__ = "user_favorites"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    item_type = Column(String(10), nullable=False)  # "tv" or "radio"
+    item_id = Column(String(255), nullable=False)
+    item_data = Column(Text, default="{}")
+    added_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    user = relationship("User", back_populates="favorites")
+
+    __table_args__ = (
+        Index("ix_user_fav_unique", "user_id", "item_type", "item_id", unique=True),
+    )
 
 
 class Category(Base):

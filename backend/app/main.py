@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import engine, Base, async_session
-from app.routers import channels, categories, healthcheck, radio
+from app.routers import channels, categories, healthcheck, radio, auth
 from app.services.iptv_service import full_sync
 from app.services.radio_service import sync_radio_stations
 
@@ -60,6 +60,7 @@ app.include_router(channels.router)
 app.include_router(categories.router)
 app.include_router(healthcheck.router)
 app.include_router(radio.router)
+app.include_router(auth.router)
 
 
 @app.get("/api/health")

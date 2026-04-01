@@ -5,14 +5,21 @@ import ChannelGrid from "./components/ChannelGrid";
 import RadioGrid from "./components/RadioGrid";
 import VideoPlayer from "./components/VideoPlayer";
 import RadioPlayer from "./components/RadioPlayer";
+import LoginModal from "./components/LoginModal";
 import useFavorites, { useRadioFavorites } from "./hooks/useFavorites";
+import { useAuth } from "./hooks/useAuth";
 import { fetchChannels, fetchCategories, fetchCountries, fetchStats } from "./api/channels";
 import { fetchRadioStations, fetchRadioTags, fetchRadioCountries } from "./api/radio";
+
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || "";
 
 export default function App() {
   const [mode, setMode] = useState("tv");
   const [viewMode, setViewMode] = useState(() => localStorage.getItem("adajoon_view") || "grid");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showLogin, setShowLogin] = useState(false);
+
+  const auth = useAuth();
 
   const handleViewToggle = (v) => {
     setViewMode(v);
@@ -52,13 +59,51 @@ export default function App() {
   const [selectedStation, setSelectedStation] = useState(null);
   const [showRadioFavorites, setShowRadioFavorites] = useState(false);
 
-  const { favoritesList, favoritesCount, toggleFavorite, isFavorite } = useFavorites();
+  const { favorites, favoritesList, favoritesCount, toggleFavorite, isFavorite, loadFromServer } = useFavorites();
   const {
+    favorites: radioFavorites,
     favoritesList: radioFavoritesList,
     favoritesCount: radioFavoritesCount,
     toggleFavorite: toggleRadioFavorite,
     isFavorite: isRadioFavorite,
+    loadFromServer: loadRadioFromServer,
   } = useRadioFavorites();
+
+  const handleGoogleLogin = useCallback(async (credential) => {
+    const user = await auth.loginWithGoogle(credential);
+    if (!user) return;
+    setShowLogin(false);
+
+    const localTv = Object.values(favorites).map((ch) => ({
+      item_type: "tv",
+      item_id: ch.id,
+      item_data: ch,
+    }));
+    const localRadio = Object.values(radioFavorites || {}).map((st) => ({
+      item_type: "radio",
+      item_id: st.id,
+      item_data: st,
+    }));
+    const merged = await auth.syncFavorites([...localTv, ...localRadio]);
+    if (merged) {
+      loadFromServer(merged);
+      loadRadioFromServer(merged);
+    }
+  }, [auth, favorites, radioFavorites, loadFromServer, loadRadioFromServer]);
+
+  const handleLogout = useCallback(() => {
+    auth.logout();
+  }, [auth]);
+
+  useEffect(() => {
+    if (!auth.user) return;
+    auth.fetchFavorites().then((serverFavs) => {
+      if (serverFavs) {
+        loadFromServer(serverFavs);
+        loadRadioFromServer(serverFavs);
+      }
+    });
+  }, [auth.user]);
 
   // TV: load metadata
   const loadMeta = useCallback(async () => {
@@ -191,6 +236,9 @@ export default function App() {
         stats={stats}
         sidebarOpen={sidebarOpen}
         onToggleSidebar={() => setSidebarOpen((v) => !v)}
+        user={auth.user}
+        onLogin={() => setShowLogin(true)}
+        onLogout={handleLogout}
       />
       {sidebarOpen && <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} />}
       <div className="layout">
@@ -281,6 +329,13 @@ export default function App() {
           onClose={() => setSelectedStation(null)}
           isFavorite={isRadioFavorite(selectedStation.id)}
           onToggleFavorite={() => toggleRadioFavorite(selectedStation)}
+        />
+      )}
+      {showLogin && (
+        <LoginModal
+          onClose={() => setShowLogin(false)}
+          onGoogleLogin={handleGoogleLogin}
+          googleClientId={GOOGLE_CLIENT_ID}
         />
       )}
     </>
