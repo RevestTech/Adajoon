@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import Hls from "hls.js";
-import { fetchStreams } from "../api/channels";
+import { fetchStreams, runHealthCheck } from "../api/channels";
 
 export default function VideoPlayer({ channel, onClose, isFavorite, onToggleFavorite }) {
   const videoRef = useRef(null);
@@ -8,6 +8,8 @@ export default function VideoPlayer({ channel, onClose, isFavorite, onToggleFavo
   const [streams, setStreams] = useState([]);
   const [activeUrl, setActiveUrl] = useState(channel.stream_url || "");
   const [errorMsg, setErrorMsg] = useState("");
+  const [healthResult, setHealthResult] = useState(null);
+  const [checking, setChecking] = useState(false);
 
   useEffect(() => {
     fetchStreams(channel.id).then(setStreams).catch(() => {});
@@ -58,6 +60,19 @@ export default function VideoPlayer({ channel, onClose, isFavorite, onToggleFavo
     return () => window.removeEventListener("keydown", handleKey);
   }, [onClose]);
 
+  const handleHealthCheck = async () => {
+    setChecking(true);
+    setHealthResult(null);
+    try {
+      const result = await runHealthCheck(channel.id);
+      setHealthResult(result);
+    } catch {
+      setHealthResult({ status: "error", detail: "Check failed", response_time_ms: 0 });
+    } finally {
+      setChecking(false);
+    }
+  };
+
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
@@ -98,19 +113,57 @@ export default function VideoPlayer({ channel, onClose, isFavorite, onToggleFavo
               No stream available for this channel.
             </div>
           )}
-          {streams.length > 1 && (
-            <div className="stream-info">
-              {streams.map((s, i) => (
-                <button
-                  key={s.id}
-                  className={`stream-select ${s.url === activeUrl ? "active" : ""}`}
-                  onClick={() => setActiveUrl(s.url)}
-                >
-                  Stream {i + 1} ({s.status})
-                </button>
-              ))}
-            </div>
-          )}
+
+          <div className="stream-toolbar">
+            <button
+              className={`healthcheck-btn ${checking ? "checking" : ""}`}
+              onClick={handleHealthCheck}
+              disabled={checking}
+            >
+              {checking ? (
+                <>
+                  <span className="healthcheck-spinner" />
+                  Checking...
+                </>
+              ) : (
+                <>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+                  </svg>
+                  Check Stream
+                </>
+              )}
+            </button>
+
+            {healthResult && (
+              <div className={`healthcheck-result status-${healthResult.status}`}>
+                <span className={`status-dot ${healthResult.status}`} />
+                <span className="healthcheck-status">
+                  {healthResult.status === "online" ? "Online" :
+                   healthResult.status === "offline" ? "Offline" :
+                   healthResult.status === "timeout" ? "Timeout" : "Error"}
+                </span>
+                <span className="healthcheck-detail">
+                  {healthResult.response_time_ms > 0 && `${healthResult.response_time_ms}ms`}
+                  {healthResult.detail && ` · ${healthResult.detail}`}
+                </span>
+              </div>
+            )}
+
+            {streams.length > 1 && (
+              <div className="stream-switcher">
+                {streams.map((s, i) => (
+                  <button
+                    key={s.id}
+                    className={`stream-select ${s.url === activeUrl ? "active" : ""}`}
+                    onClick={() => setActiveUrl(s.url)}
+                  >
+                    Stream {i + 1}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

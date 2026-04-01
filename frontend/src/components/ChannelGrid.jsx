@@ -182,7 +182,10 @@ function ChannelCard({ channel, onClick, favorited, onToggleFavorite }) {
           <span key={c} className="channel-tag">{c}</span>
         ))}
         {channel.stream_url && (
-          <span className="channel-stream-badge">LIVE</span>
+          <span className={`channel-stream-badge ${channel.health_status === "online" ? "status-online" : channel.health_status === "offline" || channel.health_status === "error" ? "status-offline" : channel.health_status === "timeout" ? "status-timeout" : ""}`}>
+            <span className={`status-dot ${channel.health_status}`} />
+            {channel.health_status === "online" ? "LIVE" : channel.health_status === "offline" || channel.health_status === "error" ? "DOWN" : channel.health_status === "timeout" ? "SLOW" : "LIVE"}
+          </span>
         )}
       </div>
     </div>

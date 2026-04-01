@@ -50,6 +50,8 @@ class Channel(Base):
     languages = Column(Text, default="")
     is_active = Column(Boolean, default=True)
     updated_at = Column(String(50), default="")
+    health_status = Column(String(20), default="unknown")
+    health_checked_at = Column(String(50), default="")
 
     category = relationship("Category", back_populates="channels")
 

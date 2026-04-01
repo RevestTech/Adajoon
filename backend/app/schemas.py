@@ -39,8 +39,19 @@ class ChannelOut(BaseModel):
     stream_url: str = ""
     languages: str = ""
     is_active: bool = True
+    health_status: str = "unknown"
+    health_checked_at: str = ""
 
     model_config = {"from_attributes": True}
+
+
+class HealthCheckResult(BaseModel):
+    channel_id: str
+    stream_url: str
+    status: str
+    response_time_ms: int
+    detail: str = ""
+    checked_at: str
 
 
 class StreamOut(BaseModel):

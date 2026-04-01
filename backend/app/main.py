@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import engine, Base, async_session
-from app.routers import channels, categories
+from app.routers import channels, categories, healthcheck
 from app.services.iptv_service import full_sync
 
 logging.basicConfig(level=logging.INFO)
@@ -52,6 +52,7 @@ app.add_middleware(
 
 app.include_router(channels.router)
 app.include_router(categories.router)
+app.include_router(healthcheck.router)
 
 
 @app.get("/api/health")

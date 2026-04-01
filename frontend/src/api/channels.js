@@ -38,3 +38,9 @@ export async function fetchStreams(channelId) {
   if (!res.ok) throw new Error("Failed to fetch streams");
   return res.json();
 }
+
+export async function runHealthCheck(channelId) {
+  const res = await fetch(`${BASE}/healthcheck/${channelId}`, { method: "POST" });
+  if (!res.ok) throw new Error("Health check failed");
+  return res.json();
+}
