@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 
 export default function Sidebar({
   mode,
@@ -21,6 +21,43 @@ export default function Sidebar({
 }) {
   const [tab, setTab] = useState("categories");
   const [radioTab, setRadioTab] = useState("genres");
+  const [filterText, setFilterText] = useState("");
+
+  const lowerFilter = filterText.toLowerCase();
+
+  const filteredCategories = useMemo(
+    () => categories.filter((c) => c.name.toLowerCase().includes(lowerFilter)),
+    [categories, lowerFilter]
+  );
+
+  const filteredCountries = useMemo(
+    () => countries.filter((c) => c.name.toLowerCase().includes(lowerFilter) || c.code.toLowerCase().includes(lowerFilter)),
+    [countries, lowerFilter]
+  );
+
+  const filteredRadioTags = useMemo(
+    () => radioTags.filter((t) => t.name.toLowerCase().includes(lowerFilter)),
+    [radioTags, lowerFilter]
+  );
+
+  const filteredRadioCountries = useMemo(
+    () => radioCountries.filter((c) => c.country.toLowerCase().includes(lowerFilter) || c.country_code.toLowerCase().includes(lowerFilter)),
+    [radioCountries, lowerFilter]
+  );
+
+  const handleTabChange = (t) => {
+    setTab(t);
+    setFilterText("");
+  };
+
+  const handleRadioTabChange = (t) => {
+    setRadioTab(t);
+    setFilterText("");
+  };
+
+  const placeholder = mode === "radio"
+    ? (radioTab === "genres" ? "Filter genres..." : "Filter countries...")
+    : (tab === "categories" ? "Filter categories..." : "Filter countries...");
 
   if (mode === "radio") {
     return (
@@ -40,25 +77,28 @@ export default function Sidebar({
           </div>
         </div>
 
-        <div style={{ display: "flex", gap: "4px", padding: "0 12px", marginBottom: "16px" }}>
-          <TabButton active={radioTab === "genres"} onClick={() => setRadioTab("genres")}>
+        <div style={{ display: "flex", gap: "4px", padding: "0 12px", marginBottom: "12px" }}>
+          <TabButton active={radioTab === "genres"} onClick={() => handleRadioTabChange("genres")}>
             Genres
           </TabButton>
-          <TabButton active={radioTab === "countries"} onClick={() => setRadioTab("countries")}>
+          <TabButton active={radioTab === "countries"} onClick={() => handleRadioTabChange("countries")}>
             Countries
           </TabButton>
         </div>
 
+        <SidebarSearch value={filterText} onChange={setFilterText} placeholder={placeholder} />
+
         {radioTab === "genres" && (
           <div className="sidebar-section">
-            <div className="sidebar-title">Genres</div>
-            <div
-              className={`sidebar-item ${!activeTag ? "active" : ""}`}
-              onClick={() => onSelectTag(null)}
-            >
-              <span>All Genres</span>
-            </div>
-            {radioTags.map((t) => (
+            {!filterText && (
+              <div
+                className={`sidebar-item ${!activeTag ? "active" : ""}`}
+                onClick={() => onSelectTag(null)}
+              >
+                <span>All Genres</span>
+              </div>
+            )}
+            {filteredRadioTags.map((t) => (
               <div
                 key={t.name}
                 className={`sidebar-item ${activeTag === t.name ? "active" : ""}`}
@@ -68,19 +108,23 @@ export default function Sidebar({
                 <span className="sidebar-count">{t.station_count.toLocaleString()}</span>
               </div>
             ))}
+            {filterText && filteredRadioTags.length === 0 && (
+              <div className="sidebar-empty">No genres match "{filterText}"</div>
+            )}
           </div>
         )}
 
         {radioTab === "countries" && (
           <div className="sidebar-section">
-            <div className="sidebar-title">Countries</div>
-            <div
-              className={`sidebar-item ${!activeCountry ? "active" : ""}`}
-              onClick={() => onSelectCountry(null)}
-            >
-              <span>All Countries</span>
-            </div>
-            {radioCountries.slice(0, 80).map((c) => (
+            {!filterText && (
+              <div
+                className={`sidebar-item ${!activeCountry ? "active" : ""}`}
+                onClick={() => onSelectCountry(null)}
+              >
+                <span>All Countries</span>
+              </div>
+            )}
+            {filteredRadioCountries.map((c) => (
               <div
                 key={c.country_code}
                 className={`sidebar-item ${activeCountry === c.country_code ? "active" : ""}`}
@@ -90,6 +134,9 @@ export default function Sidebar({
                 <span className="sidebar-count">{c.station_count.toLocaleString()}</span>
               </div>
             ))}
+            {filterText && filteredRadioCountries.length === 0 && (
+              <div className="sidebar-empty">No countries match "{filterText}"</div>
+            )}
           </div>
         )}
       </aside>
@@ -127,25 +174,28 @@ export default function Sidebar({
         </div>
       </div>
 
-      <div style={{ display: "flex", gap: "4px", padding: "0 12px", marginBottom: "16px" }}>
-        <TabButton active={tab === "categories"} onClick={() => setTab("categories")}>
+      <div style={{ display: "flex", gap: "4px", padding: "0 12px", marginBottom: "12px" }}>
+        <TabButton active={tab === "categories"} onClick={() => handleTabChange("categories")}>
           Categories
         </TabButton>
-        <TabButton active={tab === "countries"} onClick={() => setTab("countries")}>
+        <TabButton active={tab === "countries"} onClick={() => handleTabChange("countries")}>
           Countries
         </TabButton>
       </div>
 
+      <SidebarSearch value={filterText} onChange={setFilterText} placeholder={placeholder} />
+
       {tab === "categories" && (
         <div className="sidebar-section">
-          <div className="sidebar-title">Categories</div>
-          <div
-            className={`sidebar-item ${!activeCategory && !showFavorites ? "active" : ""}`}
-            onClick={() => onSelectCategory(null)}
-          >
-            <span>All Categories</span>
-          </div>
-          {categories.map((cat) => (
+          {!filterText && (
+            <div
+              className={`sidebar-item ${!activeCategory && !showFavorites ? "active" : ""}`}
+              onClick={() => onSelectCategory(null)}
+            >
+              <span>All Categories</span>
+            </div>
+          )}
+          {filteredCategories.map((cat) => (
             <div
               key={cat.id}
               className={`sidebar-item ${activeCategory === cat.id ? "active" : ""}`}
@@ -155,19 +205,23 @@ export default function Sidebar({
               <span className="sidebar-count">{cat.channel_count}</span>
             </div>
           ))}
+          {filterText && filteredCategories.length === 0 && (
+            <div className="sidebar-empty">No categories match "{filterText}"</div>
+          )}
         </div>
       )}
 
       {tab === "countries" && (
         <div className="sidebar-section">
-          <div className="sidebar-title">Countries</div>
-          <div
-            className={`sidebar-item ${!activeCountry && !showFavorites ? "active" : ""}`}
-            onClick={() => onSelectCountry(null)}
-          >
-            <span>All Countries</span>
-          </div>
-          {countries.slice(0, 80).map((c) => (
+          {!filterText && (
+            <div
+              className={`sidebar-item ${!activeCountry && !showFavorites ? "active" : ""}`}
+              onClick={() => onSelectCountry(null)}
+            >
+              <span>All Countries</span>
+            </div>
+          )}
+          {filteredCountries.map((c) => (
             <div
               key={c.code}
               className={`sidebar-item ${activeCountry === c.code ? "active" : ""}`}
@@ -180,9 +234,31 @@ export default function Sidebar({
               <span className="sidebar-count">{c.channel_count}</span>
             </div>
           ))}
+          {filterText && filteredCountries.length === 0 && (
+            <div className="sidebar-empty">No countries match "{filterText}"</div>
+          )}
         </div>
       )}
     </aside>
+  );
+}
+
+function SidebarSearch({ value, onChange, placeholder }) {
+  return (
+    <div className="sidebar-search">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
+      </svg>
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+      />
+      {value && (
+        <button onClick={() => onChange("")} className="sidebar-search-clear">×</button>
+      )}
+    </div>
   );
 }
 
