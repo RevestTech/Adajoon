@@ -4,7 +4,7 @@ server {
     root /usr/share/nginx/html;
     index index.html;
 
-    resolver 127.0.0.11 8.8.8.8 valid=10s ipv6=off;
+    resolver ${RESOLVER} valid=10s ipv6=off;
     set $backend "${BACKEND_URL}";
 
     location /api/ {
