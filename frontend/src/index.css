@@ -361,6 +361,11 @@ body {
 .header-search {
   position: relative;
   width: 220px;
+  transition: width 0.2s ease;
+}
+
+.header-search:focus-within {
+  width: 340px;
 }
 
 .search-input {
@@ -380,7 +385,6 @@ body {
   background: rgba(255, 255, 255, 0.1);
   border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(233, 69, 96, 0.15);
-  width: 300px;
 }
 
 .search-input::placeholder {
