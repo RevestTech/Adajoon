@@ -31,7 +31,16 @@ async def list_categories(db: AsyncSession = Depends(get_db)):
     if cached is not None:
         return cached
     rows = await get_categories_with_counts(db)
-    data = [CategoryOut(id=r.id, name=r.name, channel_count=r.channel_count) for r in rows]
+    data = [
+        CategoryOut(
+            id=r.id,
+            name=r.name,
+            channel_count=int(r.channel_count or 0),
+            live_count=int(r.live_count or 0),
+            verified_count=int(r.verified_count or 0),
+        )
+        for r in rows
+    ]
     _set_cached("categories", data)
     return data
 
@@ -43,7 +52,14 @@ async def list_countries(db: AsyncSession = Depends(get_db)):
         return cached
     rows = await get_countries_with_counts(db)
     data = [
-        CountryOut(code=r.code, name=r.name, flag=r.flag, channel_count=r.channel_count)
+        CountryOut(
+            code=r.code,
+            name=r.name,
+            flag=r.flag or "",
+            channel_count=int(r.channel_count or 0),
+            live_count=int(r.live_count or 0),
+            verified_count=int(r.verified_count or 0),
+        )
         for r in rows
     ]
     _set_cached("countries", data)

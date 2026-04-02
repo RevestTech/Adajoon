@@ -1,4 +1,4 @@
-from sqlalchemy import select, func, or_
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Channel, Category, Country, Stream, RadioStation
@@ -90,9 +90,21 @@ async def get_channel_streams(db: AsyncSession, channel_id: str):
 
 _HIDDEN_CATEGORIES = {"xxx"}
 
+# Matches TV filter chips: "live" = playable stream signal; "verified" = fully verified probe.
+_LIVE_STATUSES = ("verified", "online", "manifest_only")
+
+
 async def get_categories_with_counts(db: AsyncSession):
+    live_cond = Channel.health_status.in_(_LIVE_STATUSES)
+    verified_cond = Channel.health_status == "verified"
     result = await db.execute(
-        select(Category.id, Category.name, func.count(Channel.id).label("channel_count"))
+        select(
+            Category.id,
+            Category.name,
+            func.count(Channel.id).label("channel_count"),
+            func.count(case((live_cond, Channel.id))).label("live_count"),
+            func.count(case((verified_cond, Channel.id))).label("verified_count"),
+        )
         .outerjoin(Channel, (Channel.category_id == Category.id) & (Channel.is_nsfw == False))
         .where(~func.lower(Category.id).in_(_HIDDEN_CATEGORIES))
         .group_by(Category.id, Category.name)
@@ -102,8 +114,17 @@ async def get_categories_with_counts(db: AsyncSession):
 
 
 async def get_countries_with_counts(db: AsyncSession):
+    live_cond = Channel.health_status.in_(_LIVE_STATUSES)
+    verified_cond = Channel.health_status == "verified"
     result = await db.execute(
-        select(Country.code, Country.name, Country.flag, func.count(Channel.id).label("channel_count"))
+        select(
+            Country.code,
+            Country.name,
+            Country.flag,
+            func.count(Channel.id).label("channel_count"),
+            func.count(case((live_cond, Channel.id))).label("live_count"),
+            func.count(case((verified_cond, Channel.id))).label("verified_count"),
+        )
         .outerjoin(Channel, (Channel.country_code == Country.code) & (Channel.is_nsfw == False))
         .group_by(Country.code, Country.name, Country.flag)
         .having(func.count(Channel.id) > 0)

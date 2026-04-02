@@ -227,6 +227,8 @@ export default function Sidebar({
           getId={(c) => c.id}
           getLabel={(c) => c.name}
           getCount={(c) => c.channel_count}
+          getLiveCount={(c) => c.live_count ?? 0}
+          getVerifiedCount={(c) => c.verified_count ?? 0}
           allLabel="All"
           emptyMsg={`No categories match "${filterText}"`}
           showAll={showAll}
@@ -244,6 +246,8 @@ export default function Sidebar({
           getId={(c) => c.code}
           getLabel={(c) => c.name}
           getCount={(c) => c.channel_count}
+          getLiveCount={(c) => c.live_count ?? 0}
+          getVerifiedCount={(c) => c.verified_count ?? 0}
           allLabel="All"
           emptyMsg={`No countries match "${filterText}"`}
           showAll={showAll}
@@ -257,10 +261,26 @@ export default function Sidebar({
   );
 }
 
-function SidebarList({ items, activeIds = [], onSelect, getId, getLabel, getCount, allLabel, emptyMsg, showAll, expanded, onToggleExpand, filterText }) {
+function SidebarList({
+  items,
+  activeIds = [],
+  onSelect,
+  getId,
+  getLabel,
+  getCount,
+  getLiveCount,
+  getVerifiedCount,
+  allLabel,
+  emptyMsg,
+  showAll,
+  expanded,
+  onToggleExpand,
+  filterText,
+}) {
   const visible = showAll ? items : items.slice(0, INITIAL_VISIBLE);
   const hasMore = items.length > INITIAL_VISIBLE;
   const hasSelection = activeIds.length > 0;
+  const showTvHealth = typeof getLiveCount === "function" && typeof getVerifiedCount === "function";
 
   const handleKey = (e, cb) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); cb(); } };
 
@@ -294,7 +314,24 @@ function SidebarList({ items, activeIds = [], onSelect, getId, getLabel, getCoun
             >
               <span className="sidebar-check">{isActive ? "✓" : ""}</span>
               <span className="sidebar-item-label">{getLabel(item)}</span>
-              <span className="sidebar-count">{getCount(item).toLocaleString()}</span>
+              {showTvHealth ? (
+                <div
+                  className="sidebar-count-group"
+                  title={`Total ${getCount(item).toLocaleString()} · Live ${getLiveCount(item).toLocaleString()} · Verified ${getVerifiedCount(item).toLocaleString()}`}
+                >
+                  <span className="sidebar-count sidebar-count--total">{getCount(item).toLocaleString()}</span>
+                  <div className="sidebar-count-chips">
+                    <span className="sidebar-chip sidebar-chip--live" title="Live (playable stream)">
+                      L {getLiveCount(item).toLocaleString()}
+                    </span>
+                    <span className="sidebar-chip sidebar-chip--ver" title="Verified">
+                      ✓ {getVerifiedCount(item).toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <span className="sidebar-count">{getCount(item).toLocaleString()}</span>
+              )}
             </div>
           );
         })}

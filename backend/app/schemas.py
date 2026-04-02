@@ -6,6 +6,8 @@ class CategoryOut(BaseModel):
     id: str
     name: str
     channel_count: int = 0
+    live_count: int = 0
+    verified_count: int = 0
 
     model_config = {"from_attributes": True}
 
@@ -15,6 +17,8 @@ class CountryOut(BaseModel):
     name: str
     flag: str = ""
     channel_count: int = 0
+    live_count: int = 0
+    verified_count: int = 0
 
     model_config = {"from_attributes": True}
 
