@@ -744,7 +744,7 @@ export default function App() {
       )}
       <footer className="app-footer">
         <span>&copy; {new Date().getFullYear()} Revest Technology. All rights reserved.</span>
-        <span className="footer-version">v2.0.0</span>
+        <span className="footer-version">v2.1.0</span>
       </footer>
     </>
   );
