@@ -447,21 +447,26 @@ body {
 /* Main Content */
 .main-content {
   flex: 1;
-  padding: 24px;
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
   min-height: 0;
+  overflow: hidden;
+  padding: 24px 24px 0;
 }
 
 .content-header {
+  flex-shrink: 0;
   display: flex;
   flex-direction: column;
   gap: 10px;
-  margin-bottom: 16px;
-  position: sticky;
-  top: 0;
-  z-index: 8;
-  background: var(--bg-primary);
-  padding-bottom: 8px;
+  padding-bottom: 12px;
+}
+
+.content-body {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+  padding-bottom: 24px;
 }
 
 .content-title-row {
@@ -1227,6 +1232,7 @@ body {
 
 /* Loading / Empty */
 .loading-container {
+  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1691,11 +1697,11 @@ body {
 
   /* Main content — fill remaining space via flex */
   .main-content {
-    padding: 12px;
+    padding: 10px 10px 0;
   }
 
   /* Content header: title + toolbar stacked tight */
-  .content-header { gap: 6px; margin-bottom: 8px; }
+  .content-header { gap: 6px; padding-bottom: 8px; }
   .content-title-row { gap: 4px; }
   .content-title { font-size: 17px !important; }
   .content-subtitle { font-size: 12px !important; }
@@ -1751,7 +1757,7 @@ body {
   .search-input { padding: 7px 10px 7px 30px; font-size: 13px; }
   .search-icon { width: 13px; height: 13px; left: 10px !important; }
 
-  .main-content { padding: 8px; }
+  .main-content { padding: 8px 8px 0; }
 
   .content-header { gap: 4px; margin-bottom: 6px; }
   .content-title { font-size: 15px !important; }

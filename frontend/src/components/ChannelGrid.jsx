@@ -174,86 +174,88 @@ export default function ChannelGrid({
         </div>
       </div>
 
-      {hasFilters && (
-        <div className="active-filters">
-          {showFavorites && (
-            <span className="filter-tag" onClick={() => onClearFilter("favorites")}>
-              Favorites ✕
-            </span>
-          )}
-          {activeQualities.map((q) => {
-            const opt = QUALITY_OPTIONS.find((o) => (o.key === "hide_dead" ? "hide_offline" : o.key) === q);
-            return (
-              <span key={q} className="filter-tag" onClick={() => onClearFilter("quality", q)}>
-                {opt ? opt.label : q} ✕
+      <div className="content-body">
+        {hasFilters && (
+          <div className="active-filters">
+            {showFavorites && (
+              <span className="filter-tag" onClick={() => onClearFilter("favorites")}>
+                Favorites ✕
               </span>
-            );
-          })}
-          {search && (
-            <span className="filter-tag" onClick={() => onClearFilter("search")}>
-              Search: {search} ✕
-            </span>
-          )}
-          {activeCategories.map((cat) => (
-            <span key={cat} className="filter-tag" onClick={() => onClearFilter("category", cat)}>
-              {cat} ✕
-            </span>
-          ))}
-          {activeCountries.map((code) => (
-            <span key={code} className="filter-tag" onClick={() => onClearFilter("country", code)}>
-              {code} ✕
-            </span>
-          ))}
-        </div>
-      )}
-
-      {channels.length === 0 ? (
-        <div className="empty-state">
-          <h3>{showFavorites ? "No favorites yet" : "No channels found"}</h3>
-          <p>
-            {showFavorites
-              ? "Click the heart icon on any channel to add it to your favorites."
-              : "Try adjusting your search or filters, or wait for data sync to complete."}
-          </p>
-        </div>
-      ) : (
-        <>
-          <div className={viewMode === "list" ? "channel-list" : viewMode === "thumb" ? "thumb-grid" : "channel-grid"}>
-            {(isGuest ? channels.slice(0, GUEST_LIMIT) : channels).map((ch) => {
-              const props = {
-                key: ch.id,
-                channel: ch,
-                onClick: () => onSelect(ch),
-                favorited: !isGuest && isFavorite(ch.id),
-                onToggleFavorite: isGuest ? (e) => { e.stopPropagation(); onLogin(); } : (e) => { e.stopPropagation(); onToggleFavorite(ch); },
-                isGuest,
-                voteSummary: getVoteSummary ? getVoteSummary(ch.id) : {},
-              };
-              if (viewMode === "list") return <ChannelRow {...props} />;
-              if (viewMode === "thumb") return <ChannelThumb {...props} />;
-              return <ChannelCard {...props} />;
+            )}
+            {activeQualities.map((q) => {
+              const opt = QUALITY_OPTIONS.find((o) => (o.key === "hide_dead" ? "hide_offline" : o.key) === q);
+              return (
+                <span key={q} className="filter-tag" onClick={() => onClearFilter("quality", q)}>
+                  {opt ? opt.label : q} ✕
+                </span>
+              );
             })}
-          </div>
-
-          {isGuest && channels.length > GUEST_LIMIT && (
-            <GuestBanner onLogin={onLogin} total={total} type="channels" />
-          )}
-
-          {!isGuest && !showFavorites && totalPages > 1 && (
-            <div className="pagination">
-              <button disabled={page <= 1} onClick={() => onPageChange(page - 1)}>
-                ← Prev
-              </button>
-              <span className="page-info">
-                Page {page} of {totalPages}
+            {search && (
+              <span className="filter-tag" onClick={() => onClearFilter("search")}>
+                Search: {search} ✕
               </span>
-              <button disabled={page >= totalPages} onClick={() => onPageChange(page + 1)}>
-                Next →
-              </button>
+            )}
+            {activeCategories.map((cat) => (
+              <span key={cat} className="filter-tag" onClick={() => onClearFilter("category", cat)}>
+                {cat} ✕
+              </span>
+            ))}
+            {activeCountries.map((code) => (
+              <span key={code} className="filter-tag" onClick={() => onClearFilter("country", code)}>
+                {code} ✕
+              </span>
+            ))}
+          </div>
+        )}
+
+        {channels.length === 0 ? (
+          <div className="empty-state">
+            <h3>{showFavorites ? "No favorites yet" : "No channels found"}</h3>
+            <p>
+              {showFavorites
+                ? "Click the heart icon on any channel to add it to your favorites."
+                : "Try adjusting your search or filters, or wait for data sync to complete."}
+            </p>
+          </div>
+        ) : (
+          <>
+            <div className={viewMode === "list" ? "channel-list" : viewMode === "thumb" ? "thumb-grid" : "channel-grid"}>
+              {(isGuest ? channels.slice(0, GUEST_LIMIT) : channels).map((ch) => {
+                const props = {
+                  key: ch.id,
+                  channel: ch,
+                  onClick: () => onSelect(ch),
+                  favorited: !isGuest && isFavorite(ch.id),
+                  onToggleFavorite: isGuest ? (e) => { e.stopPropagation(); onLogin(); } : (e) => { e.stopPropagation(); onToggleFavorite(ch); },
+                  isGuest,
+                  voteSummary: getVoteSummary ? getVoteSummary(ch.id) : {},
+                };
+                if (viewMode === "list") return <ChannelRow {...props} />;
+                if (viewMode === "thumb") return <ChannelThumb {...props} />;
+                return <ChannelCard {...props} />;
+              })}
             </div>
-          )}
-        </>
-      )}
+
+            {isGuest && channels.length > GUEST_LIMIT && (
+              <GuestBanner onLogin={onLogin} total={total} type="channels" />
+            )}
+
+            {!isGuest && !showFavorites && totalPages > 1 && (
+              <div className="pagination">
+                <button disabled={page <= 1} onClick={() => onPageChange(page - 1)}>
+                  ← Prev
+                </button>
+                <span className="page-info">
+                  Page {page} of {totalPages}
+                </span>
+                <button disabled={page >= totalPages} onClick={() => onPageChange(page + 1)}>
+                  Next →
+                </button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
     </>
   );
 }

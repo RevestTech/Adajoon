@@ -149,86 +149,88 @@ export default function RadioGrid({
         </div>
       </div>
 
-      {hasFilters && (
-        <div className="active-filters">
-          {showFavorites && (
-            <span className="filter-tag" onClick={() => onClearFilter("favorites")}>
-              Favorites ✕
-            </span>
-          )}
-          {activeQualities.map((q) => {
-            const opt = QUALITY_OPTIONS.find((o) => (o.key === "hide_dead" ? "hide_offline" : o.key) === q);
-            return (
-              <span key={q} className="filter-tag" onClick={() => onClearFilter("quality", q)}>
-                {opt ? opt.label : q} ✕
+      <div className="content-body">
+        {hasFilters && (
+          <div className="active-filters">
+            {showFavorites && (
+              <span className="filter-tag" onClick={() => onClearFilter("favorites")}>
+                Favorites ✕
               </span>
-            );
-          })}
-          {search && (
-            <span className="filter-tag" onClick={() => onClearFilter("search")}>
-              Search: {search} ✕
-            </span>
-          )}
-          {activeTags.map((tag) => (
-            <span key={tag} className="filter-tag" onClick={() => onClearFilter("tag", tag)}>
-              {tag} ✕
-            </span>
-          ))}
-          {activeCountries.map((code) => (
-            <span key={code} className="filter-tag" onClick={() => onClearFilter("country", code)}>
-              {code} ✕
-            </span>
-          ))}
-        </div>
-      )}
-
-      {stations.length === 0 ? (
-        <div className="empty-state">
-          <h3>{showFavorites ? "No favorite stations yet" : "No stations found"}</h3>
-          <p>
-            {showFavorites
-              ? "Click the heart icon on any station to add it to your favorites."
-              : "Try adjusting your search or filters, or wait for data sync to complete."}
-          </p>
-        </div>
-      ) : (
-        <>
-          <div className={viewMode === "list" ? "channel-list" : viewMode === "thumb" ? "thumb-grid" : "channel-grid"}>
-            {(isGuest ? stations.slice(0, GUEST_LIMIT) : stations).map((st) => {
-              const props = {
-                key: st.id,
-                station: st,
-                onClick: () => onSelect(st),
-                favorited: !isGuest && isFavorite(st.id),
-                onToggleFavorite: isGuest ? (e) => { e.stopPropagation(); onLogin(); } : (e) => { e.stopPropagation(); onToggleFavorite(st); },
-                isGuest,
-                voteSummary: getVoteSummary ? getVoteSummary(st.id) : {},
-              };
-              if (viewMode === "list") return <RadioRow {...props} />;
-              if (viewMode === "thumb") return <RadioThumb {...props} />;
-              return <RadioCard {...props} />;
+            )}
+            {activeQualities.map((q) => {
+              const opt = QUALITY_OPTIONS.find((o) => (o.key === "hide_dead" ? "hide_offline" : o.key) === q);
+              return (
+                <span key={q} className="filter-tag" onClick={() => onClearFilter("quality", q)}>
+                  {opt ? opt.label : q} ✕
+                </span>
+              );
             })}
-          </div>
-
-          {isGuest && stations.length > GUEST_LIMIT && (
-            <GuestBanner onLogin={onLogin} total={total} type="stations" />
-          )}
-
-          {!isGuest && !showFavorites && totalPages > 1 && (
-            <div className="pagination">
-              <button disabled={page <= 1} onClick={() => onPageChange(page - 1)}>
-                ← Prev
-              </button>
-              <span className="page-info">
-                Page {page} of {totalPages}
+            {search && (
+              <span className="filter-tag" onClick={() => onClearFilter("search")}>
+                Search: {search} ✕
               </span>
-              <button disabled={page >= totalPages} onClick={() => onPageChange(page + 1)}>
-                Next →
-              </button>
+            )}
+            {activeTags.map((tag) => (
+              <span key={tag} className="filter-tag" onClick={() => onClearFilter("tag", tag)}>
+                {tag} ✕
+              </span>
+            ))}
+            {activeCountries.map((code) => (
+              <span key={code} className="filter-tag" onClick={() => onClearFilter("country", code)}>
+                {code} ✕
+              </span>
+            ))}
+          </div>
+        )}
+
+        {stations.length === 0 ? (
+          <div className="empty-state">
+            <h3>{showFavorites ? "No favorite stations yet" : "No stations found"}</h3>
+            <p>
+              {showFavorites
+                ? "Click the heart icon on any station to add it to your favorites."
+                : "Try adjusting your search or filters, or wait for data sync to complete."}
+            </p>
+          </div>
+        ) : (
+          <>
+            <div className={viewMode === "list" ? "channel-list" : viewMode === "thumb" ? "thumb-grid" : "channel-grid"}>
+              {(isGuest ? stations.slice(0, GUEST_LIMIT) : stations).map((st) => {
+                const props = {
+                  key: st.id,
+                  station: st,
+                  onClick: () => onSelect(st),
+                  favorited: !isGuest && isFavorite(st.id),
+                  onToggleFavorite: isGuest ? (e) => { e.stopPropagation(); onLogin(); } : (e) => { e.stopPropagation(); onToggleFavorite(st); },
+                  isGuest,
+                  voteSummary: getVoteSummary ? getVoteSummary(st.id) : {},
+                };
+                if (viewMode === "list") return <RadioRow {...props} />;
+                if (viewMode === "thumb") return <RadioThumb {...props} />;
+                return <RadioCard {...props} />;
+              })}
             </div>
-          )}
-        </>
-      )}
+
+            {isGuest && stations.length > GUEST_LIMIT && (
+              <GuestBanner onLogin={onLogin} total={total} type="stations" />
+            )}
+
+            {!isGuest && !showFavorites && totalPages > 1 && (
+              <div className="pagination">
+                <button disabled={page <= 1} onClick={() => onPageChange(page - 1)}>
+                  ← Prev
+                </button>
+                <span className="page-info">
+                  Page {page} of {totalPages}
+                </span>
+                <button disabled={page >= totalPages} onClick={() => onPageChange(page + 1)}>
+                  Next →
+                </button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
     </>
   );
 }

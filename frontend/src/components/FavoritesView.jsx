@@ -22,11 +22,12 @@ export default function FavoritesView({
         </div>
       </div>
 
-      <div className="active-filters">
-        <span className="filter-tag" onClick={onClearFavorites}>Favorites ✕</span>
-      </div>
+      <div className="content-body">
+        <div className="active-filters">
+          <span className="filter-tag" onClick={onClearFavorites}>Favorites ✕</span>
+        </div>
 
-      {!hasTv && !hasRadio ? (
+        {!hasTv && !hasRadio ? (
         <div className="empty-state">
           <h3>No favorites yet</h3>
           <p>Click the heart icon on any channel or station to add it to your favorites.</p>
@@ -135,6 +136,7 @@ export default function FavoritesView({
           </div>
         </div>
       )}
+      </div>
     </>
   );
 }
