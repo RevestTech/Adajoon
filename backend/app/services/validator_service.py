@@ -359,7 +359,7 @@ async def _validate_and_update_radio(station_id: str) -> dict[str, Any]:
 async def validate_all_channels(
     db_session: AsyncSession,
     batch_size: int = 50,
-    concurrency: int = 15,
+    concurrency: int = 5,
 ) -> dict[str, Any]:
     cutoff = datetime.now(timezone.utc).isoformat()
     stats: dict[str, Any] = {
@@ -410,7 +410,7 @@ async def validate_all_channels(
 async def validate_all_radio(
     db_session: AsyncSession,
     batch_size: int = 50,
-    concurrency: int = 15,
+    concurrency: int = 5,
 ) -> dict[str, Any]:
     cutoff = datetime.now(timezone.utc).isoformat()
     stats: dict[str, Any] = {
