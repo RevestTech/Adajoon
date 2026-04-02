@@ -13,7 +13,7 @@ import { fetchChannels, fetchCategories, fetchCountries, fetchStats } from "./ap
 import { fetchRadioStations, fetchRadioTags, fetchRadioCountries } from "./api/radio";
 
 const GOOGLE_CLIENT_ID = "735750557405-01nak31482018qbfu1sigov94c1k4ca7.apps.googleusercontent.com";
-const APPLE_CLIENT_ID = "";
+const APPLE_CLIENT_ID = "com.adajoon.web";
 
 export default function App() {
   const [mode, setMode] = useState("tv");
