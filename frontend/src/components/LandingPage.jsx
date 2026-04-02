@@ -167,11 +167,11 @@ export default function LandingPage({
             )}
 
             {passkeyError && <div className="landing-error">{passkeyError}</div>}
-
-            <div className="landing-divider">
-              <span>or</span>
-            </div>
           </div>
+        </div>
+
+        <div className="landing-divider">
+          <span>or</span>
         </div>
 
         <button className="landing-skip" onClick={onSkip}>
