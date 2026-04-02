@@ -72,8 +72,9 @@ export default function RadioGrid({
   stats,
 }) {
   const hasFilters = activeTags.length > 0 || activeCountries.length > 0 || search || showFavorites || activeQualities.length > 0;
+  const showFullSpinner = loading && stations.length === 0;
 
-  if (loading) {
+  if (showFullSpinner) {
     return (
       <div className="loading-container">
         <div className="spinner" />
@@ -149,7 +150,7 @@ export default function RadioGrid({
         </div>
       </div>
 
-      <div className="content-body">
+      <div className={`content-body${loading ? " content-loading" : ""}`}>
         {hasFilters && (
           <div className="active-filters">
             {showFavorites && (

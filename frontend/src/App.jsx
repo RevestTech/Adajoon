@@ -155,7 +155,7 @@ export default function App() {
   // TV: load channels
   const loadChannels = useCallback(async () => {
     if (showFavorites) return;
-    setLoading(true);
+    if (channels.length === 0) setLoading(true);
     setError(null);
     try {
       const data = await fetchChannels({
@@ -189,7 +189,7 @@ export default function App() {
   // Radio: load stations
   const loadRadio = useCallback(async () => {
     if (showRadioFavorites) return;
-    setRadioLoading(true);
+    if (radioStations.length === 0) setRadioLoading(true);
     setRadioError(null);
     try {
       const data = await fetchRadioStations({

@@ -475,6 +475,12 @@ body {
   padding-bottom: 24px;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
+  transition: opacity 0.15s ease;
+}
+
+.content-body.content-loading {
+  opacity: 0.5;
+  pointer-events: none;
 }
 
 .content-title-row {
