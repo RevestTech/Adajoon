@@ -67,6 +67,8 @@ export default function Header({
             onChange={handleChange}
           />
         </div>
+      </div>
+      <div className="header-user">
         <UserMenu user={user} onLogin={onLogin} onLogout={onLogout} />
       </div>
     </header>

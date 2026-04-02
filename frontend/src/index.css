@@ -311,8 +311,9 @@ body {
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   padding: 0 24px;
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: auto 1fr auto auto;
   align-items: center;
+  gap: 16px;
   position: sticky;
   top: 0;
   z-index: 100;
@@ -337,6 +338,11 @@ body {
   align-items: center;
   gap: 12px;
   justify-content: flex-end;
+}
+
+.header-user {
+  display: flex;
+  align-items: center;
 }
 
 .logo {
@@ -1672,23 +1678,23 @@ body {
     max-height: none;
   }
 
-  /* Header: compact layout */
+  /* Header: mobile — row 1: logo, TV/Radio centered, user; row 2: search full-width */
   .header {
-    display: flex;
-    flex-wrap: wrap;
     padding: 8px 10px;
-    gap: 8px;
+    gap: 6px 8px;
     position: sticky;
     top: 0;
     z-index: 1001;
     height: auto;
-    grid-template-columns: none;
+    grid-template-columns: auto 1fr auto;
+    grid-template-rows: auto auto;
   }
 
-  .header-left { flex-shrink: 0; }
-  .header-center { flex: 1; justify-content: flex-end; }
-  .header-right { order: 10; flex-basis: 100%; }
-  .header-search { width: 100%; }
+  .header-left   { grid-column: 1; grid-row: 1; }
+  .header-center  { grid-column: 2; grid-row: 1; justify-content: center; }
+  .header-user    { grid-column: 3; grid-row: 1; }
+  .header-right   { grid-column: 1 / -1; grid-row: 2; }
+  .header-search  { flex: 1; width: auto; }
   .search-input:focus { width: 100%; }
 
   .logo { font-size: 17px !important; }
@@ -1751,7 +1757,7 @@ body {
 
 /* Small phones */
 @media (max-width: 480px) {
-  .header { padding: 6px 8px; gap: 4px 6px; height: auto; grid-template-columns: none; display: flex; flex-wrap: wrap; }
+  .header { padding: 6px 8px; gap: 4px 6px; height: auto; }
   .logo { font-size: 15px !important; }
   .mode-btn { padding: 5px 12px !important; font-size: 11px !important; gap: 4px !important; }
   .mode-btn svg { width: 12px !important; height: 12px !important; }
