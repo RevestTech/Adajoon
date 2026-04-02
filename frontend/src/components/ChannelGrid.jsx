@@ -61,11 +61,12 @@ function getTvStreamStatus(healthStatus) {
   };
 }
 
-const STATUS_OPTIONS = [
-  { value: null, label: "All" },
-  { value: "verified", label: "Verified", dot: "verified" },
-  { value: "live", label: "Live", dot: "online" },
-  { value: "hide_offline", label: "Hide Dead", dot: "offline" },
+const QUALITY_OPTIONS = [
+  { key: "all", label: "All" },
+  { key: "has_stream", label: "Has Stream", dot: "online" },
+  { key: "verified", label: "Verified", dot: "verified" },
+  { key: "live", label: "Live", dot: "online" },
+  { key: "hide_dead", label: "Hide Dead", dot: "offline" },
 ];
 
 export default function ChannelGrid({
@@ -83,7 +84,7 @@ export default function ChannelGrid({
   showFavorites,
   liveOnly,
   statusFilter,
-  onStatusFilter,
+  onQualityChange,
   onClearFilter,
   onRetry,
   isFavorite,
@@ -143,16 +144,21 @@ export default function ChannelGrid({
         </div>
         <div className="content-toolbar">
           <div className="quality-filter">
-            {STATUS_OPTIONS.map((opt) => (
-              <button
-                key={opt.label}
-                className={`quality-btn ${statusFilter === opt.value ? "active" : ""}`}
-                onClick={() => onStatusFilter(opt.value)}
-              >
-                {opt.dot && <span className={`status-dot ${opt.dot}`} />}
-                {opt.label}
-              </button>
-            ))}
+            {QUALITY_OPTIONS.map((opt) => {
+              const active = opt.key === "all" ? !liveOnly && !statusFilter
+                : opt.key === "has_stream" ? liveOnly && !statusFilter
+                : statusFilter === opt.key.replace("hide_dead", "hide_offline");
+              return (
+                <button
+                  key={opt.key}
+                  className={`quality-btn ${active ? "active" : ""}`}
+                  onClick={() => onQualityChange(opt.key)}
+                >
+                  {opt.dot && <span className={`status-dot ${opt.dot}`} />}
+                  {opt.label}
+                </button>
+              );
+            })}
           </div>
           <ViewToggle viewMode={viewMode} onViewToggle={onViewToggle} />
         </div>
@@ -165,14 +171,9 @@ export default function ChannelGrid({
               Favorites ✕
             </span>
           )}
-          {liveOnly && (
-            <span className="filter-tag" onClick={() => onClearFilter("liveOnly")}>
-              Live only ✕
-            </span>
-          )}
-          {statusFilter && (
-            <span className="filter-tag" onClick={() => onClearFilter("status")}>
-              Quality: {STATUS_OPTIONS.find((o) => o.value === statusFilter)?.label} ✕
+          {(liveOnly || statusFilter) && (
+            <span className="filter-tag" onClick={() => onQualityChange("all")}>
+              {liveOnly ? "Has Stream" : QUALITY_OPTIONS.find((o) => o.key.replace("hide_dead", "hide_offline") === statusFilter)?.label || statusFilter} ✕
             </span>
           )}
           {search && (

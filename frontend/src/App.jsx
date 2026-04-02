@@ -233,6 +233,18 @@ export default function App() {
     }
   };
 
+  const handleTvQualityChange = useCallback((key) => {
+    if (key === "all") { setLiveOnly(false); setStatusFilter(null); }
+    else if (key === "has_stream") { setLiveOnly(true); setStatusFilter(null); }
+    else { setLiveOnly(false); setStatusFilter(key === "hide_dead" ? "hide_offline" : key); }
+  }, []);
+
+  const handleRadioQualityChange = useCallback((key) => {
+    if (key === "all") { setWorkingOnly(false); setRadioStatusFilter(null); }
+    else if (key === "has_stream") { setWorkingOnly(true); setRadioStatusFilter(null); }
+    else { setWorkingOnly(false); setRadioStatusFilter(key === "hide_dead" ? "hide_offline" : key); }
+  }, []);
+
   const handleModeSwitch = (newMode) => {
     setMode(newMode);
     setSelectedChannel(null);
@@ -277,11 +289,8 @@ export default function App() {
           radioCountries={radioCountries}
           activeTag={activeTag}
           onSelectTag={(t) => { setActiveTag(t === activeTag ? null : t); setShowRadioFavorites(false); }}
-          liveOnly={mode === "tv" ? liveOnly : workingOnly}
-          onToggleLiveOnly={() => {
-            if (mode === "tv") setLiveOnly((v) => !v);
-            else setWorkingOnly((v) => !v);
-          }}
+          liveOnly={false}
+          onToggleLiveOnly={() => {}}
           isGuest={isGuest}
           onLogin={() => setShowLogin(true)}
         />
@@ -314,7 +323,7 @@ export default function App() {
               showFavorites={false}
               liveOnly={liveOnly}
               statusFilter={statusFilter}
-              onStatusFilter={setStatusFilter}
+              onQualityChange={handleTvQualityChange}
               onClearFilter={clearFilter}
               onRetry={loadChannels}
               isFavorite={isFavorite}
@@ -340,7 +349,7 @@ export default function App() {
               showFavorites={false}
               workingOnly={workingOnly}
               statusFilter={radioStatusFilter}
-              onStatusFilter={setRadioStatusFilter}
+              onQualityChange={handleRadioQualityChange}
               onClearFilter={clearFilter}
               onRetry={loadRadio}
               isFavorite={isRadioFavorite}

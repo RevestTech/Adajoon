@@ -14,8 +14,6 @@ export default function Sidebar({
   favoritesCount,
   showFavorites,
   onToggleFavorites,
-  liveOnly,
-  onToggleLiveOnly,
   radioTags,
   radioCountries,
   activeTag,
@@ -104,18 +102,6 @@ export default function Sidebar({
               )}
             </div>
           )}
-          <div
-            className={`sidebar-item live-filter-item ${liveOnly ? "active" : ""}`}
-            onClick={onToggleLiveOnly}
-          >
-            <span className="live-filter-label">
-              <span className={`live-dot ${liveOnly ? "on" : ""}`} />
-              Working Stations Only
-            </span>
-            <span className={`live-filter-status ${liveOnly ? "on" : ""}`}>
-              {liveOnly ? "ON" : "OFF"}
-            </span>
-          </div>
         </div>
 
         <div className="sidebar-tabs">
@@ -184,18 +170,6 @@ export default function Sidebar({
             )}
           </div>
         )}
-        <div
-          className={`sidebar-item live-filter-item ${liveOnly ? "active" : ""}`}
-          onClick={onToggleLiveOnly}
-        >
-          <span className="live-filter-label">
-            <span className={`live-dot ${liveOnly ? "on" : ""}`} />
-            Live Channels Only
-          </span>
-          <span className={`live-filter-status ${liveOnly ? "on" : ""}`}>
-            {liveOnly ? "ON" : "OFF"}
-          </span>
-        </div>
       </div>
 
       <div className="sidebar-tabs">

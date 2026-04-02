@@ -36,11 +36,12 @@ function getRadioStreamStatus(station) {
   };
 }
 
-const RADIO_STATUS_OPTIONS = [
-  { value: null, label: "All" },
-  { value: "verified", label: "Verified", dot: "verified" },
-  { value: "live", label: "Live", dot: "online" },
-  { value: "hide_offline", label: "Hide Dead", dot: "offline" },
+const QUALITY_OPTIONS = [
+  { key: "all", label: "All" },
+  { key: "has_stream", label: "Working", dot: "online" },
+  { key: "verified", label: "Verified", dot: "verified" },
+  { key: "live", label: "Live", dot: "online" },
+  { key: "hide_dead", label: "Hide Dead", dot: "offline" },
 ];
 
 export default function RadioGrid({
@@ -58,7 +59,7 @@ export default function RadioGrid({
   showFavorites,
   workingOnly,
   statusFilter,
-  onStatusFilter,
+  onQualityChange,
   onClearFilter,
   onRetry,
   isFavorite,
@@ -120,16 +121,21 @@ export default function RadioGrid({
         </div>
         <div className="content-toolbar">
           <div className="quality-filter">
-            {RADIO_STATUS_OPTIONS.map((opt) => (
-              <button
-                key={opt.label}
-                className={`quality-btn ${statusFilter === opt.value ? "active" : ""}`}
-                onClick={() => onStatusFilter(opt.value)}
-              >
-                {opt.dot && <span className={`status-dot ${opt.dot}`} />}
-                {opt.label}
-              </button>
-            ))}
+            {QUALITY_OPTIONS.map((opt) => {
+              const active = opt.key === "all" ? !workingOnly && !statusFilter
+                : opt.key === "has_stream" ? workingOnly && !statusFilter
+                : statusFilter === opt.key.replace("hide_dead", "hide_offline");
+              return (
+                <button
+                  key={opt.key}
+                  className={`quality-btn ${active ? "active" : ""}`}
+                  onClick={() => onQualityChange(opt.key)}
+                >
+                  {opt.dot && <span className={`status-dot ${opt.dot}`} />}
+                  {opt.label}
+                </button>
+              );
+            })}
           </div>
           <ViewToggle viewMode={viewMode} onViewToggle={onViewToggle} />
         </div>
@@ -142,14 +148,9 @@ export default function RadioGrid({
               Favorites ✕
             </span>
           )}
-          {workingOnly && (
-            <span className="filter-tag" onClick={() => onClearFilter("workingOnly")}>
-              Working only ✕
-            </span>
-          )}
-          {statusFilter && (
-            <span className="filter-tag" onClick={() => onClearFilter("status")}>
-              Quality: {RADIO_STATUS_OPTIONS.find((o) => o.value === statusFilter)?.label} ✕
+          {(workingOnly || statusFilter) && (
+            <span className="filter-tag" onClick={() => onQualityChange("all")}>
+              {workingOnly ? "Working" : QUALITY_OPTIONS.find((o) => o.key.replace("hide_dead", "hide_offline") === statusFilter)?.label || statusFilter} ✕
             </span>
           )}
           {search && (
