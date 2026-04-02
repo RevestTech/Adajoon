@@ -23,7 +23,7 @@ class UserFavorite(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
-    item_type = Column(String(10), nullable=False)  # "tv" or "radio"
+    item_type = Column(String(10), nullable=False)
     item_id = Column(String(255), nullable=False)
     item_data = Column(Text, default="{}")
     added_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -32,6 +32,24 @@ class UserFavorite(Base):
 
     __table_args__ = (
         Index("ix_user_fav_unique", "user_id", "item_type", "item_id", unique=True),
+    )
+
+
+class UserVote(Base):
+    __tablename__ = "user_votes"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    item_type = Column(String(10), nullable=False)
+    item_id = Column(String(255), nullable=False)
+    vote_type = Column(String(20), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    user = relationship("User")
+
+    __table_args__ = (
+        Index("ix_user_vote_unique", "user_id", "item_type", "item_id", "vote_type", unique=True),
+        Index("ix_vote_item", "item_type", "item_id"),
     )
 
 
@@ -103,6 +121,8 @@ class Channel(Base):
 
     __table_args__ = (
         Index("ix_channels_name_trgm", "name"),
+        Index("ix_channels_health_status", "health_status"),
+        Index("ix_channels_health_checked_at", "health_checked_at"),
     )
 
 
@@ -132,6 +152,10 @@ class RadioStation(Base):
     __table_args__ = (
         Index("ix_radio_name", "name"),
         Index("ix_radio_country", "country_code"),
+        Index("ix_radio_health_status", "health_status"),
+        Index("ix_radio_last_check_ok", "last_check_ok"),
+        Index("ix_radio_votes_desc", votes.desc()),
+        Index("ix_radio_health_checked_at", "health_checked_at"),
     )
 
 

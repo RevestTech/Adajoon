@@ -1,12 +1,11 @@
 const BASE = "/api";
 
-export async function fetchChannels({ query, category, country, language, liveOnly, status, page = 1, perPage = 40 }) {
+export async function fetchChannels({ query, category, country, language, status, page = 1, perPage = 40 }) {
   const params = new URLSearchParams();
   if (query) params.set("query", query);
   if (category) params.set("category", category);
   if (country) params.set("country", country);
   if (language) params.set("language", language);
-  if (liveOnly) params.set("live_only", "true");
   if (status) params.set("status", status);
   params.set("page", page);
   params.set("per_page", perPage);

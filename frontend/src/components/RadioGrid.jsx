@@ -1,4 +1,5 @@
 import ViewToggle from "./ViewToggle";
+import VoteIndicator from "./VoteIndicator";
 
 const GUEST_LIMIT = 20;
 
@@ -53,12 +54,11 @@ export default function RadioGrid({
   totalPages,
   onPageChange,
   onSelect,
-  activeTag,
-  activeCountry,
+  activeTags = [],
+  activeCountries = [],
   search,
   showFavorites,
-  workingOnly,
-  statusFilter,
+  activeQualities = [],
   onQualityChange,
   onClearFilter,
   onRetry,
@@ -68,8 +68,9 @@ export default function RadioGrid({
   onViewToggle,
   isGuest,
   onLogin,
+  getVoteSummary,
 }) {
-  const hasFilters = activeTag || activeCountry || search || showFavorites || workingOnly || statusFilter;
+  const hasFilters = activeTags.length > 0 || activeCountries.length > 0 || search || showFavorites || activeQualities.length > 0;
 
   if (loading) {
     return (
@@ -104,11 +105,9 @@ export default function RadioGrid({
     ? "Favorites"
     : search
       ? `Results for "${search}"`
-      : activeTag
-        ? `Genre: ${activeTag}`
-        : activeCountry
-          ? "Filtered Stations"
-          : "All Radio Stations";
+      : activeTags.length > 0 || activeCountries.length > 0
+        ? "Filtered Stations"
+        : "All Radio Stations";
 
   return (
     <>
@@ -122,9 +121,8 @@ export default function RadioGrid({
         <div className="content-toolbar">
           <div className="quality-filter">
             {QUALITY_OPTIONS.map((opt) => {
-              const active = opt.key === "all" ? !workingOnly && !statusFilter
-                : opt.key === "has_stream" ? workingOnly && !statusFilter
-                : statusFilter === opt.key.replace("hide_dead", "hide_offline");
+              const val = opt.key === "hide_dead" ? "hide_offline" : opt.key;
+              const active = opt.key === "all" ? activeQualities.length === 0 : activeQualities.includes(val);
               return (
                 <button
                   key={opt.key}
@@ -148,26 +146,29 @@ export default function RadioGrid({
               Favorites ✕
             </span>
           )}
-          {(workingOnly || statusFilter) && (
-            <span className="filter-tag" onClick={() => onQualityChange("all")}>
-              {workingOnly ? "Working" : QUALITY_OPTIONS.find((o) => o.key.replace("hide_dead", "hide_offline") === statusFilter)?.label || statusFilter} ✕
-            </span>
-          )}
+          {activeQualities.map((q) => {
+            const opt = QUALITY_OPTIONS.find((o) => (o.key === "hide_dead" ? "hide_offline" : o.key) === q);
+            return (
+              <span key={q} className="filter-tag" onClick={() => onClearFilter("quality", q)}>
+                {opt ? opt.label : q} ✕
+              </span>
+            );
+          })}
           {search && (
             <span className="filter-tag" onClick={() => onClearFilter("search")}>
               Search: {search} ✕
             </span>
           )}
-          {activeTag && (
-            <span className="filter-tag" onClick={() => onClearFilter("tag")}>
-              Genre: {activeTag} ✕
+          {activeTags.map((tag) => (
+            <span key={tag} className="filter-tag" onClick={() => onClearFilter("tag", tag)}>
+              {tag} ✕
             </span>
-          )}
-          {activeCountry && (
-            <span className="filter-tag" onClick={() => onClearFilter("country")}>
-              Country: {activeCountry} ✕
+          ))}
+          {activeCountries.map((code) => (
+            <span key={code} className="filter-tag" onClick={() => onClearFilter("country", code)}>
+              {code} ✕
             </span>
-          )}
+          ))}
         </div>
       )}
 
@@ -191,6 +192,7 @@ export default function RadioGrid({
                 favorited: !isGuest && isFavorite(st.id),
                 onToggleFavorite: isGuest ? (e) => { e.stopPropagation(); onLogin(); } : (e) => { e.stopPropagation(); onToggleFavorite(st); },
                 isGuest,
+                voteSummary: getVoteSummary ? getVoteSummary(st.id) : {},
               };
               if (viewMode === "list") return <RadioRow {...props} />;
               if (viewMode === "thumb") return <RadioThumb {...props} />;
@@ -240,7 +242,7 @@ function GuestBanner({ onLogin, total, type }) {
   );
 }
 
-function RadioCard({ station, onClick, favorited, onToggleFavorite, isGuest }) {
+function RadioCard({ station, onClick, favorited, onToggleFavorite, isGuest, voteSummary }) {
   const tags = station.tags ? station.tags.split(",").map((t) => t.trim()).filter(Boolean) : [];
   const streamStatus = getRadioStreamStatus(station);
 
@@ -300,12 +302,13 @@ function RadioCard({ station, onClick, favorited, onToggleFavorite, isGuest }) {
           <span className={`status-dot ${streamStatus.dotClass}`} />
           {streamStatus.label}
         </span>
+        <VoteIndicator summary={voteSummary} />
       </div>
     </div>
   );
 }
 
-function RadioRow({ station, onClick, favorited, onToggleFavorite, isGuest }) {
+function RadioRow({ station, onClick, favorited, onToggleFavorite, isGuest, voteSummary }) {
   const tags = station.tags ? station.tags.split(",").map((t) => t.trim()).filter(Boolean) : [];
   const streamStatus = getRadioStreamStatus(station);
 
@@ -345,6 +348,7 @@ function RadioRow({ station, onClick, favorited, onToggleFavorite, isGuest }) {
         </div>
       </div>
       <div className="list-row-actions">
+        <VoteIndicator summary={voteSummary} />
         <span className={streamStatus.badgeClass}>
           <span className={`status-dot ${streamStatus.dotClass}`} />
           {streamStatus.label}
@@ -365,7 +369,7 @@ function RadioRow({ station, onClick, favorited, onToggleFavorite, isGuest }) {
   );
 }
 
-function RadioThumb({ station, onClick, favorited, onToggleFavorite, isGuest }) {
+function RadioThumb({ station, onClick, favorited, onToggleFavorite, isGuest, voteSummary }) {
   const tags = station.tags ? station.tags.split(",").map((t) => t.trim()).filter(Boolean) : [];
   const streamStatus = getRadioStreamStatus(station);
 
@@ -418,6 +422,7 @@ function RadioThumb({ station, onClick, favorited, onToggleFavorite, isGuest }) 
             <span key={t} className="channel-tag">{t}</span>
           ))}
           {station.bitrate > 0 && <span className="channel-tag">{station.bitrate}k</span>}
+          <VoteIndicator summary={voteSummary} />
         </div>
       </div>
     </div>

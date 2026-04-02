@@ -1,12 +1,11 @@
 const BASE = "/api/radio";
 
-export async function fetchRadioStations({ query, tag, country, language, workingOnly, status, page = 1, perPage = 40 }) {
+export async function fetchRadioStations({ query, tag, country, language, status, page = 1, perPage = 40 }) {
   const params = new URLSearchParams();
   if (query) params.set("query", query);
   if (tag) params.set("tag", tag);
   if (country) params.set("country", country);
   if (language) params.set("language", language);
-  if (workingOnly) params.set("working_only", "true");
   if (status) params.set("status", status);
   params.set("page", page);
   params.set("per_page", perPage);

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
+import FeedbackBar from "./FeedbackBar";
 
-export default function RadioPlayer({ station, onClose, isFavorite, onToggleFavorite, isGuest, onLogin }) {
+export default function RadioPlayer({ station, onClose, isFavorite, onToggleFavorite, isGuest, onLogin, myVotes, voteSummary, onVote }) {
   const audioRef = useRef(null);
   const [playing, setPlaying] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
@@ -99,6 +100,16 @@ export default function RadioPlayer({ station, onClose, isFavorite, onToggleFavo
               ))}
             </div>
           )}
+
+          <FeedbackBar
+            itemType="radio"
+            itemId={station.id}
+            myVotes={myVotes || []}
+            summary={voteSummary || {}}
+            onVote={onVote}
+            isGuest={isGuest}
+            onLogin={onLogin}
+          />
 
           {station.homepage && (
             <a

@@ -465,56 +465,32 @@ _RADIO_OFFLINE = ("offline", "manifest_only", "timeout", "error", "geo_blocked")
 
 
 async def get_validator_status(db_session: AsyncSession) -> dict[str, Any]:
-    """Aggregate channel/radio validation counts and last check timestamps."""
-    ch_total = (
-        await db_session.execute(select(func.count()).select_from(Channel))
-    ).scalar_one()
-    ch_verified = (
-        await db_session.execute(
-            select(func.count())
-            .select_from(Channel)
-            .where(Channel.health_status.in_(_CHANNEL_VERIFIED))
-        )
-    ).scalar_one()
-    ch_offline = (
-        await db_session.execute(
-            select(func.count())
-            .select_from(Channel)
-            .where(Channel.health_status.in_(_CHANNEL_OFFLINE))
-        )
-    ).scalar_one()
-    ch_unknown = max(0, ch_total - ch_verified - ch_offline)
+    """Aggregate channel/radio validation counts and last check timestamps in two queries."""
+    from sqlalchemy import text
 
-    r_total = (
-        await db_session.execute(select(func.count()).select_from(RadioStation))
-    ).scalar_one()
-    r_verified = (
-        await db_session.execute(
-            select(func.count())
-            .select_from(RadioStation)
-            .where(RadioStation.health_status.in_(_RADIO_VERIFIED))
-        )
-    ).scalar_one()
-    r_offline = (
-        await db_session.execute(
-            select(func.count())
-            .select_from(RadioStation)
-            .where(RadioStation.health_status.in_(_RADIO_OFFLINE))
-        )
-    ).scalar_one()
-    r_unknown = max(0, r_total - r_verified - r_offline)
+    ch_row = (await db_session.execute(text("""
+        SELECT
+            count(*),
+            count(*) FILTER (WHERE health_status IN ('verified','online')),
+            count(*) FILTER (WHERE health_status IN ('offline','manifest_only','timeout','error','geo_blocked')),
+            max(health_checked_at),
+            max(last_validated_at)
+        FROM channels
+    """))).one()
 
-    ch_h_max = (
-        await db_session.execute(select(func.max(Channel.health_checked_at)))
-    ).scalar_one_or_none()
-    ch_v_max = (
-        await db_session.execute(select(func.max(Channel.last_validated_at)))
-    ).scalar_one_or_none()
-    r_h_max = (
-        await db_session.execute(select(func.max(RadioStation.health_checked_at)))
-    ).scalar_one_or_none()
+    r_row = (await db_session.execute(text("""
+        SELECT
+            count(*),
+            count(*) FILTER (WHERE health_status = 'verified'),
+            count(*) FILTER (WHERE health_status IN ('offline','manifest_only','timeout','error','geo_blocked')),
+            max(health_checked_at)
+        FROM radio_stations
+    """))).one()
 
-    stamps = [s for s in (ch_h_max, ch_v_max, r_h_max) if s]
+    ch_total, ch_verified, ch_offline = ch_row[0], ch_row[1], ch_row[2]
+    r_total, r_verified, r_offline = r_row[0], r_row[1], r_row[2]
+
+    stamps = [s for s in (ch_row[3], ch_row[4], r_row[3]) if s]
     last_cycle_at = max(stamps) if stamps else ""
 
     return {
@@ -522,13 +498,13 @@ async def get_validator_status(db_session: AsyncSession) -> dict[str, Any]:
             "total": int(ch_total),
             "verified": int(ch_verified),
             "offline": int(ch_offline),
-            "unknown": int(ch_unknown),
+            "unknown": max(0, int(ch_total) - int(ch_verified) - int(ch_offline)),
         },
         "radio": {
             "total": int(r_total),
             "verified": int(r_verified),
             "offline": int(r_offline),
-            "unknown": int(r_unknown),
+            "unknown": max(0, int(r_total) - int(r_verified) - int(r_offline)),
         },
         "last_validation_cycle_at": last_cycle_at or "",
     }

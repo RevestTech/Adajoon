@@ -1,4 +1,5 @@
 import ViewToggle from "./ViewToggle";
+import VoteIndicator from "./VoteIndicator";
 
 const GUEST_LIMIT = 20;
 
@@ -78,12 +79,11 @@ export default function ChannelGrid({
   totalPages,
   onPageChange,
   onSelect,
-  activeCategory,
-  activeCountry,
+  activeCategories = [],
+  activeCountries = [],
   search,
   showFavorites,
-  liveOnly,
-  statusFilter,
+  activeQualities = [],
   onQualityChange,
   onClearFilter,
   onRetry,
@@ -93,8 +93,9 @@ export default function ChannelGrid({
   onViewToggle,
   isGuest,
   onLogin,
+  getVoteSummary,
 }) {
-  const hasFilters = activeCategory || activeCountry || search || showFavorites || liveOnly || statusFilter;
+  const hasFilters = activeCategories.length > 0 || activeCountries.length > 0 || search || showFavorites || activeQualities.length > 0;
 
   if (loading) {
     return (
@@ -129,7 +130,7 @@ export default function ChannelGrid({
     ? "Favorites"
     : search
       ? `Results for "${search}"`
-      : activeCategory || activeCountry
+      : activeCategories.length > 0 || activeCountries.length > 0
         ? "Filtered Channels"
         : "All Channels";
 
@@ -145,9 +146,8 @@ export default function ChannelGrid({
         <div className="content-toolbar">
           <div className="quality-filter">
             {QUALITY_OPTIONS.map((opt) => {
-              const active = opt.key === "all" ? !liveOnly && !statusFilter
-                : opt.key === "has_stream" ? liveOnly && !statusFilter
-                : statusFilter === opt.key.replace("hide_dead", "hide_offline");
+              const val = opt.key === "hide_dead" ? "hide_offline" : opt.key;
+              const active = opt.key === "all" ? activeQualities.length === 0 : activeQualities.includes(val);
               return (
                 <button
                   key={opt.key}
@@ -171,26 +171,29 @@ export default function ChannelGrid({
               Favorites ✕
             </span>
           )}
-          {(liveOnly || statusFilter) && (
-            <span className="filter-tag" onClick={() => onQualityChange("all")}>
-              {liveOnly ? "Has Stream" : QUALITY_OPTIONS.find((o) => o.key.replace("hide_dead", "hide_offline") === statusFilter)?.label || statusFilter} ✕
-            </span>
-          )}
+          {activeQualities.map((q) => {
+            const opt = QUALITY_OPTIONS.find((o) => (o.key === "hide_dead" ? "hide_offline" : o.key) === q);
+            return (
+              <span key={q} className="filter-tag" onClick={() => onClearFilter("quality", q)}>
+                {opt ? opt.label : q} ✕
+              </span>
+            );
+          })}
           {search && (
             <span className="filter-tag" onClick={() => onClearFilter("search")}>
               Search: {search} ✕
             </span>
           )}
-          {activeCategory && (
-            <span className="filter-tag" onClick={() => onClearFilter("category")}>
-              Category: {activeCategory} ✕
+          {activeCategories.map((cat) => (
+            <span key={cat} className="filter-tag" onClick={() => onClearFilter("category", cat)}>
+              {cat} ✕
             </span>
-          )}
-          {activeCountry && (
-            <span className="filter-tag" onClick={() => onClearFilter("country")}>
-              Country: {activeCountry} ✕
+          ))}
+          {activeCountries.map((code) => (
+            <span key={code} className="filter-tag" onClick={() => onClearFilter("country", code)}>
+              {code} ✕
             </span>
-          )}
+          ))}
         </div>
       )}
 
@@ -214,6 +217,7 @@ export default function ChannelGrid({
                 favorited: !isGuest && isFavorite(ch.id),
                 onToggleFavorite: isGuest ? (e) => { e.stopPropagation(); onLogin(); } : (e) => { e.stopPropagation(); onToggleFavorite(ch); },
                 isGuest,
+                voteSummary: getVoteSummary ? getVoteSummary(ch.id) : {},
               };
               if (viewMode === "list") return <ChannelRow {...props} />;
               if (viewMode === "thumb") return <ChannelThumb {...props} />;
@@ -263,7 +267,7 @@ function GuestBanner({ onLogin, total, type }) {
   );
 }
 
-function ChannelCard({ channel, onClick, favorited, onToggleFavorite, isGuest }) {
+function ChannelCard({ channel, onClick, favorited, onToggleFavorite, isGuest, voteSummary }) {
   const cats = channel.categories ? channel.categories.split(";").filter(Boolean) : [];
   const streamStatus = channel.stream_url ? getTvStreamStatus(channel.health_status) : null;
 
@@ -316,12 +320,13 @@ function ChannelCard({ channel, onClick, favorited, onToggleFavorite, isGuest })
             {streamStatus.label}
           </span>
         )}
+        <VoteIndicator summary={voteSummary} />
       </div>
     </div>
   );
 }
 
-function ChannelRow({ channel, onClick, favorited, onToggleFavorite, isGuest }) {
+function ChannelRow({ channel, onClick, favorited, onToggleFavorite, isGuest, voteSummary }) {
   const cats = channel.categories ? channel.categories.split(";").filter(Boolean) : [];
   const streamStatus = channel.stream_url ? getTvStreamStatus(channel.health_status) : null;
 
@@ -358,6 +363,7 @@ function ChannelRow({ channel, onClick, favorited, onToggleFavorite, isGuest }) 
         </div>
       </div>
       <div className="list-row-actions">
+        <VoteIndicator summary={voteSummary} />
         {streamStatus && (
           <span className={streamStatus.badgeClass}>
             <span className={`status-dot ${streamStatus.dotClass}`} />
@@ -380,7 +386,7 @@ function ChannelRow({ channel, onClick, favorited, onToggleFavorite, isGuest }) 
   );
 }
 
-function ChannelThumb({ channel, onClick, favorited, onToggleFavorite, isGuest }) {
+function ChannelThumb({ channel, onClick, favorited, onToggleFavorite, isGuest, voteSummary }) {
   const cats = channel.categories ? channel.categories.split(";").filter(Boolean) : [];
   const streamStatus = channel.stream_url ? getTvStreamStatus(channel.health_status) : null;
 
@@ -430,6 +436,7 @@ function ChannelThumb({ channel, onClick, favorited, onToggleFavorite, isGuest }
           {cats.slice(0, 2).map((c) => (
             <span key={c} className="channel-tag">{c}</span>
           ))}
+          <VoteIndicator summary={voteSummary} />
         </div>
       </div>
     </div>

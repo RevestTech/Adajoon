@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import Hls from "hls.js";
 import { fetchStreams, runHealthCheck } from "../api/channels";
+import FeedbackBar from "./FeedbackBar";
 
 function healthCheckPresentation(status) {
   const s = status || "unknown";
@@ -31,7 +31,7 @@ function HealthCheckResultRow({ result }) {
   );
 }
 
-export default function VideoPlayer({ channel, onClose, isFavorite, onToggleFavorite, isGuest, onLogin }) {
+export default function VideoPlayer({ channel, onClose, isFavorite, onToggleFavorite, isGuest, onLogin, myVotes, voteSummary, onVote }) {
   const videoRef = useRef(null);
   const hlsRef = useRef(null);
   const [streams, setStreams] = useState([]);
@@ -55,18 +55,20 @@ export default function VideoPlayer({ channel, onClose, isFavorite, onToggleFavo
       hlsRef.current = null;
     }
 
-    if (activeUrl.includes(".m3u8") && Hls.isSupported()) {
-      const hls = new Hls({
-        enableWorker: true,
-        lowLatencyMode: true,
+    if (activeUrl.includes(".m3u8") && !video.canPlayType("application/vnd.apple.mpegurl")) {
+      let cancelled = false;
+      import("hls.js").then(({ default: Hls }) => {
+        if (cancelled || !Hls.isSupported()) return;
+        const hls = new Hls({ enableWorker: true, lowLatencyMode: true });
+        hls.loadSource(activeUrl);
+        hls.attachMedia(video);
+        hls.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(() => {}));
+        hls.on(Hls.Events.ERROR, (_, data) => {
+          if (data.fatal) setErrorMsg("Stream could not be loaded. It may be offline.");
+        });
+        hlsRef.current = hls;
       });
-      hls.loadSource(activeUrl);
-      hls.attachMedia(video);
-      hls.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(() => {}));
-      hls.on(Hls.Events.ERROR, (_, data) => {
-        if (data.fatal) setErrorMsg("Stream could not be loaded. It may be offline.");
-      });
-      hlsRef.current = hls;
+      return () => { cancelled = true; if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null; } };
     } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
       video.src = activeUrl;
       video.play().catch(() => {});
@@ -182,6 +184,16 @@ export default function VideoPlayer({ channel, onClose, isFavorite, onToggleFavo
               </div>
             )}
           </div>
+
+          <FeedbackBar
+            itemType="tv"
+            itemId={channel.id}
+            myVotes={myVotes || []}
+            summary={voteSummary || {}}
+            onVote={onVote}
+            isGuest={isGuest}
+            onLogin={onLogin}
+          />
         </div>
       </div>
     </div>

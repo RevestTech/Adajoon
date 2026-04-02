@@ -1,14 +1,16 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, lazy, Suspense } from "react";
 import Header from "./components/Header";
 import Sidebar from "./components/Sidebar";
 import ChannelGrid from "./components/ChannelGrid";
 import RadioGrid from "./components/RadioGrid";
 import VideoPlayer from "./components/VideoPlayer";
 import RadioPlayer from "./components/RadioPlayer";
-import LandingPage from "./components/LandingPage";
 import FavoritesView from "./components/FavoritesView";
 import useFavorites, { useRadioFavorites } from "./hooks/useFavorites";
 import { useAuth } from "./hooks/useAuth";
+import { useVotes } from "./hooks/useVotes";
+
+const LandingPage = lazy(() => import("./components/LandingPage"));
 import { fetchChannels, fetchCategories, fetchCountries, fetchStats } from "./api/channels";
 import { fetchRadioStations, fetchRadioTags, fetchRadioCountries } from "./api/radio";
 
@@ -39,11 +41,10 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [search, setSearch] = useState("");
-  const [activeCategory, setActiveCategory] = useState(null);
-  const [activeCountry, setActiveCountry] = useState(null);
+  const [activeCategories, setActiveCategories] = useState([]);
+  const [activeCountries, setActiveCountries] = useState([]);
   const [showFavorites, setShowFavorites] = useState(false);
-  const [liveOnly, setLiveOnly] = useState(false);
-  const [statusFilter, setStatusFilter] = useState(null);
+  const [activeQualities, setActiveQualities] = useState([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
   const [total, setTotal] = useState(0);
@@ -56,10 +57,9 @@ export default function App() {
   const [radioLoading, setRadioLoading] = useState(true);
   const [radioError, setRadioError] = useState(null);
   const [radioSearch, setRadioSearch] = useState("");
-  const [activeTag, setActiveTag] = useState(null);
-  const [activeRadioCountry, setActiveRadioCountry] = useState(null);
-  const [workingOnly, setWorkingOnly] = useState(false);
-  const [radioStatusFilter, setRadioStatusFilter] = useState(null);
+  const [activeTags, setActiveTags] = useState([]);
+  const [activeRadioCountries, setActiveRadioCountries] = useState([]);
+  const [activeRadioQualities, setActiveRadioQualities] = useState([]);
   const [radioPage, setRadioPage] = useState(1);
   const [radioTotalPages, setRadioTotalPages] = useState(0);
   const [radioTotal, setRadioTotal] = useState(0);
@@ -75,6 +75,28 @@ export default function App() {
     isFavorite: isRadioFavorite,
     loadFromServer: loadRadioFromServer,
   } = useRadioFavorites();
+
+  const votes = useVotes();
+
+  useEffect(() => {
+    if (auth.user) {
+      votes.resetLoaded();
+      votes.loadMyVotes("tv");
+      votes.loadMyVotes("radio");
+    }
+  }, [auth.user]);
+
+  useEffect(() => {
+    if (channels.length) {
+      votes.loadSummary("tv", channels.map((c) => c.id));
+    }
+  }, [channels]);
+
+  useEffect(() => {
+    if (radioStations.length) {
+      votes.loadSummary("radio", radioStations.map((s) => s.id));
+    }
+  }, [radioStations]);
 
   const syncAfterLogin = useCallback(async () => {
     setShowLogin(false);
@@ -138,10 +160,9 @@ export default function App() {
     try {
       const data = await fetchChannels({
         query: search || undefined,
-        category: activeCategory || undefined,
-        country: activeCountry || undefined,
-        liveOnly: liveOnly || undefined,
-        status: statusFilter || undefined,
+        category: activeCategories.length ? activeCategories.join(",") : undefined,
+        country: activeCountries.length ? activeCountries.join(",") : undefined,
+        status: activeQualities.length ? activeQualities.join(",") : undefined,
         page,
       });
       setChannels(data.channels);
@@ -152,7 +173,7 @@ export default function App() {
     } finally {
       setLoading(false);
     }
-  }, [search, activeCategory, activeCountry, liveOnly, statusFilter, page, showFavorites]);
+  }, [search, activeCategories, activeCountries, activeQualities, page, showFavorites]);
 
   // Radio: load metadata
   const loadRadioMeta = useCallback(async () => {
@@ -173,10 +194,9 @@ export default function App() {
     try {
       const data = await fetchRadioStations({
         query: radioSearch || undefined,
-        tag: activeTag || undefined,
-        country: activeRadioCountry || undefined,
-        workingOnly: workingOnly || undefined,
-        status: radioStatusFilter || undefined,
+        tag: activeTags.length ? activeTags.join(",") : undefined,
+        country: activeRadioCountries.length ? activeRadioCountries.join(",") : undefined,
+        status: activeRadioQualities.length ? activeRadioQualities.join(",") : undefined,
         page: radioPage,
       });
       setRadioStations(data.stations);
@@ -187,7 +207,7 @@ export default function App() {
     } finally {
       setRadioLoading(false);
     }
-  }, [radioSearch, activeTag, activeRadioCountry, workingOnly, radioStatusFilter, radioPage, showRadioFavorites]);
+  }, [radioSearch, activeTags, activeRadioCountries, activeRadioQualities, radioPage, showRadioFavorites]);
 
   useEffect(() => {
     loadMeta();
@@ -196,13 +216,17 @@ export default function App() {
   }, [loadMeta]);
 
   useEffect(() => { loadChannels(); }, [loadChannels]);
-  useEffect(() => { setPage(1); }, [search, activeCategory, activeCountry, showFavorites, liveOnly, statusFilter]);
+  useEffect(() => { setPage(1); }, [search, activeCategories, activeCountries, showFavorites, activeQualities]);
 
   useEffect(() => {
-    if (mode === "radio") { loadRadioMeta(); loadRadio(); }
-  }, [mode, loadRadioMeta, loadRadio]);
+    if (mode === "radio") loadRadioMeta();
+  }, [mode, loadRadioMeta]);
 
-  useEffect(() => { setRadioPage(1); }, [radioSearch, activeTag, activeRadioCountry, workingOnly, radioStatusFilter, showRadioFavorites]);
+  useEffect(() => {
+    if (mode === "radio") loadRadio();
+  }, [mode, loadRadio]);
+
+  useEffect(() => { setRadioPage(1); }, [radioSearch, activeTags, activeRadioCountries, activeRadioQualities, showRadioFavorites]);
 
   const displayedChannels = showFavorites ? favoritesList : channels;
   const displayedTotal = showFavorites ? favoritesCount : total;
@@ -212,15 +236,35 @@ export default function App() {
   const displayedRadioTotal = showRadioFavorites ? radioFavoritesCount : radioTotal;
   const displayedRadioTotalPages = showRadioFavorites ? 1 : radioTotalPages;
 
-  const clearFilter = (type) => {
-    if (type === "category") setActiveCategory(null);
-    if (type === "country") { if (mode === "tv") setActiveCountry(null); else setActiveRadioCountry(null); }
+  const clearFilter = (type, value) => {
+    if (type === "category") {
+      if (value) setActiveCategories((prev) => prev.filter((c) => c !== value));
+      else setActiveCategories([]);
+    }
+    if (type === "country") {
+      if (mode === "tv") {
+        if (value) setActiveCountries((prev) => prev.filter((c) => c !== value));
+        else setActiveCountries([]);
+      } else {
+        if (value) setActiveRadioCountries((prev) => prev.filter((c) => c !== value));
+        else setActiveRadioCountries([]);
+      }
+    }
+    if (type === "tag") {
+      if (value) setActiveTags((prev) => prev.filter((t) => t !== value));
+      else setActiveTags([]);
+    }
     if (type === "search") { if (mode === "tv") setSearch(""); else setRadioSearch(""); }
     if (type === "favorites") { setShowFavorites(false); setShowRadioFavorites(false); }
-    if (type === "liveOnly") setLiveOnly(false);
-    if (type === "tag") setActiveTag(null);
-    if (type === "workingOnly") setWorkingOnly(false);
-    if (type === "status") { setStatusFilter(null); setRadioStatusFilter(null); }
+    if (type === "quality") {
+      if (value) {
+        if (mode === "tv") setActiveQualities((prev) => prev.filter((q) => q !== value));
+        else setActiveRadioQualities((prev) => prev.filter((q) => q !== value));
+      } else {
+        setActiveQualities([]);
+        setActiveRadioQualities([]);
+      }
+    }
   };
 
   const handleToggleFavorites = () => {
@@ -228,21 +272,21 @@ export default function App() {
     setShowFavorites(turning_on);
     setShowRadioFavorites(turning_on);
     if (turning_on) {
-      setActiveCategory(null); setActiveCountry(null); setSearch("");
-      setActiveTag(null); setActiveRadioCountry(null); setRadioSearch("");
+      setActiveCategories([]); setActiveCountries([]); setSearch(""); setActiveQualities([]);
+      setActiveTags([]); setActiveRadioCountries([]); setRadioSearch(""); setActiveRadioQualities([]);
     }
   };
 
   const handleTvQualityChange = useCallback((key) => {
-    if (key === "all") { setLiveOnly(false); setStatusFilter(null); }
-    else if (key === "has_stream") { setLiveOnly(true); setStatusFilter(null); }
-    else { setLiveOnly(false); setStatusFilter(key === "hide_dead" ? "hide_offline" : key); }
+    if (key === "all") { setActiveQualities([]); return; }
+    const val = key === "hide_dead" ? "hide_offline" : key;
+    setActiveQualities((prev) => prev.includes(val) ? prev.filter((q) => q !== val) : [...prev, val]);
   }, []);
 
   const handleRadioQualityChange = useCallback((key) => {
-    if (key === "all") { setWorkingOnly(false); setRadioStatusFilter(null); }
-    else if (key === "has_stream") { setWorkingOnly(true); setRadioStatusFilter(null); }
-    else { setWorkingOnly(false); setRadioStatusFilter(key === "hide_dead" ? "hide_offline" : key); }
+    if (key === "all") { setActiveRadioQualities([]); return; }
+    const val = key === "hide_dead" ? "hide_offline" : key;
+    setActiveRadioQualities((prev) => prev.includes(val) ? prev.filter((q) => q !== val) : [...prev, val]);
   }, []);
 
   const handleModeSwitch = (newMode) => {
@@ -275,22 +319,36 @@ export default function App() {
           mode={mode}
           categories={categories}
           countries={mode === "tv" ? countries : []}
-          activeCategory={activeCategory}
-          activeCountry={mode === "tv" ? activeCountry : activeRadioCountry}
-          onSelectCategory={(id) => { setActiveCategory(id === activeCategory ? null : id); setShowFavorites(false); }}
+          activeCategories={activeCategories}
+          activeCountries={mode === "tv" ? activeCountries : activeRadioCountries}
+          onSelectCategory={(id) => {
+            if (!id) { setActiveCategories([]); }
+            else { setActiveCategories((prev) => prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id]); }
+            setShowFavorites(false);
+          }}
           onSelectCountry={(code) => {
-            if (mode === "tv") { setActiveCountry(code === activeCountry ? null : code); setShowFavorites(false); }
-            else { setActiveRadioCountry(code === activeRadioCountry ? null : code); setShowRadioFavorites(false); }
+            if (!code) {
+              if (mode === "tv") setActiveCountries([]);
+              else setActiveRadioCountries([]);
+            } else if (mode === "tv") {
+              setActiveCountries((prev) => prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code]);
+              setShowFavorites(false);
+            } else {
+              setActiveRadioCountries((prev) => prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code]);
+              setShowRadioFavorites(false);
+            }
           }}
           favoritesCount={favoritesCount + radioFavoritesCount}
           showFavorites={showFavorites}
           onToggleFavorites={handleToggleFavorites}
           radioTags={radioTags}
           radioCountries={radioCountries}
-          activeTag={activeTag}
-          onSelectTag={(t) => { setActiveTag(t === activeTag ? null : t); setShowRadioFavorites(false); }}
-          liveOnly={false}
-          onToggleLiveOnly={() => {}}
+          activeTags={activeTags}
+          onSelectTag={(t) => {
+            if (!t) { setActiveTags([]); }
+            else { setActiveTags((prev) => prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]); }
+            setShowRadioFavorites(false);
+          }}
           isGuest={isGuest}
           onLogin={() => setShowLogin(true)}
         />
@@ -317,12 +375,11 @@ export default function App() {
               totalPages={totalPages}
               onPageChange={setPage}
               onSelect={setSelectedChannel}
-              activeCategory={activeCategory}
-              activeCountry={activeCountry}
+              activeCategories={activeCategories}
+              activeCountries={activeCountries}
               search={search}
               showFavorites={false}
-              liveOnly={liveOnly}
-              statusFilter={statusFilter}
+              activeQualities={activeQualities}
               onQualityChange={handleTvQualityChange}
               onClearFilter={clearFilter}
               onRetry={loadChannels}
@@ -332,6 +389,7 @@ export default function App() {
               onViewToggle={handleViewToggle}
               isGuest={isGuest}
               onLogin={() => setShowLogin(true)}
+              getVoteSummary={(id) => votes.getSummaryFor("tv", id)}
             />
           ) : (
             <RadioGrid
@@ -343,12 +401,11 @@ export default function App() {
               totalPages={radioTotalPages}
               onPageChange={setRadioPage}
               onSelect={setSelectedStation}
-              activeTag={activeTag}
-              activeCountry={activeRadioCountry}
+              activeTags={activeTags}
+              activeCountries={activeRadioCountries}
               search={radioSearch}
               showFavorites={false}
-              workingOnly={workingOnly}
-              statusFilter={radioStatusFilter}
+              activeQualities={activeRadioQualities}
               onQualityChange={handleRadioQualityChange}
               onClearFilter={clearFilter}
               onRetry={loadRadio}
@@ -358,6 +415,7 @@ export default function App() {
               onViewToggle={handleViewToggle}
               isGuest={isGuest}
               onLogin={() => setShowLogin(true)}
+              getVoteSummary={(id) => votes.getSummaryFor("radio", id)}
             />
           )}
         </main>
@@ -370,6 +428,9 @@ export default function App() {
           onToggleFavorite={() => toggleFavorite(selectedChannel)}
           isGuest={isGuest}
           onLogin={() => setShowLogin(true)}
+          myVotes={votes.getMyVotesFor("tv", selectedChannel.id)}
+          voteSummary={votes.getSummaryFor("tv", selectedChannel.id)}
+          onVote={votes.submitVote}
         />
       )}
       {selectedStation && (
@@ -380,18 +441,27 @@ export default function App() {
           onToggleFavorite={() => toggleRadioFavorite(selectedStation)}
           isGuest={isGuest}
           onLogin={() => setShowLogin(true)}
+          myVotes={votes.getMyVotesFor("radio", selectedStation.id)}
+          voteSummary={votes.getSummaryFor("radio", selectedStation.id)}
+          onVote={votes.submitVote}
         />
       )}
       {showLogin && !auth.user && (
-        <LandingPage
-          onGoogleLogin={handleGoogleLogin}
-          onAppleLogin={handleAppleLogin}
-          onPasskeyLogin={handlePasskeyLogin}
-          googleClientId={GOOGLE_CLIENT_ID}
-          appleClientId={APPLE_CLIENT_ID}
-          onSkip={() => setShowLogin(false)}
-        />
+        <Suspense fallback={null}>
+          <LandingPage
+            onGoogleLogin={handleGoogleLogin}
+            onAppleLogin={handleAppleLogin}
+            onPasskeyLogin={handlePasskeyLogin}
+            googleClientId={GOOGLE_CLIENT_ID}
+            appleClientId={APPLE_CLIENT_ID}
+            onSkip={() => setShowLogin(false)}
+          />
+        </Suspense>
       )}
+      <footer className="app-footer">
+        <span>&copy; {new Date().getFullYear()} Revest Technology. All rights reserved.</span>
+        <span className="footer-version">v2.0.0</span>
+      </footer>
     </>
   );
 }

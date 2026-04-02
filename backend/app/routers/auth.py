@@ -1,3 +1,4 @@
+import asyncio
 import json
 import base64
 import logging
@@ -6,13 +7,14 @@ from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.responses import HTMLResponse
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, exists, func, case
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from jose import jwt, JWTError
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
-from pydantic import BaseModel
-import requests as http_requests
+from pydantic import BaseModel, Field
+import httpx
 
 from webauthn import (
     generate_registration_options,
@@ -32,7 +34,7 @@ from webauthn.helpers import bytes_to_base64url, base64url_to_bytes
 
 from app.database import get_db
 from app.config import settings
-from app.models import User, UserFavorite, Passkey
+from app.models import User, UserFavorite, UserVote, Passkey
 
 logger = logging.getLogger(__name__)
 
@@ -119,8 +121,8 @@ class AppleTokenRequest(BaseModel):
     user_name: str = ""
 
 class FavoriteRequest(BaseModel):
-    item_type: str
-    item_id: str
+    item_type: str = Field(..., max_length=10)
+    item_id: str = Field(..., max_length=255)
     item_data: dict = {}
 
 class PasskeyRegisterBody(BaseModel):
@@ -140,7 +142,8 @@ class PasskeyLoginBody(BaseModel):
 @router.post("/google")
 async def google_login(body: GoogleTokenRequest, db: AsyncSession = Depends(get_db)):
     try:
-        idinfo = id_token.verify_oauth2_token(
+        idinfo = await asyncio.to_thread(
+            id_token.verify_oauth2_token,
             body.credential,
             google_requests.Request(),
             settings.google_client_id,
@@ -173,9 +176,25 @@ async def google_login(body: GoogleTokenRequest, db: AsyncSession = Depends(get_
 # APPLE SIGN-IN
 # ===========================================================================
 
-def _verify_apple_identity_token(identity_token: str) -> dict:
-    keys_resp = http_requests.get(APPLE_KEYS_URL, timeout=10)
-    apple_keys = keys_resp.json()["keys"]
+_apple_keys_cache: tuple[float, list] | None = None
+APPLE_KEYS_TTL = 3600
+
+async def _get_apple_keys() -> list:
+    """Fetch Apple JWKS with caching (1 hour TTL)."""
+    import time
+    global _apple_keys_cache
+    if _apple_keys_cache and (time.monotonic() - _apple_keys_cache[0]) < APPLE_KEYS_TTL:
+        return _apple_keys_cache[1]
+    async with httpx.AsyncClient(timeout=10) as client:
+        resp = await client.get(APPLE_KEYS_URL)
+        resp.raise_for_status()
+        keys = resp.json()["keys"]
+    _apple_keys_cache = (time.monotonic(), keys)
+    return keys
+
+
+async def _verify_apple_identity_token(identity_token: str) -> dict:
+    apple_keys = await _get_apple_keys()
     header = jwt.get_unverified_header(identity_token)
     kid = header.get("kid")
     key = next((k for k in apple_keys if k["kid"] == kid), None)
@@ -215,7 +234,7 @@ async def apple_login(body: AppleTokenRequest, db: AsyncSession = Depends(get_db
         raise HTTPException(status_code=501, detail="Apple Sign-In not configured")
 
     try:
-        payload = _verify_apple_identity_token(body.id_token)
+        payload = await _verify_apple_identity_token(body.id_token)
     except Exception as e:
         logger.error("Apple token verification failed: %s", e)
         raise HTTPException(status_code=400, detail="Invalid Apple token")
@@ -382,14 +401,15 @@ async def list_passkeys(user: User = Depends(require_user), db: AsyncSession = D
 
 @router.get("/me")
 async def get_me(user: User = Depends(require_user), db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Passkey).where(Passkey.user_id == user.id))
-    has_passkey = result.first() is not None
+    has_passkey = (await db.execute(
+        select(exists().where(Passkey.user_id == user.id))
+    )).scalar()
     return {
         "id": user.id,
         "email": user.email,
         "name": user.name,
         "picture": user.picture,
-        "has_passkey": has_passkey,
+        "has_passkey": bool(has_passkey),
     }
 
 
@@ -409,20 +429,13 @@ async def get_favorites(user: User = Depends(require_user), db: AsyncSession = D
 
 @router.post("/favorites")
 async def add_favorite(body: FavoriteRequest, user: User = Depends(require_user), db: AsyncSession = Depends(get_db)):
-    existing = await db.execute(
-        select(UserFavorite).where(
-            UserFavorite.user_id == user.id,
-            UserFavorite.item_type == body.item_type,
-            UserFavorite.item_id == body.item_id,
-        )
-    )
-    if existing.scalar_one_or_none():
-        return {"status": "already_exists"}
-
-    fav = UserFavorite(user_id=user.id, item_type=body.item_type, item_id=body.item_id, item_data=json.dumps(body.item_data))
-    db.add(fav)
+    stmt = pg_insert(UserFavorite).values(
+        user_id=user.id, item_type=body.item_type,
+        item_id=body.item_id, item_data=json.dumps(body.item_data),
+    ).on_conflict_do_nothing(index_elements=["user_id", "item_type", "item_id"])
+    result = await db.execute(stmt)
     await db.commit()
-    return {"status": "added"}
+    return {"status": "added" if result.rowcount else "already_exists"}
 
 
 @router.delete("/favorites/{item_type}/{item_id}")
@@ -440,18 +453,14 @@ async def remove_favorite(item_type: str, item_id: str, user: User = Depends(req
 
 @router.post("/favorites/sync")
 async def sync_favorites(favorites: list[FavoriteRequest], user: User = Depends(require_user), db: AsyncSession = Depends(get_db)):
+    if len(favorites) > 500:
+        raise HTTPException(status_code=400, detail="Too many favorites (max 500)")
     for fav in favorites:
-        existing = await db.execute(
-            select(UserFavorite).where(
-                UserFavorite.user_id == user.id,
-                UserFavorite.item_type == fav.item_type,
-                UserFavorite.item_id == fav.item_id,
-            )
-        )
-        if not existing.scalar_one_or_none():
-            db.add(UserFavorite(
-                user_id=user.id, item_type=fav.item_type, item_id=fav.item_id, item_data=json.dumps(fav.item_data),
-            ))
+        stmt = pg_insert(UserFavorite).values(
+            user_id=user.id, item_type=fav.item_type,
+            item_id=fav.item_id, item_data=json.dumps(fav.item_data),
+        ).on_conflict_do_nothing(index_elements=["user_id", "item_type", "item_id"])
+        await db.execute(stmt)
     await db.commit()
 
     result = await db.execute(select(UserFavorite).where(UserFavorite.user_id == user.id))
@@ -460,3 +469,91 @@ async def sync_favorites(favorites: list[FavoriteRequest], user: User = Depends(
         {"item_type": f.item_type, "item_id": f.item_id, "item_data": json.loads(f.item_data) if f.item_data else {}}
         for f in favs
     ]
+
+
+# ---------------------------------------------------------------------------
+# Voting / Feedback
+# ---------------------------------------------------------------------------
+
+VALID_VOTE_TYPES = {"like", "dislike", "works", "broken", "slow", "bad_quality"}
+
+
+class VoteRequest(BaseModel):
+    item_type: str = Field(max_length=10)
+    item_id: str = Field(max_length=255)
+    vote_type: str = Field(max_length=20)
+
+
+@router.post("/votes")
+async def submit_vote(req: VoteRequest, user: User = Depends(require_user), db: AsyncSession = Depends(get_db)):
+    if req.vote_type not in VALID_VOTE_TYPES:
+        raise HTTPException(status_code=400, detail=f"Invalid vote_type. Must be one of: {', '.join(sorted(VALID_VOTE_TYPES))}")
+    if req.item_type not in ("tv", "radio"):
+        raise HTTPException(status_code=400, detail="item_type must be 'tv' or 'radio'")
+
+    existing = await db.execute(
+        select(UserVote).where(
+            UserVote.user_id == user.id,
+            UserVote.item_type == req.item_type,
+            UserVote.item_id == req.item_id,
+            UserVote.vote_type == req.vote_type,
+        )
+    )
+    if existing.scalar_one_or_none():
+        await db.execute(
+            delete(UserVote).where(
+                UserVote.user_id == user.id,
+                UserVote.item_type == req.item_type,
+                UserVote.item_id == req.item_id,
+                UserVote.vote_type == req.vote_type,
+            )
+        )
+        await db.commit()
+        return {"status": "removed", "vote_type": req.vote_type}
+
+    stmt = pg_insert(UserVote).values(
+        user_id=user.id,
+        item_type=req.item_type,
+        item_id=req.item_id,
+        vote_type=req.vote_type,
+    ).on_conflict_do_nothing()
+    await db.execute(stmt)
+    await db.commit()
+    return {"status": "added", "vote_type": req.vote_type}
+
+
+@router.get("/votes/me")
+async def get_my_votes(item_type: str, user: User = Depends(require_user), db: AsyncSession = Depends(get_db)):
+    result = await db.execute(
+        select(UserVote.item_id, UserVote.vote_type).where(
+            UserVote.user_id == user.id,
+            UserVote.item_type == item_type,
+        )
+    )
+    votes = {}
+    for item_id, vote_type in result:
+        votes.setdefault(item_id, []).append(vote_type)
+    return votes
+
+
+@router.get("/votes/summary")
+async def get_vote_summary(item_type: str, item_ids: str, db: AsyncSession = Depends(get_db)):
+    """Public endpoint — returns aggregate vote counts for a batch of items."""
+    ids = [i.strip() for i in item_ids.split(",") if i.strip()][:100]
+    if not ids:
+        return {}
+
+    result = await db.execute(
+        select(
+            UserVote.item_id,
+            UserVote.vote_type,
+            func.count().label("cnt"),
+        )
+        .where(UserVote.item_type == item_type, UserVote.item_id.in_(ids))
+        .group_by(UserVote.item_id, UserVote.vote_type)
+    )
+
+    summary = {}
+    for item_id, vote_type, cnt in result:
+        summary.setdefault(item_id, {})[vote_type] = cnt
+    return summary

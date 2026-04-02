@@ -8,6 +8,10 @@ class Settings(BaseSettings):
     refresh_interval_hours: int = 6
     port: int = 8000
 
+    db_pool_size: int = 10
+    db_max_overflow: int = 20
+    db_pool_timeout: int = 30
+
     jwt_secret: str = "change-me-in-production"
     jwt_algorithm: str = "HS256"
     jwt_expiry_days: int = 30
@@ -18,6 +22,8 @@ class Settings(BaseSettings):
     webauthn_rp_name: str = "Adajoon"
     webauthn_origin: str = "https://adajoon.com"
 
+    cors_origins: str = "https://adajoon.com,https://www.adajoon.com"
+
     class Config:
         env_file = ".env"
 
@@ -26,6 +32,12 @@ class Settings(BaseSettings):
         if url.startswith("postgresql://"):
             url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
         return url
+
+    @property
+    def cors_origins_list(self) -> list[str]:
+        if self.cors_origins == "*":
+            return ["*"]
+        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
 
 
 settings = Settings()

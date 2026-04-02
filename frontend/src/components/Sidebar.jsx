@@ -7,8 +7,8 @@ export default function Sidebar({
   className,
   categories,
   countries,
-  activeCategory,
-  activeCountry,
+  activeCategories = [],
+  activeCountries = [],
   onSelectCategory,
   onSelectCountry,
   favoritesCount,
@@ -16,7 +16,7 @@ export default function Sidebar({
   onToggleFavorites,
   radioTags,
   radioCountries,
-  activeTag,
+  activeTags = [],
   onSelectTag,
   isGuest,
   onLogin,
@@ -117,7 +117,7 @@ export default function Sidebar({
         {radioTab === "genres" && (
           <SidebarList
             items={filteredRadioTags}
-            activeId={activeTag}
+            activeIds={activeTags}
             onSelect={onSelectTag}
             getId={(t) => t.name}
             getLabel={(t) => t.name}
@@ -134,7 +134,7 @@ export default function Sidebar({
         {radioTab === "countries" && (
           <SidebarList
             items={filteredRadioCountries}
-            activeId={activeCountry}
+            activeIds={activeCountries}
             onSelect={onSelectCountry}
             getId={(c) => c.country_code}
             getLabel={(c) => c.country}
@@ -185,7 +185,7 @@ export default function Sidebar({
       {tab === "categories" && (
         <SidebarList
           items={filteredCategories}
-          activeId={activeCategory}
+          activeIds={activeCategories}
           onSelect={(id) => { onSelectCategory(id); }}
           getId={(c) => c.id}
           getLabel={(c) => c.name}
@@ -202,7 +202,7 @@ export default function Sidebar({
       {tab === "countries" && (
         <SidebarList
           items={filteredCountries}
-          activeId={activeCountry}
+          activeIds={activeCountries}
           onSelect={(code) => { onSelectCountry(code); }}
           getId={(c) => c.code}
           getLabel={(c) => c.name}
@@ -219,16 +219,17 @@ export default function Sidebar({
   );
 }
 
-function SidebarList({ items, activeId, onSelect, getId, getLabel, getCount, allLabel, emptyMsg, showAll, expanded, onToggleExpand, filterText }) {
+function SidebarList({ items, activeIds = [], onSelect, getId, getLabel, getCount, allLabel, emptyMsg, showAll, expanded, onToggleExpand, filterText }) {
   const visible = showAll ? items : items.slice(0, INITIAL_VISIBLE);
   const hasMore = items.length > INITIAL_VISIBLE;
+  const hasSelection = activeIds.length > 0;
 
   return (
     <div className="sidebar-list-section">
       <div className="sidebar-filter-list">
         {!filterText && (
           <div
-            className={`sidebar-item ${!activeId ? "active" : ""}`}
+            className={`sidebar-item ${!hasSelection ? "active" : ""}`}
             onClick={() => onSelect(null)}
           >
             <span className="sidebar-item-label">{allLabel}</span>
@@ -236,12 +237,14 @@ function SidebarList({ items, activeId, onSelect, getId, getLabel, getCount, all
         )}
         {visible.map((item) => {
           const id = getId(item);
+          const isActive = activeIds.includes(id);
           return (
             <div
               key={id}
-              className={`sidebar-item ${activeId === id ? "active" : ""}`}
+              className={`sidebar-item ${isActive ? "active" : ""}`}
               onClick={() => onSelect(id)}
             >
+              <span className="sidebar-check">{isActive ? "✓" : ""}</span>
               <span className="sidebar-item-label">{getLabel(item)}</span>
               <span className="sidebar-count">{getCount(item).toLocaleString()}</span>
             </div>

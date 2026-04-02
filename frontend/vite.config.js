@@ -8,4 +8,15 @@ export default defineConfig({
       "/api": "http://localhost:8000",
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ["react", "react-dom"],
+          hls: ["hls.js"],
+          webauthn: ["@simplewebauthn/browser"],
+        },
+      },
+    },
+  },
 });

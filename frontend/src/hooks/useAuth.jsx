@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback } from "react";
+import { createContext, useContext, useState, useEffect, useCallback, useMemo } from "react";
 import { startRegistration, startAuthentication } from "@simplewebauthn/browser";
 
 const TOKEN_KEY = "adajoon_token";
@@ -179,23 +179,23 @@ export function AuthProvider({ children }) {
       .catch(() => {});
   }, []);
 
+  const value = useMemo(() => ({
+    user,
+    loading,
+    loginWithGoogle,
+    loginWithApple,
+    loginWithPasskey,
+    registerPasskey,
+    logout,
+    fetchFavorites,
+    addFavorite,
+    removeFavorite,
+    syncFavorites,
+    authHeaders,
+  }), [user, loading, loginWithGoogle, loginWithApple, loginWithPasskey, registerPasskey, logout, fetchFavorites, addFavorite, removeFavorite, syncFavorites, authHeaders]);
+
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        loading,
-        loginWithGoogle,
-        loginWithApple,
-        loginWithPasskey,
-        registerPasskey,
-        logout,
-        fetchFavorites,
-        addFavorite,
-        removeFavorite,
-        syncFavorites,
-        authHeaders,
-      }}
-    >
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );

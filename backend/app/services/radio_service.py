@@ -108,12 +108,22 @@ async def search_radio(db: AsyncSession, params: RadioSearchParams):
         count_query = count_query.where(cond)
 
     if params.tag:
-        query = query.where(RadioStation.tags.ilike(f"%{params.tag}%"))
-        count_query = count_query.where(RadioStation.tags.ilike(f"%{params.tag}%"))
+        tags = [t.strip() for t in params.tag.split(",") if t.strip()]
+        if len(tags) == 1:
+            cond = RadioStation.tags.ilike(f"%{tags[0]}%")
+        else:
+            cond = or_(*[RadioStation.tags.ilike(f"%{t}%") for t in tags])
+        query = query.where(cond)
+        count_query = count_query.where(cond)
 
     if params.country:
-        query = query.where(RadioStation.country_code == params.country.upper())
-        count_query = count_query.where(RadioStation.country_code == params.country.upper())
+        codes = [c.strip().upper() for c in params.country.split(",") if c.strip()]
+        if len(codes) == 1:
+            cond = RadioStation.country_code == codes[0]
+        else:
+            cond = RadioStation.country_code.in_(codes)
+        query = query.where(cond)
+        count_query = count_query.where(cond)
 
     if params.language:
         query = query.where(RadioStation.language.ilike(f"%{params.language}%"))
@@ -123,18 +133,27 @@ async def search_radio(db: AsyncSession, params: RadioSearchParams):
         query = query.where(RadioStation.last_check_ok == True)
         count_query = count_query.where(RadioStation.last_check_ok == True)
 
-    if params.status == "verified":
-        cond = RadioStation.health_status == "verified"
-        query = query.where(cond)
-        count_query = count_query.where(cond)
-    elif params.status == "live":
-        cond = RadioStation.health_status.in_(("verified", "online")) | (RadioStation.last_check_ok == True)
-        query = query.where(cond)
-        count_query = count_query.where(cond)
-    elif params.status == "hide_offline":
-        cond = ~RadioStation.health_status.in_(("offline", "error", "timeout", "geo_blocked"))
-        query = query.where(cond)
-        count_query = count_query.where(cond)
+    statuses = [s.strip() for s in (params.status or "").split(",") if s.strip()]
+    if statuses:
+        health_includes = []
+        for s in statuses:
+            if s == "has_stream":
+                query = query.where(RadioStation.last_check_ok == True)
+                count_query = count_query.where(RadioStation.last_check_ok == True)
+            elif s == "verified":
+                health_includes.append(RadioStation.health_status == "verified")
+            elif s == "live":
+                health_includes.append(
+                    RadioStation.health_status.in_(("verified", "online")) | (RadioStation.last_check_ok == True)
+                )
+            elif s == "hide_offline":
+                cond = ~RadioStation.health_status.in_(("offline", "error", "timeout", "geo_blocked"))
+                query = query.where(cond)
+                count_query = count_query.where(cond)
+        if health_includes:
+            combined = health_includes[0] if len(health_includes) == 1 else or_(*health_includes)
+            query = query.where(combined)
+            count_query = count_query.where(combined)
 
     total = (await db.execute(count_query)).scalar() or 0
 
@@ -147,19 +166,21 @@ async def search_radio(db: AsyncSession, params: RadioSearchParams):
 
 
 async def get_radio_tags(db: AsyncSession, limit: int = 60):
-    """Get top tags with station counts by splitting comma-separated tags."""
-    all_stations = await db.execute(
-        select(RadioStation.tags).where(RadioStation.tags != "")
-    )
-    tag_counts: dict[str, int] = {}
-    for (tags_str,) in all_stations:
-        for tag in tags_str.split(","):
-            tag = tag.strip().lower()
-            if tag and len(tag) > 1:
-                tag_counts[tag] = tag_counts.get(tag, 0) + 1
-
-    sorted_tags = sorted(tag_counts.items(), key=lambda x: -x[1])[:limit]
-    return [{"name": t, "station_count": c} for t, c in sorted_tags]
+    """Get top tags with station counts using SQL-side aggregation."""
+    from sqlalchemy import text
+    result = await db.execute(text("""
+        SELECT tag, COUNT(*) AS cnt
+        FROM (
+            SELECT lower(trim(unnest(string_to_array(tags, ',')))) AS tag
+            FROM radio_stations
+            WHERE tags != ''
+        ) t
+        WHERE length(tag) > 1
+        GROUP BY tag
+        ORDER BY cnt DESC
+        LIMIT :lim
+    """), {"lim": limit})
+    return [{"name": row[0], "station_count": row[1]} for row in result]
 
 
 async def get_radio_countries(db: AsyncSession):

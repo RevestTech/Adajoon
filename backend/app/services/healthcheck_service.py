@@ -137,12 +137,15 @@ async def check_channel(db: AsyncSession, channel_id: str) -> dict:
 
 
 async def check_channels_batch(db: AsyncSession, channel_ids: list[str], concurrency: int = 10) -> list[dict]:
-    """Check health of multiple channels concurrently."""
+    """Check health of multiple channels concurrently with isolated sessions."""
+    from app.database import async_session
+
     semaphore = asyncio.Semaphore(concurrency)
 
     async def limited_check(cid):
         async with semaphore:
-            return await check_channel(db, cid)
+            async with async_session() as session:
+                return await check_channel(session, cid)
 
     tasks = [limited_check(cid) for cid in channel_ids]
     return await asyncio.gather(*tasks)
