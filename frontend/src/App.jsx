@@ -305,7 +305,6 @@ export default function App() {
           if (mode === "tv") { setSearch(val); setShowFavorites(false); }
           else setRadioSearch(val);
         }}
-        stats={stats}
         sidebarOpen={sidebarOpen}
         onToggleSidebar={() => setSidebarOpen((v) => !v)}
         user={auth.user}
@@ -390,6 +389,7 @@ export default function App() {
               isGuest={isGuest}
               onLogin={() => setShowLogin(true)}
               getVoteSummary={(id) => votes.getSummaryFor("tv", id)}
+              stats={stats}
             />
           ) : (
             <RadioGrid
@@ -416,6 +416,7 @@ export default function App() {
               isGuest={isGuest}
               onLogin={() => setShowLogin(true)}
               getVoteSummary={(id) => votes.getSummaryFor("radio", id)}
+              stats={stats}
             />
           )}
         </main>

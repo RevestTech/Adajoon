@@ -94,6 +94,7 @@ export default function ChannelGrid({
   isGuest,
   onLogin,
   getVoteSummary,
+  stats,
 }) {
   const hasFilters = activeCategories.length > 0 || activeCountries.length > 0 || search || showFavorites || activeQualities.length > 0;
 
@@ -144,6 +145,13 @@ export default function ChannelGrid({
           </span>
         </div>
         <div className="content-toolbar">
+          {stats && (
+            <div className="content-stats">
+              <span className="stat-pill">{stats.total_channels?.toLocaleString()} <small>channels</small></span>
+              <span className="stat-pill">{stats.total_radio_stations?.toLocaleString()} <small>radio</small></span>
+              <span className="stat-pill">{stats.total_countries?.toLocaleString()} <small>countries</small></span>
+            </div>
+          )}
           <div className="quality-filter">
             {QUALITY_OPTIONS.map((opt) => {
               const val = opt.key === "hide_dead" ? "hide_offline" : opt.key;
