@@ -1492,21 +1492,22 @@ body {
     max-height: none;
   }
 
-  /* Header: single row with hamburger, logo, mode, user */
+  /* Header: compact two-row layout */
   .header {
-    padding: 10px 16px;
-    gap: 10px;
+    padding: 8px 12px;
+    gap: 6px 8px;
     flex-wrap: wrap;
     position: sticky;
     top: 0;
     z-index: 1001;
+    height: auto;
   }
 
-  .logo { font-size: 20px !important; flex: 1; }
+  .logo { font-size: 18px !important; flex: 1; min-width: 0; }
   .header-stats { display: none; }
-
-  /* Mode switcher stays in first row */
-  .mode-btn { padding: 6px 12px !important; font-size: 12px !important; }
+  .mode-switcher { flex-shrink: 0; }
+  .mode-btn { padding: 5px 10px !important; font-size: 11px !important; gap: 4px !important; }
+  .mode-btn svg { width: 13px; height: 13px; }
 
   /* Search drops to second row, full width */
   .search-container {
@@ -1516,8 +1517,8 @@ body {
   }
 
   .search-input {
-    padding: 8px 12px 8px 38px;
-    font-size: 14px;
+    padding: 8px 12px 8px 36px;
+    font-size: 13px;
   }
 
   /* Main content */
@@ -1572,17 +1573,19 @@ body {
 
 /* Small phones */
 @media (max-width: 480px) {
-  .header { padding: 8px 12px; gap: 6px; }
-  .logo { font-size: 18px !important; }
-  .mode-btn { padding: 5px 10px !important; font-size: 11px !important; gap: 4px !important; }
-  .mode-btn svg { width: 13px; height: 13px; }
+  .header { padding: 6px 8px; gap: 4px 6px; height: auto; }
+  .logo { font-size: 16px !important; }
+  .mode-btn { padding: 4px 8px !important; font-size: 10px !important; gap: 3px !important; }
+  .mode-btn svg { width: 12px; height: 12px; }
 
   .search-input {
-    padding: 7px 10px 7px 34px;
-    font-size: 13px;
+    padding: 7px 10px 7px 32px;
+    font-size: 12px;
   }
 
-  .main-content { padding: 10px; }
+  .search-icon { width: 14px; height: 14px; left: 10px !important; }
+
+  .main-content { padding: 8px; }
   .content-title { font-size: 16px !important; }
   .content-subtitle { font-size: 12px !important; }
 

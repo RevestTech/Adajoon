@@ -60,6 +60,8 @@ export default function Header({
         </button>
       </div>
 
+      <UserMenu user={user} onLogin={onLogin} onLogout={onLogout} />
+
       <div className="search-container">
         <svg className="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
@@ -88,8 +90,6 @@ export default function Header({
           </span>
         </div>
       )}
-
-      <UserMenu user={user} onLogin={onLogin} onLogout={onLogout} />
     </header>
   );
 }
