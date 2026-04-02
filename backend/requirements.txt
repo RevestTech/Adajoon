@@ -12,3 +12,4 @@ apscheduler==3.10.4
 python-jose[cryptography]==3.3.0
 google-auth==2.37.0
 requests==2.32.3
+webauthn>=2.0.0

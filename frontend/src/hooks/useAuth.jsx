@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback } from "react";
+import { startRegistration, startAuthentication } from "@simplewebauthn/browser";
 
 const TOKEN_KEY = "adajoon_token";
 const USER_KEY = "adajoon_user";
@@ -17,13 +18,19 @@ export function AuthProvider({ children }) {
   });
   const [loading, setLoading] = useState(false);
 
-  const token = () => localStorage.getItem(TOKEN_KEY);
-
   const authHeaders = useCallback(() => {
     const t = localStorage.getItem(TOKEN_KEY);
     return t ? { Authorization: `Bearer ${t}` } : {};
   }, []);
 
+  const _saveSession = useCallback((data) => {
+    localStorage.setItem(TOKEN_KEY, data.token);
+    localStorage.setItem(USER_KEY, JSON.stringify(data.user));
+    setUser(data.user);
+    return data.user;
+  }, []);
+
+  // --- Google ---
   const loginWithGoogle = useCallback(async (credential) => {
     setLoading(true);
     try {
@@ -33,15 +40,72 @@ export function AuthProvider({ children }) {
         body: JSON.stringify({ credential }),
       });
       if (!res.ok) throw new Error("Login failed");
-      const data = await res.json();
-      localStorage.setItem(TOKEN_KEY, data.token);
-      localStorage.setItem(USER_KEY, JSON.stringify(data.user));
-      setUser(data.user);
-      return data.user;
+      return _saveSession(await res.json());
     } finally {
       setLoading(false);
     }
+  }, [_saveSession]);
+
+  // --- Apple ---
+  const loginWithApple = useCallback(async (idToken, userName) => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/apple`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id_token: idToken, user_name: userName || "" }),
+      });
+      if (!res.ok) throw new Error("Apple login failed");
+      return _saveSession(await res.json());
+    } finally {
+      setLoading(false);
+    }
+  }, [_saveSession]);
+
+  // --- Passkey registration (user must be logged in) ---
+  const registerPasskey = useCallback(async (name) => {
+    const t = localStorage.getItem(TOKEN_KEY);
+    if (!t) throw new Error("Not authenticated");
+
+    const optRes = await fetch(`${API_BASE}/passkey/register-options`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${t}` },
+    });
+    if (!optRes.ok) throw new Error("Failed to get registration options");
+    const { options, challenge_token } = await optRes.json();
+
+    const credential = await startRegistration(options);
+
+    const verRes = await fetch(`${API_BASE}/passkey/register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${t}` },
+      body: JSON.stringify({ credential, challenge_token, name: name || "Passkey" }),
+    });
+    if (!verRes.ok) throw new Error("Passkey registration failed");
+    return await verRes.json();
   }, []);
+
+  // --- Passkey login (no session required) ---
+  const loginWithPasskey = useCallback(async () => {
+    setLoading(true);
+    try {
+      const optRes = await fetch(`${API_BASE}/passkey/login-options`, { method: "POST" });
+      if (!optRes.ok) throw new Error("Failed to get login options");
+      const { options, challenge_token } = await optRes.json();
+
+      const credential = await startAuthentication(options);
+
+      const verRes = await fetch(`${API_BASE}/passkey/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ credential, challenge_token }),
+      });
+      if (!verRes.ok) throw new Error("Passkey authentication failed");
+      return _saveSession(await verRes.json());
+    } finally {
+      setLoading(false);
+    }
+  }, [_saveSession]);
 
   const logout = useCallback(() => {
     localStorage.removeItem(TOKEN_KEY);
@@ -121,6 +185,9 @@ export function AuthProvider({ children }) {
         user,
         loading,
         loginWithGoogle,
+        loginWithApple,
+        loginWithPasskey,
+        registerPasskey,
         logout,
         fetchFavorites,
         addFavorite,

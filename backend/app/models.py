@@ -35,6 +35,21 @@ class UserFavorite(Base):
     )
 
 
+class Passkey(Base):
+    __tablename__ = "passkeys"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    credential_id = Column(Text, nullable=False, unique=True)
+    public_key = Column(Text, nullable=False)
+    sign_count = Column(Integer, default=0)
+    transports = Column(Text, default="[]")
+    name = Column(String(255), default="Passkey")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    user = relationship("User", backref="passkeys")
+
+
 class Category(Base):
     __tablename__ = "categories"
 

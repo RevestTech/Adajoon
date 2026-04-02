@@ -1,18 +1,39 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useCallback, useState } from "react";
 
-export default function LandingPage({ onGoogleLogin, googleClientId, onSkip }) {
+let gsiInitialized = false;
+
+export default function LandingPage({
+  onGoogleLogin,
+  onAppleLogin,
+  onPasskeyLogin,
+  googleClientId,
+  appleClientId,
+  onSkip,
+}) {
   const googleBtnRef = useRef(null);
+  const callbackRef = useRef(onGoogleLogin);
+  callbackRef.current = onGoogleLogin;
+  const [passkeyError, setPasskeyError] = useState("");
+  const [passkeySupported, setPasskeySupported] = useState(false);
 
   useEffect(() => {
-    if (!googleClientId || !window.google?.accounts?.id) return;
+    if (window.PublicKeyCredential) {
+      PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable?.()
+        .then((available) => setPasskeySupported(available))
+        .catch(() => {});
+    }
+  }, []);
 
-    window.google.accounts.id.initialize({
-      client_id: googleClientId,
-      callback: (response) => {
-        onGoogleLogin(response.credential);
-      },
-    });
-
+  const initGsi = useCallback(() => {
+    if (!googleClientId || !window.google?.accounts?.id || !googleBtnRef.current) return;
+    if (!gsiInitialized) {
+      window.google.accounts.id.initialize({
+        client_id: googleClientId,
+        callback: (response) => callbackRef.current(response.credential),
+      });
+      gsiInitialized = true;
+    }
+    googleBtnRef.current.innerHTML = "";
     window.google.accounts.id.renderButton(googleBtnRef.current, {
       theme: "filled_black",
       size: "large",
@@ -20,7 +41,45 @@ export default function LandingPage({ onGoogleLogin, googleClientId, onSkip }) {
       text: "signin_with",
       shape: "pill",
     });
-  }, [googleClientId, onGoogleLogin]);
+  }, [googleClientId]);
+
+  useEffect(() => { initGsi(); }, [initGsi]);
+
+  const handleAppleLogin = async () => {
+    if (!window.AppleID?.auth) return;
+    try {
+      AppleID.auth.init({
+        clientId: appleClientId,
+        scope: "name email",
+        redirectURI: window.location.origin,
+        usePopup: true,
+      });
+      const response = await AppleID.auth.signIn();
+      const idToken = response.authorization?.id_token;
+      const user = response.user;
+      const userName = user
+        ? [user.name?.firstName, user.name?.lastName].filter(Boolean).join(" ")
+        : "";
+      if (idToken) {
+        onAppleLogin(idToken, userName);
+      }
+    } catch (err) {
+      if (err.error !== "popup_closed_by_user") {
+        console.error("Apple sign-in error:", err);
+      }
+    }
+  };
+
+  const handlePasskeyLogin = async () => {
+    setPasskeyError("");
+    try {
+      await onPasskeyLogin();
+    } catch (err) {
+      if (err.name !== "NotAllowedError") {
+        setPasskeyError("Passkey login failed. Try another method.");
+      }
+    }
+  };
 
   return (
     <div className="landing-page">
@@ -83,10 +142,35 @@ export default function LandingPage({ onGoogleLogin, googleClientId, onSkip }) {
           </div>
 
           <div className="landing-signin">
+            {/* Google */}
             <div ref={googleBtnRef} className="landing-google-btn" />
-            {!googleClientId && (
-              <div className="login-note">Google Sign-In is not configured yet.</div>
+
+            {/* Apple */}
+            {appleClientId && window.AppleID?.auth && (
+              <button className="landing-apple-btn" onClick={handleAppleLogin}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M17.05 20.28c-.98.95-2.05.88-3.08.4-1.09-.5-2.08-.48-3.24 0-1.44.62-2.2.44-3.06-.4C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z" />
+                </svg>
+                Sign in with Apple
+              </button>
             )}
+
+            {/* Passkey / Biometric */}
+            {passkeySupported && (
+              <button className="landing-passkey-btn" onClick={handlePasskeyLogin}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                </svg>
+                Sign in with Passkey
+              </button>
+            )}
+
+            {passkeyError && <div className="landing-error">{passkeyError}</div>}
+
+            <div className="landing-divider">
+              <span>or</span>
+            </div>
           </div>
         </div>
 

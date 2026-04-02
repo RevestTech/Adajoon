@@ -13,6 +13,10 @@ class Settings(BaseSettings):
     jwt_expiry_days: int = 30
     google_client_id: str = ""
     google_client_secret: str = ""
+    apple_client_id: str = ""
+    webauthn_rp_id: str = "adajoon.com"
+    webauthn_rp_name: str = "Adajoon"
+    webauthn_origin: str = "https://adajoon.com"
 
     class Config:
         env_file = ".env"

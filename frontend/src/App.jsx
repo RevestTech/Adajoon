@@ -5,7 +5,6 @@ import ChannelGrid from "./components/ChannelGrid";
 import RadioGrid from "./components/RadioGrid";
 import VideoPlayer from "./components/VideoPlayer";
 import RadioPlayer from "./components/RadioPlayer";
-import LoginModal from "./components/LoginModal";
 import LandingPage from "./components/LandingPage";
 import FavoritesView from "./components/FavoritesView";
 import useFavorites, { useRadioFavorites } from "./hooks/useFavorites";
@@ -14,6 +13,7 @@ import { fetchChannels, fetchCategories, fetchCountries, fetchStats } from "./ap
 import { fetchRadioStations, fetchRadioTags, fetchRadioCountries } from "./api/radio";
 
 const GOOGLE_CLIENT_ID = "735750557405-01nak31482018qbfu1sigov94c1k4ca7.apps.googleusercontent.com";
+const APPLE_CLIENT_ID = "";
 
 export default function App() {
   const [mode, setMode] = useState("tv");
@@ -74,27 +74,32 @@ export default function App() {
     loadFromServer: loadRadioFromServer,
   } = useRadioFavorites();
 
-  const handleGoogleLogin = useCallback(async (credential) => {
-    const user = await auth.loginWithGoogle(credential);
-    if (!user) return;
+  const syncAfterLogin = useCallback(async () => {
     setShowLogin(false);
-
     const localTv = Object.values(favorites).map((ch) => ({
-      item_type: "tv",
-      item_id: ch.id,
-      item_data: ch,
+      item_type: "tv", item_id: ch.id, item_data: ch,
     }));
     const localRadio = Object.values(radioFavorites || {}).map((st) => ({
-      item_type: "radio",
-      item_id: st.id,
-      item_data: st,
+      item_type: "radio", item_id: st.id, item_data: st,
     }));
     const merged = await auth.syncFavorites([...localTv, ...localRadio]);
-    if (merged) {
-      loadFromServer(merged);
-      loadRadioFromServer(merged);
-    }
+    if (merged) { loadFromServer(merged); loadRadioFromServer(merged); }
   }, [auth, favorites, radioFavorites, loadFromServer, loadRadioFromServer]);
+
+  const handleGoogleLogin = useCallback(async (credential) => {
+    const user = await auth.loginWithGoogle(credential);
+    if (user) await syncAfterLogin();
+  }, [auth, syncAfterLogin]);
+
+  const handleAppleLogin = useCallback(async (idToken, userName) => {
+    const user = await auth.loginWithApple(idToken, userName);
+    if (user) await syncAfterLogin();
+  }, [auth, syncAfterLogin]);
+
+  const handlePasskeyLogin = useCallback(async () => {
+    const user = await auth.loginWithPasskey();
+    if (user) await syncAfterLogin();
+  }, [auth, syncAfterLogin]);
 
   const handleLogout = useCallback(() => {
     auth.logout();
@@ -362,7 +367,10 @@ export default function App() {
       {showLogin && !auth.user && (
         <LandingPage
           onGoogleLogin={handleGoogleLogin}
+          onAppleLogin={handleAppleLogin}
+          onPasskeyLogin={handlePasskeyLogin}
           googleClientId={GOOGLE_CLIENT_ID}
+          appleClientId={APPLE_CLIENT_ID}
           onSkip={() => setShowLogin(false)}
         />
       )}

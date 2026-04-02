@@ -1984,6 +1984,67 @@ body {
   justify-content: center;
 }
 
+.landing-apple-btn,
+.landing-passkey-btn {
+  width: 320px;
+  max-width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 12px 20px;
+  border-radius: 24px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s;
+  border: none;
+}
+
+.landing-apple-btn {
+  background: #fff;
+  color: #000;
+}
+
+.landing-apple-btn:hover {
+  background: #e8e8e8;
+}
+
+.landing-passkey-btn {
+  background: transparent;
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+}
+
+.landing-passkey-btn:hover {
+  border-color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.landing-error {
+  font-size: 12px;
+  color: var(--accent);
+  text-align: center;
+}
+
+.landing-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.landing-divider::before,
+.landing-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
 .landing-skip {
   display: flex;
   align-items: center;
@@ -2136,6 +2197,13 @@ body {
 .user-dropdown-item:hover {
   background: var(--bg-hover);
   color: var(--accent);
+}
+
+.user-dropdown-msg {
+  padding: 6px 16px;
+  font-size: 12px;
+  color: #4ade80;
+  text-align: center;
 }
 
 /* Login Modal */
