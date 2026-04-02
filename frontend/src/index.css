@@ -1447,16 +1447,12 @@ body {
   display: none;
 }
 
+/* ============ RESPONSIVE ============ */
+
 /* Tablet */
 @media (max-width: 1024px) {
-  .header-stats {
-    display: none;
-  }
-
-  .sidebar {
-    width: 240px;
-    min-width: 240px;
-  }
+  .header-stats { display: none; }
+  .sidebar { width: 240px; min-width: 240px; }
 }
 
 /* Mobile */
@@ -1473,15 +1469,15 @@ body {
     top: 0;
     left: 0;
     width: 300px;
-    height: 100vh;
+    height: 100dvh;
     z-index: 1000;
-    padding-top: 72px;
+    padding-top: 60px;
     box-shadow: 4px 0 24px rgba(0, 0, 0, 0.5);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
 
-  .sidebar.open {
-    display: block;
-  }
+  .sidebar.open { display: block; }
 
   .sidebar-overlay {
     display: block;
@@ -1492,8 +1488,13 @@ body {
     backdrop-filter: blur(2px);
   }
 
+  .sidebar-list-section {
+    max-height: none;
+  }
+
+  /* Header: single row with hamburger, logo, mode, user */
   .header {
-    padding: 12px 16px;
+    padding: 10px 16px;
     gap: 10px;
     flex-wrap: wrap;
     position: sticky;
@@ -1501,135 +1502,145 @@ body {
     z-index: 1001;
   }
 
-  .logo {
-    font-size: 20px !important;
-  }
+  .logo { font-size: 20px !important; flex: 1; }
+  .header-stats { display: none; }
 
-  .mode-switcher {
-    order: 5;
-  }
+  /* Mode switcher stays in first row */
+  .mode-btn { padding: 6px 12px !important; font-size: 12px !important; }
 
-  .mode-btn {
-    padding: 6px 12px !important;
-    font-size: 12px !important;
-  }
-
+  /* Search drops to second row, full width */
   .search-container {
-    order: 6;
+    order: 10;
     width: 100%;
-    flex-shrink: 1;
+    flex-basis: 100%;
   }
 
-  .header-stats {
-    display: none;
+  .search-input {
+    padding: 8px 12px 8px 38px;
+    font-size: 14px;
   }
 
+  /* Main content */
   .main-content {
     padding: 16px;
-    height: calc(100vh - 120px);
+    height: calc(100dvh - 110px);
   }
 
-  .content-header {
-    flex-wrap: wrap;
-    gap: 10px;
-  }
+  .content-header { flex-wrap: wrap; gap: 10px; }
+  .content-title { font-size: 18px !important; }
 
-  .content-title {
-    font-size: 18px !important;
-  }
-
+  /* Grids */
   .channel-grid {
     grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
     gap: 12px;
   }
 
   .thumb-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
     gap: 12px;
   }
 
-  .list-row {
-    padding: 10px 12px;
-    gap: 12px;
-  }
+  /* List view */
+  .list-row { padding: 10px 12px; gap: 12px; }
+  .list-row-logo { width: 36px; height: 36px; }
+  .list-row-name { font-size: 13px; margin-bottom: 2px; }
+  .list-row-tags { gap: 3px; }
+  .list-row-tags .channel-tag { font-size: 9px; padding: 1px 5px; }
+  .list-row-actions .channel-stream-badge { font-size: 9px; padding: 2px 6px; }
 
-  .list-row-logo {
-    width: 36px;
-    height: 36px;
-  }
+  /* Cards */
+  .channel-card { padding: 14px 10px; }
+  .channel-logo, .channel-logo-placeholder { width: 52px; height: 52px; }
 
-  .list-row-name {
-    font-size: 13px;
-    margin-bottom: 2px;
-  }
+  /* Pagination */
+  .pagination { flex-wrap: wrap; gap: 8px; justify-content: center; }
 
-  .list-row-tags {
-    gap: 3px;
-  }
+  .view-toggle { order: -1; }
 
-  .list-row-tags .channel-tag {
-    font-size: 9px;
-    padding: 1px 5px;
-  }
+  /* Modals */
+  .modal-content { width: 96%; max-width: 96%; border-radius: 10px; }
+  .modal-header h3 { font-size: 16px; }
+  .stream-toolbar { padding: 10px 14px; gap: 8px; }
+  .radio-modal { max-width: 96%; }
+  .radio-player-body { padding: 16px; }
+  .radio-player-visual { width: 100px; height: 100px; }
 
-  .list-row-actions .channel-stream-badge {
-    font-size: 9px;
-    padding: 2px 6px;
-  }
-
-  .pagination {
-    flex-wrap: wrap;
-    gap: 8px;
-    justify-content: center;
-  }
-
-  .view-toggle {
-    order: -1;
-  }
-
-  .channel-card {
-    padding: 14px 10px;
-  }
-
-  .channel-logo, .channel-logo-placeholder {
-    width: 52px;
-    height: 52px;
-  }
+  /* Active filters */
+  .active-filters { flex-wrap: wrap; gap: 6px; }
+  .filter-tag { font-size: 11px; }
 }
 
 /* Small phones */
 @media (max-width: 480px) {
-  .header {
-    padding: 10px 12px;
+  .header { padding: 8px 12px; gap: 6px; }
+  .logo { font-size: 18px !important; }
+  .mode-btn { padding: 5px 10px !important; font-size: 11px !important; gap: 4px !important; }
+  .mode-btn svg { width: 13px; height: 13px; }
+
+  .search-input {
+    padding: 7px 10px 7px 34px;
+    font-size: 13px;
+  }
+
+  .main-content { padding: 10px; }
+  .content-title { font-size: 16px !important; }
+  .content-subtitle { font-size: 12px !important; }
+
+  .channel-grid {
+    grid-template-columns: repeat(2, 1fr);
     gap: 8px;
   }
 
-  .mode-switcher {
+  .channel-card { padding: 10px 8px; }
+  .channel-logo, .channel-logo-placeholder { width: 44px; height: 44px; }
+  .channel-name { font-size: 12px !important; }
+  .channel-meta { gap: 3px !important; }
+  .channel-tag { font-size: 9px !important; padding: 1px 5px !important; }
+  .channel-stream-badge { font-size: 8px !important; padding: 2px 5px !important; }
+  .favorite-btn { width: 28px; height: 28px; }
+  .favorite-btn svg { width: 14px; height: 14px; }
+
+  .thumb-grid { grid-template-columns: 1fr; gap: 10px; }
+
+  /* List view compact */
+  .list-row { padding: 8px 10px; gap: 10px; }
+  .list-row-logo { width: 32px; height: 32px; border-radius: 8px; }
+  .list-row-name { font-size: 12px; }
+  .list-row-tags { display: none; }
+  .list-fav-btn svg { width: 14px; height: 14px; }
+
+  /* Modal fullscreen on phone */
+  .modal-overlay { align-items: flex-end; }
+  .modal-content {
     width: 100%;
-    justify-content: center;
+    max-width: 100%;
+    border-radius: 16px 16px 0 0;
+    max-height: 92dvh;
+    overflow-y: auto;
   }
+  .radio-modal { max-width: 100%; }
 
-  .channel-grid {
-    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
-    gap: 10px;
-  }
+  .modal-header { padding: 12px 14px; }
+  .modal-header h3 { font-size: 14px; }
+  .stream-toolbar { padding: 8px 12px; }
 
-  .main-content {
-    padding: 12px;
-  }
+  /* Sidebar */
+  .sidebar { width: 85vw; max-width: 300px; }
 
-  .channel-name {
-    font-size: 12px !important;
-  }
+  /* Guest banner */
+  .guest-banner-content { padding: 14px; gap: 12px; }
+  .guest-banner-content strong { font-size: 13px; }
+  .guest-banner-content > svg { display: none; }
 
-  .channel-meta {
-    gap: 3px !important;
-  }
+  /* View toggle compact */
+  .view-toggle { gap: 2px; }
+  .view-toggle button { padding: 5px 7px; }
 
-  .channel-tag {
-    font-size: 9px !important;
-    padding: 1px 5px !important;
-  }
+  /* User menu */
+  .user-avatar-btn { width: 32px; height: 32px; }
+  .user-avatar, .user-avatar-placeholder { width: 32px; height: 32px; font-size: 13px; }
+  .user-login-btn { padding: 6px 10px; font-size: 12px; gap: 4px; }
+  .user-login-btn svg { width: 14px; height: 14px; }
 }
 
 /* Favorites Two-Column View */
@@ -2066,18 +2077,47 @@ body {
   color: var(--text-primary);
 }
 
-@media (max-width: 480px) {
+@media (max-width: 600px) {
+  .landing-content {
+    padding: 24px 16px;
+  }
+
   .landing-logo {
     font-size: 36px;
   }
 
   .landing-title {
-    font-size: 16px;
+    font-size: 15px;
+  }
+
+  .landing-subtitle {
+    font-size: 13px;
+    margin-bottom: 24px;
   }
 
   .landing-card {
-    padding: 20px;
+    padding: 20px 16px;
   }
+
+  .landing-feature-icon {
+    width: 38px;
+    height: 38px;
+  }
+
+  .landing-apple-btn,
+  .landing-passkey-btn {
+    width: 100%;
+    font-size: 13px;
+    padding: 11px 16px;
+  }
+
+  .landing-skip {
+    font-size: 13px;
+  }
+
+  .landing-orb-1 { width: 300px; height: 300px; }
+  .landing-orb-2 { width: 200px; height: 200px; }
+  .landing-orb-3 { width: 150px; height: 150px; }
 }
 
 /* Auth / User Menu */
