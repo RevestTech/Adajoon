@@ -90,6 +90,9 @@ export default function Sidebar({
             <div
               className={`sidebar-item favorites-item ${showFavorites ? "active" : ""}`}
               onClick={onToggleFavorites}
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onToggleFavorites(); } }}
+              tabIndex={0}
+              role="button"
             >
               <span className="favorites-label">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill={showFavorites ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -158,6 +161,9 @@ export default function Sidebar({
           <div
             className={`sidebar-item favorites-item ${showFavorites ? "active" : ""}`}
             onClick={onToggleFavorites}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onToggleFavorites(); } }}
+            tabIndex={0}
+            role="button"
           >
             <span className="favorites-label">
               <svg width="16" height="16" viewBox="0 0 24 24" fill={showFavorites ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -224,13 +230,19 @@ function SidebarList({ items, activeIds = [], onSelect, getId, getLabel, getCoun
   const hasMore = items.length > INITIAL_VISIBLE;
   const hasSelection = activeIds.length > 0;
 
+  const handleKey = (e, cb) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); cb(); } };
+
   return (
     <div className="sidebar-list-section">
-      <div className="sidebar-filter-list">
+      <div className="sidebar-filter-list" role="listbox" aria-multiselectable="true">
         {!filterText && (
           <div
             className={`sidebar-item ${!hasSelection ? "active" : ""}`}
             onClick={() => onSelect(null)}
+            onKeyDown={(e) => handleKey(e, () => onSelect(null))}
+            tabIndex={0}
+            role="option"
+            aria-selected={!hasSelection}
           >
             <span className="sidebar-item-label">{allLabel}</span>
           </div>
@@ -243,6 +255,10 @@ function SidebarList({ items, activeIds = [], onSelect, getId, getLabel, getCoun
               key={id}
               className={`sidebar-item ${isActive ? "active" : ""}`}
               onClick={() => onSelect(id)}
+              onKeyDown={(e) => handleKey(e, () => onSelect(id))}
+              tabIndex={0}
+              role="option"
+              aria-selected={isActive}
             >
               <span className="sidebar-check">{isActive ? "✓" : ""}</span>
               <span className="sidebar-item-label">{getLabel(item)}</span>

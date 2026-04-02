@@ -10,10 +10,22 @@ export default function Header({
 }) {
   const [localSearch, setLocalSearch] = useState(search);
   const debounceRef = useRef(null);
+  const searchRef = useRef(null);
 
   useEffect(() => {
     setLocalSearch(search);
   }, [search]);
+
+  useEffect(() => {
+    const handleKey = (e) => {
+      if (e.key === "/" && !e.ctrlKey && !e.metaKey && !["INPUT", "TEXTAREA"].includes(document.activeElement?.tagName)) {
+        e.preventDefault();
+        searchRef.current?.focus();
+      }
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, []);
 
   const handleChange = (e) => {
     const val = e.target.value;
@@ -74,11 +86,13 @@ export default function Header({
             <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
           </svg>
           <input
+            ref={searchRef}
             className="search-input"
             type="text"
             placeholder={mode === "tv" ? "Search channels..." : "Search stations..."}
             value={localSearch}
             onChange={handleChange}
+            aria-label={mode === "tv" ? "Search channels" : "Search stations"}
           />
         </div>
       </div>

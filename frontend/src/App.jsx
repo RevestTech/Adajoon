@@ -22,7 +22,7 @@ export default function App() {
   const [viewMode, setViewMode] = useState(() => localStorage.getItem("adajoon_view") || "grid");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showLogin, setShowLogin] = useState(() => {
-    try { return !localStorage.getItem("adajoon_user"); } catch { return true; }
+    try { return !localStorage.getItem("adajoon_user") && !localStorage.getItem("adajoon_guest_skip"); } catch { return true; }
   });
 
   const auth = useAuth();
@@ -127,6 +127,7 @@ export default function App() {
 
   const handleLogout = useCallback(() => {
     auth.logout();
+    localStorage.removeItem("adajoon_guest_skip");
     setShowLogin(true);
   }, [auth]);
 
@@ -303,7 +304,7 @@ export default function App() {
         search={mode === "tv" ? search : radioSearch}
         onSearch={(val) => {
           if (mode === "tv") { setSearch(val); setShowFavorites(false); }
-          else setRadioSearch(val);
+          else { setRadioSearch(val); setShowRadioFavorites(false); }
         }}
         sidebarOpen={sidebarOpen}
         onToggleSidebar={() => setSidebarOpen((v) => !v)}
@@ -380,6 +381,7 @@ export default function App() {
               onSelect={setSelectedChannel}
               activeCategories={activeCategories}
               activeCountries={activeCountries}
+              categoryList={categories}
               search={search}
               showFavorites={false}
               activeQualities={activeQualities}
@@ -459,7 +461,7 @@ export default function App() {
             onPasskeyLogin={handlePasskeyLogin}
             googleClientId={GOOGLE_CLIENT_ID}
             appleClientId={APPLE_CLIENT_ID}
-            onSkip={() => setShowLogin(false)}
+            onSkip={() => { localStorage.setItem("adajoon_guest_skip", "1"); setShowLogin(false); }}
           />
         </Suspense>
       )}

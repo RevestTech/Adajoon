@@ -72,14 +72,27 @@ export default function RadioGrid({
   stats,
 }) {
   const hasFilters = activeTags.length > 0 || activeCountries.length > 0 || search || showFavorites || activeQualities.length > 0;
-  const showFullSpinner = loading && stations.length === 0;
+  const showSkeleton = loading && stations.length === 0;
 
-  if (showFullSpinner) {
+  if (showSkeleton) {
+    const SkeletonEl = viewMode === "list" ? "skeleton-row" : viewMode === "thumb" ? "skeleton-thumb" : "skeleton-card";
+    const gridClass = viewMode === "list" ? "channel-list" : viewMode === "thumb" ? "thumb-grid" : "channel-grid";
     return (
-      <div className="loading-container">
-        <div className="spinner" />
-        <span>Loading radio stations...</span>
-      </div>
+      <>
+        <div className="content-header">
+          <div className="content-title-row"><div><h2 className="content-title">Loading...</h2></div></div>
+        </div>
+        <div className="content-body">
+          <div className={gridClass}>
+            {Array.from({ length: 12 }).map((_, i) => (
+              <div key={i} className={SkeletonEl}>
+                <div className="skeleton-line-title" />
+                <div className="skeleton-line-meta" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </>
     );
   }
 
@@ -260,7 +273,7 @@ function RadioCard({ station, onClick, favorited, onToggleFavorite, isGuest, vot
   const streamStatus = getRadioStreamStatus(station);
 
   return (
-    <div className="channel-card radio-card" onClick={onClick}>
+    <div className="channel-card radio-card" onClick={onClick} onKeyDown={(e) => { if (e.key === "Enter") onClick(); }} tabIndex={0} role="button">
       {!isGuest && (
         <button
           className={`favorite-btn ${favorited ? "favorited" : ""}`}
@@ -326,7 +339,7 @@ function RadioRow({ station, onClick, favorited, onToggleFavorite, isGuest, vote
   const streamStatus = getRadioStreamStatus(station);
 
   return (
-    <div className="list-row" onClick={onClick}>
+    <div className="list-row" onClick={onClick} onKeyDown={(e) => { if (e.key === "Enter") onClick(); }} tabIndex={0} role="button">
       <div className="list-row-logo">
         {station.favicon ? (
           <img
@@ -387,7 +400,7 @@ function RadioThumb({ station, onClick, favorited, onToggleFavorite, isGuest, vo
   const streamStatus = getRadioStreamStatus(station);
 
   return (
-    <div className="thumb-card" onClick={onClick}>
+    <div className="thumb-card" onClick={onClick} onKeyDown={(e) => { if (e.key === "Enter") onClick(); }} tabIndex={0} role="button">
       <div className="thumb-image">
         {station.favicon ? (
           <img

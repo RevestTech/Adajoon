@@ -105,11 +105,11 @@ export default function VideoPlayer({ channel, onClose, isFavorite, onToggleFavo
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="player-title">
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <div>
-            <h3>{channel.name}</h3>
+            <h3 id="player-title">{channel.name}</h3>
             {channel.country_code && (
               <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
                 {channel.country_code}
@@ -129,7 +129,7 @@ export default function VideoPlayer({ channel, onClose, isFavorite, onToggleFavo
                 </svg>
               </button>
             )}
-            <button className="modal-close" onClick={onClose}>×</button>
+            <button className="modal-close" onClick={onClose} aria-label="Close player">×</button>
           </div>
         </div>
         <div className="modal-body">
@@ -138,7 +138,7 @@ export default function VideoPlayer({ channel, onClose, isFavorite, onToggleFavo
               {errorMsg ? (
                 <div className="no-stream">{errorMsg}</div>
               ) : (
-                <video ref={videoRef} controls autoPlay />
+                <video ref={videoRef} controls autoPlay playsInline />
               )}
             </div>
           ) : (

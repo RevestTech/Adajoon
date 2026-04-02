@@ -32,11 +32,11 @@ export default function RadioPlayer({ station, onClose, isFavorite, onToggleFavo
   const tags = station.tags ? station.tags.split(",").map((t) => t.trim()).filter(Boolean) : [];
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="radio-player-title">
       <div className="modal-content radio-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <div>
-            <h3>{station.name}</h3>
+            <h3 id="radio-player-title">{station.name}</h3>
             <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
               {station.country}
               {station.language && ` · ${station.language}`}
@@ -57,7 +57,7 @@ export default function RadioPlayer({ station, onClose, isFavorite, onToggleFavo
                 </svg>
               </button>
             )}
-            <button className="modal-close" onClick={onClose}>×</button>
+            <button className="modal-close" onClick={onClose} aria-label="Close player">×</button>
           </div>
         </div>
         <div className="radio-player-body">
