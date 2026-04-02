@@ -1668,6 +1668,7 @@ body {
   border-top: none;
   background: rgba(0, 0, 0, 0.2);
   border-top: 1px solid rgba(255, 255, 255, 0.05);
+  text-align: center;
 }
 
 .channel-player-modal .feedback-bar--channel .feedback-label {
@@ -1681,6 +1682,7 @@ body {
 
 .channel-player-modal .feedback-bar--channel .feedback-buttons {
   gap: 8px;
+  justify-content: center;
 }
 
 .channel-player-modal .feedback-bar--channel .feedback-btn {
