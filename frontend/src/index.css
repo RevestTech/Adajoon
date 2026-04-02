@@ -1616,7 +1616,7 @@ body {
     height: auto;
   }
 
-  .logo { font-size: 18px !important; flex: 1; min-width: 0; }
+  .logo { font-size: 18px !important; }
   .header-stats { display: none; }
   .mode-switcher { flex-shrink: 0; }
   .mode-btn { padding: 5px 10px !important; font-size: 11px !important; gap: 4px !important; }
@@ -2267,6 +2267,7 @@ body {
 .user-menu {
   position: relative;
   flex-shrink: 0;
+  margin-left: auto;
 }
 
 .user-avatar-btn {
