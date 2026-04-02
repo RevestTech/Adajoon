@@ -32,6 +32,7 @@ const VOTE_BUTTONS = [
 ];
 
 export default function FeedbackBar({
+  variant,
   itemType,
   itemId,
   myVotes = [],
@@ -45,9 +46,14 @@ export default function FeedbackBar({
     onVote?.(itemType, itemId, voteType);
   };
 
+  const label =
+    variant === "channel"
+      ? "How does it feel?"
+      : `Rate this ${itemType === "tv" ? "channel" : "station"}:`;
+
   return (
-    <div className="feedback-bar">
-      <span className="feedback-label">Rate this {itemType === "tv" ? "channel" : "station"}:</span>
+    <div className={`feedback-bar${variant === "channel" ? " feedback-bar--channel" : ""}`}>
+      <span className="feedback-label">{label}</span>
       <div className="feedback-buttons">
         {VOTE_BUTTONS.map((btn) => {
           const active = myVotes.includes(btn.type);
