@@ -1,12 +1,12 @@
-import { useState, useMemo, useEffect, useId } from "react";
-
-const FILTERS_COLLAPSED_KEY = "retv-sidebar-filters-collapsed";
+import { useState, useMemo } from "react";
 
 const INITIAL_VISIBLE = 12;
 
 export default function Sidebar({
   mode,
   className,
+  railCollapsed = false,
+  onToggleRail = () => {},
   categories,
   countries,
   activeCategories = [],
@@ -28,22 +28,6 @@ export default function Sidebar({
   const [filterText, setFilterText] = useState("");
   const [expanded, setExpanded] = useState(false);
   const [sortBy, setSortBy] = useState("name");
-  const [filtersCollapsed, setFiltersCollapsed] = useState(() => {
-    try {
-      return localStorage.getItem(FILTERS_COLLAPSED_KEY) === "1";
-    } catch {
-      return false;
-    }
-  });
-  const filtersPanelId = useId();
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(FILTERS_COLLAPSED_KEY, filtersCollapsed ? "1" : "0");
-    } catch {
-      /* ignore */
-    }
-  }, [filtersCollapsed]);
 
   const lowerFilter = filterText.toLowerCase();
 
@@ -100,14 +84,35 @@ export default function Sidebar({
 
   const showAll = expanded || filterText;
 
-  const activeFilterCount =
-    mode === "radio"
-      ? activeTags.length + activeCountries.length
-      : activeCategories.length + activeCountries.length;
+  const shellClass = `sidebar ${className || ""}${railCollapsed ? " sidebar--rail-collapsed" : ""}`;
+
+  const rail = (
+    <div className="sidebar-rail">
+      <button
+        type="button"
+        className="sidebar-rail-btn"
+        onClick={onToggleRail}
+        aria-label={railCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+        title={railCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+      >
+        {railCollapsed ? (
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <polyline points="9 18 15 12 9 6" />
+          </svg>
+        ) : (
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <polyline points="15 18 9 12 15 6" />
+          </svg>
+        )}
+      </button>
+    </div>
+  );
 
   if (mode === "radio") {
     return (
-      <aside className={`sidebar ${className || ""}`}>
+      <aside className={shellClass}>
+        {rail}
+        <div className="sidebar-body">
         <div className="sidebar-section">
           {!isGuest && (
             <div
@@ -130,21 +135,15 @@ export default function Sidebar({
           )}
         </div>
 
-        <SidebarFiltersShell
-          collapsed={filtersCollapsed}
-          onToggle={() => setFiltersCollapsed((v) => !v)}
-          badgeCount={activeFilterCount}
-          panelId={filtersPanelId}
-        >
-          <div className="sidebar-tabs">
-            <TabButton active={radioTab === "genres"} onClick={() => handleRadioTabChange("genres")}>Genres</TabButton>
-            <TabButton active={radioTab === "countries"} onClick={() => handleRadioTabChange("countries")}>Countries</TabButton>
-          </div>
+        <div className="sidebar-tabs">
+          <TabButton active={radioTab === "genres"} onClick={() => handleRadioTabChange("genres")}>Genres</TabButton>
+          <TabButton active={radioTab === "countries"} onClick={() => handleRadioTabChange("countries")}>Countries</TabButton>
+        </div>
 
-          <div className="sidebar-toolbar">
-            <SidebarSearch value={filterText} onChange={setFilterText} placeholder={placeholder} />
-            <SortToggle sortBy={sortBy} onChange={setSortBy} />
-          </div>
+        <div className="sidebar-toolbar">
+          <SidebarSearch value={filterText} onChange={setFilterText} placeholder={placeholder} />
+          <SortToggle sortBy={sortBy} onChange={setSortBy} />
+        </div>
 
         {radioTab === "genres" && (
           <SidebarList
@@ -179,13 +178,15 @@ export default function Sidebar({
             filterText={filterText}
           />
         )}
-        </SidebarFiltersShell>
+        </div>
       </aside>
     );
   }
 
   return (
-    <aside className={`sidebar ${className || ""}`}>
+    <aside className={shellClass}>
+      {rail}
+      <div className="sidebar-body">
       <div className="sidebar-section">
         {!isGuest && (
           <div
@@ -208,21 +209,15 @@ export default function Sidebar({
         )}
       </div>
 
-      <SidebarFiltersShell
-        collapsed={filtersCollapsed}
-        onToggle={() => setFiltersCollapsed((v) => !v)}
-        badgeCount={activeFilterCount}
-        panelId={filtersPanelId}
-      >
-        <div className="sidebar-tabs">
-          <TabButton active={tab === "categories"} onClick={() => handleTabChange("categories")}>Categories</TabButton>
-          <TabButton active={tab === "countries"} onClick={() => handleTabChange("countries")}>Countries</TabButton>
-        </div>
+      <div className="sidebar-tabs">
+        <TabButton active={tab === "categories"} onClick={() => handleTabChange("categories")}>Categories</TabButton>
+        <TabButton active={tab === "countries"} onClick={() => handleTabChange("countries")}>Countries</TabButton>
+      </div>
 
-        <div className="sidebar-toolbar">
-          <SidebarSearch value={filterText} onChange={setFilterText} placeholder={placeholder} />
-          <SortToggle sortBy={sortBy} onChange={setSortBy} />
-        </div>
+      <div className="sidebar-toolbar">
+        <SidebarSearch value={filterText} onChange={setFilterText} placeholder={placeholder} />
+        <SortToggle sortBy={sortBy} onChange={setSortBy} />
+      </div>
 
       {tab === "categories" && (
         <SidebarList
@@ -257,49 +252,8 @@ export default function Sidebar({
           filterText={filterText}
         />
       )}
-      </SidebarFiltersShell>
-    </aside>
-  );
-}
-
-function SidebarFiltersShell({ collapsed, onToggle, badgeCount, panelId, children }) {
-  return (
-    <div className={`sidebar-filters-shell${collapsed ? " is-collapsed" : ""}`}>
-      <button
-        type="button"
-        className="sidebar-filters-toggle"
-        onClick={onToggle}
-        aria-expanded={!collapsed}
-        aria-controls={panelId}
-      >
-        <span className="sidebar-filters-toggle-left">
-          <svg className="sidebar-filters-toggle-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-            <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
-          </svg>
-          <span className="sidebar-filters-toggle-text">Filters</span>
-          {badgeCount > 0 && (
-            <span className="sidebar-filters-badge">{badgeCount}</span>
-          )}
-        </span>
-        <svg
-          className={`sidebar-filters-chevron${collapsed ? "" : " is-open"}`}
-          width="18"
-          height="18"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden
-        >
-          <polyline points="6 9 12 15 18 9" />
-        </svg>
-      </button>
-      <div id={panelId} className="sidebar-filters-panel">
-        <div className="sidebar-filters-panel-inner">{children}</div>
       </div>
-    </div>
+    </aside>
   );
 }
 

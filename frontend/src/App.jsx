@@ -60,6 +60,22 @@ export default function App() {
   const [mode, setMode] = useState(IU.mode);
   const [viewMode, setViewMode] = useState(IU.viewMode);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarRailCollapsed, setSidebarRailCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem("retv-sidebar-rail-collapsed") === "1";
+    } catch {
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("retv-sidebar-rail-collapsed", sidebarRailCollapsed ? "1" : "0");
+    } catch {
+      /* ignore */
+    }
+  }, [sidebarRailCollapsed]);
+
   const [showLogin, setShowLogin] = useState(() => {
     try { return !localStorage.getItem("adajoon_user") && !localStorage.getItem("adajoon_guest_skip"); } catch { return true; }
   });
@@ -520,6 +536,8 @@ export default function App() {
       <div className="layout">
         <Sidebar
           className={sidebarOpen ? "open" : ""}
+          railCollapsed={sidebarRailCollapsed}
+          onToggleRail={() => setSidebarRailCollapsed((v) => !v)}
           mode={mode}
           categories={categories}
           countries={mode === "tv" ? countries : []}
