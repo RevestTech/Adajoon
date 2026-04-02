@@ -553,8 +553,6 @@ export default function App() {
         }}
         sidebarOpen={sidebarOpen}
         onToggleSidebar={() => setSidebarOpen((v) => !v)}
-        sidebarRailCollapsed={sidebarRailCollapsed}
-        onToggleSidebarRail={() => setSidebarRailCollapsed((v) => !v)}
         user={auth.user}
         onLogin={() => setShowLogin(true)}
         onLogout={handleLogout}

@@ -57,7 +57,56 @@ body {
   overflow: hidden;
 }
 
-/* Sidebar: desktop uses bottom “Narrow filters” strip + header “Show filters” when hidden — no left rail */
+/* Sidebar: desktop collapse is a slim handle on the panel’s right edge (not a footer bar or header chip) */
+.sidebar-wrap {
+  display: flex;
+  flex-direction: row;
+  flex-shrink: 0;
+  align-items: stretch;
+  min-height: 0;
+  height: 100%;
+}
+
+.sidebar-edge-toggle {
+  display: none;
+}
+
+@media (min-width: 769px) {
+  .sidebar-edge-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    flex-shrink: 0;
+    padding: 0;
+    margin: 0;
+    border: none;
+    border-right: 1px solid var(--border);
+    background: rgba(0, 0, 0, 0.12);
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+
+  .sidebar-edge-toggle:hover {
+    background: rgba(233, 69, 96, 0.1);
+    color: var(--text-primary);
+  }
+
+  .sidebar-edge-toggle:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+  }
+
+  .sidebar-edge-toggle--collapsed {
+    background: rgba(0, 0, 0, 0.2);
+  }
+
+  .sidebar-edge-toggle--collapsed:hover {
+    background: rgba(233, 69, 96, 0.14);
+  }
+}
+
 .sidebar {
   display: flex;
   flex-direction: column;
@@ -85,47 +134,6 @@ body {
 
   .sidebar--rail-collapsed .sidebar-body {
     display: none;
-  }
-}
-
-/* Desktop: full-width footer control — not a left column */
-.sidebar-panel-foot {
-  display: none;
-}
-
-@media (min-width: 769px) {
-  .sidebar-panel-foot {
-    display: block;
-    flex-shrink: 0;
-    border-top: 1px solid rgba(233, 69, 96, 0.28);
-    padding: 8px 6px 10px;
-    background: linear-gradient(180deg, rgba(0, 0, 0, 0.15) 0%, rgba(233, 69, 96, 0.06) 100%);
-  }
-
-  .sidebar-panel-foot-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    width: 100%;
-    min-height: 40px;
-    padding: 8px 12px;
-    margin: 0;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 10px;
-    background: rgba(255, 255, 255, 0.04);
-    color: #fecdd3;
-    font-size: 12px;
-    font-weight: 600;
-    font-family: inherit;
-    cursor: pointer;
-    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
-  }
-
-  .sidebar-panel-foot-btn:hover {
-    color: #fff;
-    border-color: rgba(233, 69, 96, 0.45);
-    background: rgba(233, 69, 96, 0.12);
   }
 }
 
@@ -2917,37 +2925,6 @@ body {
   flex-shrink: 0;
 }
 
-/* When filter panel is width-collapsed: show in header-right (not beside logo — avoids “second rail”) */
-.header-filters-reveal {
-  display: none;
-}
-
-@media (min-width: 769px) {
-  .header-filters-reveal {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    flex-shrink: 0;
-    padding: 6px 12px;
-    margin-right: 4px;
-    border: 1px solid rgba(233, 69, 96, 0.35);
-    border-radius: 10px;
-    background: rgba(233, 69, 96, 0.12);
-    color: #fecdd3;
-    font-size: 12px;
-    font-weight: 600;
-    font-family: inherit;
-    cursor: pointer;
-    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
-  }
-
-  .header-filters-reveal:hover {
-    color: #fff;
-    border-color: rgba(233, 69, 96, 0.55);
-    background: rgba(233, 69, 96, 0.22);
-  }
-}
-
 /* Sidebar overlay */
 .sidebar-overlay {
   display: none;
@@ -2972,14 +2949,21 @@ body {
   }
   .menu-btn { display: flex; align-items: center; justify-content: center; }
 
-  /* Sidebar → overlay drawer */
-  .sidebar {
+  /* Sidebar → overlay drawer (open class on .sidebar-wrap) */
+  .sidebar-wrap {
+    flex: 0 0 0;
+    width: 0;
+    min-width: 0;
+    overflow: visible;
+  }
+
+  .sidebar-wrap .sidebar {
     display: none; position: fixed; top: 0; left: 0;
     width: var(--sidebar-width); height: 100dvh; z-index: 1000;
     padding-top: 56px; box-shadow: 4px 0 24px rgba(0,0,0,.5);
     overflow-y: auto; -webkit-overflow-scrolling: touch;
   }
-  .sidebar.open {
+  .sidebar-wrap.open .sidebar {
     display: flex;
     flex-direction: column;
   }
@@ -3207,7 +3191,7 @@ body {
   .modal-header h3 { font-size: 14px; }
   .stream-toolbar { padding: 8px 12px; }
 
-  .sidebar { width: min(85vw, var(--sidebar-width)); max-width: var(--sidebar-width); }
+  .sidebar-wrap .sidebar { width: min(85vw, var(--sidebar-width)); max-width: var(--sidebar-width); }
 
   .guest-banner-content { padding: 14px; gap: 12px; }
   .guest-banner-content strong { font-size: 13px; }

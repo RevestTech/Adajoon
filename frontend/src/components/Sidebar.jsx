@@ -85,28 +85,30 @@ export default function Sidebar({
 
   const showAll = expanded || filterText;
 
-  const shellClass = `sidebar ${className || ""}${railCollapsed ? " sidebar--rail-collapsed" : ""}`;
+  const shellClass = `sidebar${railCollapsed ? " sidebar--rail-collapsed" : ""}`;
 
-  const panelFoot =
-    typeof onToggleRail === "function" && !railCollapsed ? (
-      <div className="sidebar-panel-foot">
-        <button
-          type="button"
-          className="sidebar-panel-foot-btn"
-          onClick={onToggleRail}
-          aria-label="Narrow filters panel"
-          title="Give more room to the grid"
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+  const railToggle =
+    typeof onToggleRail === "function" ? (
+      <button
+        type="button"
+        className={`sidebar-edge-toggle${railCollapsed ? " sidebar-edge-toggle--collapsed" : ""}`}
+        onClick={onToggleRail}
+        aria-label={railCollapsed ? "Show filters" : "Hide filters"}
+        title={railCollapsed ? "Show filters" : "Hide filters"}
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          {railCollapsed ? (
+            <polyline points="9 18 15 12 9 6" />
+          ) : (
             <polyline points="15 18 9 12 15 6" />
-          </svg>
-          <span>Narrow filters</span>
-        </button>
-      </div>
+          )}
+        </svg>
+      </button>
     ) : null;
 
   if (mode === "radio") {
     return (
+      <div className={`sidebar-wrap ${className || ""}`.trim()}>
       <aside className={shellClass}>
         <div className="sidebar-body">
         <div className="sidebar-section">
@@ -195,12 +197,14 @@ export default function Sidebar({
           />
         )}
         </div>
-        {panelFoot}
       </aside>
+      {railToggle}
+      </div>
     );
   }
 
   return (
+    <div className={`sidebar-wrap ${className || ""}`.trim()}>
     <aside className={shellClass}>
       <div className="sidebar-body">
       <div className="sidebar-section">
@@ -293,8 +297,9 @@ export default function Sidebar({
         />
       )}
       </div>
-      {panelFoot}
     </aside>
+    {railToggle}
+    </div>
   );
 }
 
