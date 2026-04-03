@@ -180,25 +180,32 @@ async def search_radio(db: AsyncSession, params: RadioSearchParams):
 async def get_radio_tags(db: AsyncSession, limit: int = 60):
     """Get top tags with station counts using SQL-side aggregation.
     
-    Uses top 30K stations by votes to speed up query while getting good tag coverage.
+    This is an expensive query so results are cached for 1 hour.
+    Uses top 10K stations by votes for faster processing.
     """
     from sqlalchemy import text
     try:
+        # Simplified query - just get top stations' tags, split and count
         result = await db.execute(text("""
             SELECT tag, COUNT(*) AS cnt
             FROM (
-                SELECT lower(trim(unnest(string_to_array(tags, ',')))) AS tag
-                FROM radio_stations
-                WHERE tags != '' AND tags IS NOT NULL
-                ORDER BY votes DESC
-                LIMIT 30000
-            ) t
+                SELECT DISTINCT ON (tag) lower(trim(unnest(string_to_array(tags, ',')))) AS tag
+                FROM (
+                    SELECT tags
+                    FROM radio_stations
+                    WHERE tags != '' AND tags IS NOT NULL AND votes > 0
+                    ORDER BY votes DESC
+                    LIMIT 10000
+                ) top_stations
+            ) unique_tags
             WHERE length(tag) > 1
             GROUP BY tag
             ORDER BY cnt DESC
             LIMIT :lim
         """), {"lim": limit})
-        return [{"name": row[0], "station_count": row[1]} for row in result]
+        tags = [{"name": row[0], "station_count": row[1]} for row in result]
+        logger.info(f"get_radio_tags returned {len(tags)} tags")
+        return tags
     except Exception as e:
         logger.error(f"Error in get_radio_tags: {e}", exc_info=True)
         # Return empty list on error so it doesn't break the endpoint

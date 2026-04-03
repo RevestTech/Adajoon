@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/radio", tags=["radio"])
 
 CACHE_TTL = 300  # 5 minutes
+TAGS_CACHE_TTL = 3600  # 1 hour for expensive tags query
 
 
 @router.get("/stations", response_model=PaginatedRadio)
@@ -50,12 +51,17 @@ async def list_radio_stations(
 @router.get("/tags", response_model=list[RadioTagOut])
 async def list_radio_tags(db: AsyncSession = Depends(get_db)):
     try:
+        logger.info("list_radio_tags called")
         cached = await cache_get("radio_tags")
         if cached is not None:
+            logger.info(f"Returning {len(cached)} cached radio tags")
             return cached
+        logger.info("Fetching radio tags from database (expensive query)")
         data = await get_radio_tags(db)
+        logger.info(f"Got {len(data)} radio tags from database, caching for {TAGS_CACHE_TTL}s")
         # data is already a list of dicts from the service
-        await cache_set("radio_tags", data, CACHE_TTL)
+        # Cache for 1 hour since tags don't change often
+        await cache_set("radio_tags", data, TAGS_CACHE_TTL)
         return data
     except Exception as e:
         logger.error(f"Error in list_radio_tags: {e}", exc_info=True)
