@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from app.database import get_db
 from app.models import Playlist, PlaylistItem, User
 from app.routers.auth import require_user
+from app.csrf import verify_csrf_token
 
 router = APIRouter(prefix="/api/playlists", tags=["playlists"])
 
@@ -75,6 +76,7 @@ async def create_playlist(
     request: CreatePlaylistRequest,
     user: User = Depends(require_user),
     db: AsyncSession = Depends(get_db),
+    _csrf: None = Depends(verify_csrf_token),
 ):
     """Create a new playlist."""
     playlist = Playlist(
@@ -152,6 +154,7 @@ async def update_playlist(
     request: UpdatePlaylistRequest,
     user: User = Depends(require_user),
     db: AsyncSession = Depends(get_db),
+    _csrf: None = Depends(verify_csrf_token),
 ):
     """Update playlist metadata."""
     result = await db.execute(
@@ -186,6 +189,7 @@ async def delete_playlist(
     playlist_id: int,
     user: User = Depends(require_user),
     db: AsyncSession = Depends(get_db),
+    _csrf: None = Depends(verify_csrf_token),
 ):
     """Delete a playlist."""
     result = await db.execute(
@@ -209,6 +213,7 @@ async def add_playlist_item(
     request: AddItemRequest,
     user: User = Depends(require_user),
     db: AsyncSession = Depends(get_db),
+    _csrf: None = Depends(verify_csrf_token),
 ):
     """Add an item to playlist."""
     # Verify ownership
@@ -253,6 +258,7 @@ async def remove_playlist_item(
     item_id: int,
     user: User = Depends(require_user),
     db: AsyncSession = Depends(get_db),
+    _csrf: None = Depends(verify_csrf_token),
 ):
     """Remove an item from playlist."""
     # Verify ownership
@@ -280,6 +286,7 @@ async def reorder_playlist(
     request: ReorderRequest,
     user: User = Depends(require_user),
     db: AsyncSession = Depends(get_db),
+    _csrf: None = Depends(verify_csrf_token),
 ):
     """Reorder playlist items."""
     # Verify ownership

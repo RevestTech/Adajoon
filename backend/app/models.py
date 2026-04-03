@@ -176,10 +176,10 @@ class Channel(Base):
     stream_url = Column(Text, default="")
     languages = Column(Text, default="")
     is_active = Column(Boolean, default=True)
-    updated_at = Column(String(50), default="")
+    updated_at = Column(DateTime(timezone=True), nullable=True)
     health_status = Column(String(20), default="unknown")
-    health_checked_at = Column(String(50), default="")
-    last_validated_at = Column(String(50), default="")
+    health_checked_at = Column(DateTime(timezone=True), nullable=True)
+    last_validated_at = Column(DateTime(timezone=True), nullable=True)
 
     category = relationship("Category", back_populates="channels")
 
@@ -209,7 +209,7 @@ class RadioStation(Base):
     votes = Column(Integer, default=0)
     last_check_ok = Column(Boolean, default=False)
     health_status = Column(String(20), default="unknown")
-    health_checked_at = Column(String(50), default="")
+    health_checked_at = Column(DateTime(timezone=True), nullable=True)
     geo_lat = Column(String(50), default="")
     geo_long = Column(String(50), default="")
 
@@ -232,4 +232,4 @@ class Stream(Base):
     http_referrer = Column(Text, default="")
     user_agent = Column(Text, default="")
     status = Column(String(50), default="unknown")
-    added_at = Column(String(50), default="")
+    added_at = Column(DateTime(timezone=True), nullable=True)

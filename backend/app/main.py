@@ -42,9 +42,9 @@ limiter = Limiter(
     storage_uri=settings.redis_url
 )
 
-# Migrations moved to Alembic. Run `alembic upgrade head` to apply.
-# Legacy migrations kept for backwards compatibility during transition.
-_MIGRATIONS = []
+# All database migrations are managed by Alembic.
+# Run `alembic upgrade head` to apply migrations.
+# See backend/alembic/versions/ for migration files.
 
 SYNC_API_KEY = os.getenv("SYNC_API_KEY", "")
 
@@ -69,15 +69,10 @@ async def initial_sync():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Create tables (for development only - production should use Alembic migrations)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    async with engine.begin() as conn:
-        for sql in _MIGRATIONS:
-            try:
-                await conn.execute(text(sql))
-            except Exception:
-                pass
-    logger.info("Database tables created")
+    logger.info("Database initialization complete")
 
     sync_task = asyncio.create_task(initial_sync())
     yield

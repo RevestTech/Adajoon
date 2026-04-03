@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from app.database import get_db
 from app.models import User
 from app.routers.auth import require_user
+from app.csrf import verify_csrf_token
 
 router = APIRouter(prefix="/api/parental", tags=["parental"])
 
@@ -50,6 +51,7 @@ async def set_parental_pin(
     request: SetPinRequest,
     user: User = Depends(require_user),
     db: AsyncSession = Depends(get_db),
+    _csrf: None = Depends(verify_csrf_token),
 ):
     """Set or update parental control PIN."""
     # Validate PIN format (4-6 digits)
@@ -74,6 +76,7 @@ async def verify_parental_pin(
     request: VerifyPinRequest,
     user: User = Depends(require_user),
     db: AsyncSession = Depends(get_db),
+    _csrf: None = Depends(verify_csrf_token),
 ):
     """Verify parental control PIN."""
     if not user.parental_pin_hash:
@@ -105,6 +108,7 @@ async def toggle_kids_mode(
     request: UpdateModeRequest,
     user: User = Depends(require_user),
     db: AsyncSession = Depends(get_db),
+    _csrf: None = Depends(verify_csrf_token),
 ):
     """Enable or disable kids mode."""
     user.kids_mode_enabled = request.enabled
@@ -119,6 +123,7 @@ async def toggle_kids_mode(
 async def remove_parental_pin(
     user: User = Depends(require_user),
     db: AsyncSession = Depends(get_db),
+    _csrf: None = Depends(verify_csrf_token),
 ):
     """Remove parental control PIN."""
     user.parental_pin_hash = ""

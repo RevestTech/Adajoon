@@ -12,6 +12,7 @@ from app.database import get_db
 from app.config import settings
 from app.models import User
 from app.routers.auth import require_user
+from app.csrf import verify_csrf_token
 
 logger = logging.getLogger(__name__)
 
@@ -95,6 +96,7 @@ async def create_checkout_session(
     request: CheckoutRequest,
     user: User = Depends(require_user),
     db: AsyncSession = Depends(get_db),
+    _csrf: None = Depends(verify_csrf_token),
 ):
     """Create Stripe checkout session for subscription."""
     if not stripe.api_key:
@@ -156,6 +158,7 @@ async def create_checkout_session(
 async def create_portal_session(
     request: PortalRequest,
     user: User = Depends(require_user),
+    _csrf: None = Depends(verify_csrf_token),
 ):
     """Create Stripe customer portal session for managing subscription."""
     if not stripe.api_key:
@@ -189,18 +192,28 @@ async def stripe_webhook(
     if not stripe.api_key:
         raise HTTPException(status_code=501, detail="Stripe not configured")
     
+    if not settings.stripe_webhook_secret:
+        logger.error("Stripe webhook secret not configured - rejecting webhook")
+        raise HTTPException(
+            status_code=500,
+            detail="Webhook secret not configured"
+        )
+    
     payload = await request.body()
     sig_header = request.headers.get("stripe-signature")
     
-    webhook_secret = getattr(settings, 'stripe_webhook_secret', '')
+    if not sig_header:
+        raise HTTPException(status_code=400, detail="Missing stripe-signature header")
     
     try:
         event = stripe.Webhook.construct_event(
-            payload, sig_header, webhook_secret
+            payload, sig_header, settings.stripe_webhook_secret
         )
     except ValueError:
+        logger.error("Invalid webhook payload")
         raise HTTPException(status_code=400, detail="Invalid payload")
     except stripe.error.SignatureVerificationError:
+        logger.error("Invalid webhook signature")
         raise HTTPException(status_code=400, detail="Invalid signature")
     
     # Handle events

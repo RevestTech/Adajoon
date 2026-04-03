@@ -488,7 +488,12 @@ async def get_favorites(user: User = Depends(require_user), db: AsyncSession = D
 
 
 @router.post("/favorites")
-async def add_favorite(body: FavoriteRequest, user: User = Depends(require_user), db: AsyncSession = Depends(get_db)):
+async def add_favorite(
+    body: FavoriteRequest,
+    user: User = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+    _csrf: None = Depends(verify_csrf_token)
+):
     stmt = pg_insert(UserFavorite).values(
         user_id=user.id, item_type=body.item_type,
         item_id=body.item_id, item_data=json.dumps(body.item_data),
@@ -499,7 +504,13 @@ async def add_favorite(body: FavoriteRequest, user: User = Depends(require_user)
 
 
 @router.delete("/favorites/{item_type}/{item_id}")
-async def remove_favorite(item_type: str, item_id: str, user: User = Depends(require_user), db: AsyncSession = Depends(get_db)):
+async def remove_favorite(
+    item_type: str,
+    item_id: str,
+    user: User = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+    _csrf: None = Depends(verify_csrf_token)
+):
     await db.execute(
         delete(UserFavorite).where(
             UserFavorite.user_id == user.id,
@@ -512,7 +523,12 @@ async def remove_favorite(item_type: str, item_id: str, user: User = Depends(req
 
 
 @router.post("/favorites/sync")
-async def sync_favorites(favorites: list[FavoriteRequest], user: User = Depends(require_user), db: AsyncSession = Depends(get_db)):
+async def sync_favorites(
+    favorites: list[FavoriteRequest],
+    user: User = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+    _csrf: None = Depends(verify_csrf_token)
+):
     if len(favorites) > 500:
         raise HTTPException(status_code=400, detail="Too many favorites (max 500)")
     for fav in favorites:
@@ -545,7 +561,12 @@ class VoteRequest(BaseModel):
 
 
 @router.post("/votes")
-async def submit_vote(req: VoteRequest, user: User = Depends(require_user), db: AsyncSession = Depends(get_db)):
+async def submit_vote(
+    req: VoteRequest,
+    user: User = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+    _csrf: None = Depends(verify_csrf_token)
+):
     if req.vote_type not in VALID_VOTE_TYPES:
         raise HTTPException(status_code=400, detail=f"Invalid vote_type. Must be one of: {', '.join(sorted(VALID_VOTE_TYPES))}")
     if req.item_type not in ("tv", "radio"):

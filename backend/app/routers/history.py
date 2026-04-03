@@ -12,6 +12,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from app.database import get_db
 from app.models import User, WatchHistory
 from app.routers.auth import get_current_user
+from app.csrf import verify_csrf_token
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/history", tags=["history"])
@@ -40,6 +41,7 @@ async def record_watch_history(
     item: WatchHistoryItem,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    _csrf: None = Depends(verify_csrf_token),
 ):
     """Record or update a watch history entry."""
     try:
@@ -117,6 +119,7 @@ async def clear_watch_history(
     item_type: Optional[str] = None,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    _csrf: None = Depends(verify_csrf_token),
 ):
     """Clear watch history for the current user."""
     try:
@@ -143,6 +146,7 @@ async def delete_watch_history_item(
     history_id: int,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    _csrf: None = Depends(verify_csrf_token),
 ):
     """Delete a specific watch history item."""
     result = await db.execute(

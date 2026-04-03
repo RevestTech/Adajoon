@@ -4,6 +4,9 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
+    # Environment
+    env: str = os.getenv("ENV", "development")
+    
     # Database
     database_url: str = os.getenv(
         "DATABASE_URL",
@@ -25,7 +28,7 @@ class Settings(BaseSettings):
         return url
     
     # JWT
-    jwt_secret: str = os.getenv("JWT_SECRET", "change-me-in-production")
+    jwt_secret: str = os.getenv("JWT_SECRET", "")
     jwt_algorithm: str = "HS256"
     jwt_expiry_days: int = 30
     
@@ -54,16 +57,48 @@ class Settings(BaseSettings):
     stripe_webhook_secret: str = os.getenv("STRIPE_WEBHOOK_SECRET", "")
     stripe_publishable_key: str = os.getenv("STRIPE_PUBLISHABLE_KEY", "")
     
-    # CORS
-    cors_origins: list[str] = [
-        "http://localhost:5173",
-        "http://localhost:3000",
-        "https://adajoon.com",
-        "https://www.adajoon.com",
-    ]
+    @property
+    def cors_origins(self) -> list[str]:
+        """Parse CORS origins from environment variable or use defaults."""
+        cors_env = os.getenv("CORS_ORIGINS", "")
+        if cors_env:
+            return [origin.strip() for origin in cors_env.split(",") if origin.strip()]
+        
+        return [
+            "http://localhost:5173",
+            "http://localhost:3000",
+            "https://adajoon.com",
+            "https://www.adajoon.com",
+        ]
+    
+    def validate_config(self) -> None:
+        """Validate critical configuration on startup."""
+        errors = []
+        
+        if not self.jwt_secret:
+            errors.append("JWT_SECRET environment variable must be set")
+        elif len(self.jwt_secret) < 32:
+            errors.append("JWT_SECRET must be at least 32 characters long")
+        elif self.jwt_secret == "change-me-in-production":
+            errors.append("JWT_SECRET must not be the default value 'change-me-in-production'")
+        
+        if self.env == "production":
+            if "localhost" in self.database_url:
+                errors.append("DATABASE_URL must not contain 'localhost' in production")
+            
+            if "localhost" in self.redis_url:
+                errors.append("REDIS_URL must not contain 'localhost' in production")
+            
+            if self.stripe_secret_key and not self.stripe_webhook_secret:
+                errors.append("STRIPE_WEBHOOK_SECRET must be set when using Stripe in production")
+        
+        if errors:
+            error_msg = "Configuration validation failed:\n  - " + "\n  - ".join(errors)
+            raise ValueError(error_msg)
     
     class Config:
         env_file = ".env"
 
 
 settings = Settings()
+settings.validate_config()
