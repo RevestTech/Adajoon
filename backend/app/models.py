@@ -14,6 +14,16 @@ class User(Base):
     provider = Column(String(50), default="google")
     provider_id = Column(String(255), default="")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    # Parental controls
+    kids_mode_enabled = Column(Boolean, default=False)
+    parental_pin_hash = Column(String(255), default="")
+    
+    # Subscription
+    stripe_customer_id = Column(String(255), default="", index=True)
+    subscription_tier = Column(String(50), default="free", index=True)  # free, plus, pro, family
+    subscription_status = Column(String(50), default="")  # active, canceled, past_due, etc.
+    subscription_ends_at = Column(DateTime(timezone=True), default=None)
 
     favorites = relationship("UserFavorite", back_populates="user", cascade="all, delete-orphan")
 
@@ -50,6 +60,60 @@ class UserVote(Base):
     __table_args__ = (
         Index("ix_user_vote_unique", "user_id", "item_type", "item_id", "vote_type", unique=True),
         Index("ix_vote_item", "item_type", "item_id"),
+    )
+
+
+class WatchHistory(Base):
+    __tablename__ = "watch_history"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    item_type = Column(String(10), nullable=False)
+    item_id = Column(String(255), nullable=False)
+    item_name = Column(String(512), nullable=False)
+    item_logo = Column(Text, default="")
+    watched_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+    duration_seconds = Column(Integer, default=0)
+
+    user = relationship("User")
+
+    __table_args__ = (
+        Index("ix_watch_history_user_type", "user_id", "item_type", "watched_at"),
+        Index("ix_watch_history_item", "item_type", "item_id"),
+    )
+
+
+class Playlist(Base):
+    __tablename__ = "playlists"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String(255), nullable=False)
+    description = Column(Text, default="")
+    is_public = Column(Boolean, default=False, index=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    user = relationship("User")
+    items = relationship("PlaylistItem", back_populates="playlist", cascade="all, delete-orphan")
+
+
+class PlaylistItem(Base):
+    __tablename__ = "playlist_items"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    playlist_id = Column(Integer, ForeignKey("playlists.id", ondelete="CASCADE"), nullable=False, index=True)
+    item_type = Column(String(10), nullable=False)  # 'tv' or 'radio'
+    item_id = Column(String(255), nullable=False)
+    item_data = Column(Text, default="{}")  # JSON: {name, logo, country, etc.}
+    position = Column(Integer, default=0)
+    added_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    playlist = relationship("Playlist", back_populates="items")
+
+    __table_args__ = (
+        Index("ix_playlist_items_playlist_position", "playlist_id", "position"),
+        Index("ix_playlist_items_item", "item_type", "item_id"),
     )
 
 

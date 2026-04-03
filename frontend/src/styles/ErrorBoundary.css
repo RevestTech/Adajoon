@@ -1,0 +1,135 @@
+.error-boundary {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  z-index: 10000;
+  padding: 20px;
+}
+
+.error-boundary__content {
+  background: white;
+  border-radius: 16px;
+  padding: 40px;
+  max-width: 600px;
+  width: 100%;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  text-align: center;
+}
+
+.error-boundary__icon {
+  font-size: 64px;
+  margin-bottom: 20px;
+  animation: bounce 1s ease-in-out infinite;
+}
+
+@keyframes bounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.error-boundary__title {
+  font-size: 28px;
+  font-weight: 700;
+  color: #1a202c;
+  margin-bottom: 16px;
+}
+
+.error-boundary__message {
+  font-size: 16px;
+  color: #4a5568;
+  line-height: 1.6;
+  margin-bottom: 32px;
+}
+
+.error-boundary__details {
+  text-align: left;
+  margin-bottom: 24px;
+  background: #f7fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.error-boundary__details summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: #2d3748;
+  margin-bottom: 12px;
+}
+
+.error-boundary__stack {
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  color: #e53e3e;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.error-boundary__actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+.error-boundary__button {
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+  outline: none;
+}
+
+.error-boundary__button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.error-boundary__button--primary {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.error-boundary__button--secondary {
+  background: #e2e8f0;
+  color: #2d3748;
+}
+
+.error-boundary__button--secondary:hover {
+  background: #cbd5e0;
+}
+
+@media (max-width: 640px) {
+  .error-boundary__content {
+    padding: 24px;
+  }
+
+  .error-boundary__title {
+    font-size: 22px;
+  }
+
+  .error-boundary__icon {
+    font-size: 48px;
+  }
+
+  .error-boundary__actions {
+    flex-direction: column;
+  }
+
+  .error-boundary__button {
+    width: 100%;
+  }
+}

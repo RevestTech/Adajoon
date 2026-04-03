@@ -4,15 +4,74 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests" />
+    
+    <!-- Primary Meta Tags -->
     <title>Adajoon - TV & Radio from Around the World</title>
+    <meta name="title" content="Adajoon - TV & Radio from Around the World" />
+    <meta name="description" content="Stream live TV channels and radio stations from around the world. Discover news, sports, entertainment, and music from every corner of the globe." />
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://adajoon.com/" />
+    <meta property="og:title" content="Adajoon - TV & Radio from Around the World" />
+    <meta property="og:description" content="Stream live TV channels and radio stations from around the world. Discover news, sports, entertainment, and music from every corner of the globe." />
+    <meta property="og:image" content="https://adajoon.com/og-image.jpg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:site_name" content="Adajoon" />
+    
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image" />
+    <meta property="twitter:url" content="https://adajoon.com/" />
+    <meta property="twitter:title" content="Adajoon - TV & Radio from Around the World" />
+    <meta property="twitter:description" content="Stream live TV channels and radio stations from around the world. Discover news, sports, entertainment, and music from every corner of the globe." />
+    <meta property="twitter:image" content="https://adajoon.com/og-image.jpg" />
+    
+    <!-- PWA -->
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#667eea" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Adajoon" />
+    
+    <!-- Icons -->
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    
+    <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+    
+    <!-- Auth -->
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <script type="text/javascript" src="https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/en_US/appleid.auth.js" async defer></script>
+    
+    <!-- Chromecast -->
+    <script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1"></script>
+    
+    <!-- Google IMA SDK for Ads -->
+    <script src="https://imasdk.googleapis.com/js/sdkloader/ima3.js"></script>
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
+    
+    <!-- Service Worker Registration -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js')
+            .then((registration) => {
+              console.log('SW registered:', registration.scope);
+            })
+            .catch((error) => {
+              console.error('SW registration failed:', error);
+            });
+        });
+      }
+    </script>
   </body>
 </html>

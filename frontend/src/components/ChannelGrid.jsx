@@ -82,6 +82,7 @@ export default function ChannelGrid({
   activeCategories = [],
   activeCountries = [],
   categoryList = [],
+  countryList = [],
   search,
   showFavorites,
   activeQualities = [],
@@ -100,6 +101,7 @@ export default function ChannelGrid({
 }) {
   const hasFilters = activeCategories.length > 0 || activeCountries.length > 0 || search || showFavorites || activeQualities.length > 0;
   const showSkeleton = loading && channels.length === 0;
+  const showCountryInList = activeCountries.length === 0;
 
   if (showSkeleton) {
     const SkeletonEl = viewMode === "list" ? "skeleton-row" : viewMode === "thumb" ? "skeleton-thumb" : "skeleton-card";
@@ -210,22 +212,43 @@ export default function ChannelGrid({
               );
             })}
             {search && (
-              <span className="filter-tag" onClick={() => onClearFilter("search")}>
+              <button 
+                type="button"
+                className="filter-tag" 
+                onClick={() => onClearFilter("search")}
+                onKeyDown={(e) => e.key === ' ' && (e.preventDefault(), onClearFilter("search"))}
+                aria-label={`Remove filter: Search ${search}`}
+              >
                 Search: {search} ✕
-              </span>
+              </button>
             )}
             {activeCategories.map((cat) => {
               const catObj = categoryList.find((c) => c.id === cat);
+              const label = catObj ? catObj.name : cat;
               return (
-                <span key={cat} className="filter-tag" onClick={() => onClearFilter("category", cat)}>
-                  {catObj ? catObj.name : cat} ✕
-                </span>
+                <button 
+                  key={cat} 
+                  type="button"
+                  className="filter-tag" 
+                  onClick={() => onClearFilter("category", cat)}
+                  onKeyDown={(e) => e.key === ' ' && (e.preventDefault(), onClearFilter("category", cat))}
+                  aria-label={`Remove filter: ${label}`}
+                >
+                  {label} ✕
+                </button>
               );
             })}
             {activeCountries.map((code) => (
-              <span key={code} className="filter-tag" onClick={() => onClearFilter("country", code)}>
+              <button 
+                key={code} 
+                type="button"
+                className="filter-tag" 
+                onClick={() => onClearFilter("country", code)}
+                onKeyDown={(e) => e.key === ' ' && (e.preventDefault(), onClearFilter("country", code))}
+                aria-label={`Remove filter: ${code}`}
+              >
                 {code} ✕
-              </span>
+              </button>
             ))}
           </div>
         )}
@@ -256,6 +279,9 @@ export default function ChannelGrid({
           <>
             <div className={viewMode === "list" ? "channel-list" : viewMode === "thumb" ? "thumb-grid" : "channel-grid"}>
               {(isGuest ? channels.slice(0, GUEST_LIMIT) : channels).map((ch) => {
+                const countryObj = countryList.find(c => c.code === ch.country_code);
+                const countryName = countryObj ? countryObj.name : ch.country_code;
+                
                 const props = {
                   key: ch.id,
                   channel: ch,
@@ -270,6 +296,8 @@ export default function ChannelGrid({
                     : (e) => { e.stopPropagation(); onToggleFavorite(ch); },
                   isGuest,
                   voteSummary: getVoteSummary ? getVoteSummary(ch.id) : {},
+                  countryName,
+                  showCountry: showCountryInList,
                 };
                 if (viewMode === "list") return <ChannelRow {...props} />;
                 if (viewMode === "thumb") return <ChannelThumb {...props} />;
@@ -325,7 +353,7 @@ function ChannelCard({ channel, onClick, favorited, onToggleFavorite, isGuest, v
   const streamStatus = channel.stream_url ? getTvStreamStatus(channel.health_status) : null;
 
   return (
-    <div className="channel-card" onClick={onClick} onKeyDown={(e) => { if (e.key === "Enter") onClick(); }} tabIndex={0} role="button">
+    <div className="channel-card" onClick={onClick}>
       {isGuest ? (
         <button
           type="button"
@@ -391,12 +419,12 @@ function ChannelCard({ channel, onClick, favorited, onToggleFavorite, isGuest, v
   );
 }
 
-function ChannelRow({ channel, onClick, favorited, onToggleFavorite, isGuest, voteSummary }) {
+function ChannelRow({ channel, onClick, favorited, onToggleFavorite, isGuest, voteSummary, countryName, showCountry }) {
   const cats = channel.categories ? channel.categories.split(";").filter(Boolean) : [];
   const streamStatus = channel.stream_url ? getTvStreamStatus(channel.health_status) : null;
 
   return (
-    <div className="list-row" onClick={onClick} onKeyDown={(e) => { if (e.key === "Enter") onClick(); }} tabIndex={0} role="button">
+    <div className="list-row" onClick={onClick}>
       <div className="list-row-logo">
         {channel.logo ? (
           <img
@@ -420,21 +448,25 @@ function ChannelRow({ channel, onClick, favorited, onToggleFavorite, isGuest, vo
       </div>
       <div className="list-row-info">
         <span className="list-row-name">{channel.name}</span>
-        <div className="list-row-tags">
-          {channel.country_code && <span className="channel-tag">{channel.country_code}</span>}
-          {cats.slice(0, 3).map((c) => (
-            <span key={c} className="channel-tag">{c}</span>
+        <div className="list-row-meta">
+          {showCountry && countryName && <span className="list-meta-item">{countryName}</span>}
+          {cats.slice(0, 2).map((c) => (
+            <span key={c} className="list-meta-item">{c}</span>
           ))}
         </div>
       </div>
-      <div className="list-row-actions">
-        <VoteIndicator summary={voteSummary} />
+      <div className="list-row-status">
         {streamStatus && (
           <span className={streamStatus.badgeClass}>
             <span className={`status-dot ${streamStatus.dotClass}`} />
             {streamStatus.label}
           </span>
         )}
+      </div>
+      <div className="list-row-votes">
+        <VoteIndicator summary={voteSummary} />
+      </div>
+      <div className="list-row-fav">
         {isGuest ? (
           <button
             type="button"
@@ -468,7 +500,7 @@ function ChannelThumb({ channel, onClick, favorited, onToggleFavorite, isGuest, 
   const streamStatus = channel.stream_url ? getTvStreamStatus(channel.health_status) : null;
 
   return (
-    <div className="thumb-card" onClick={onClick} onKeyDown={(e) => { if (e.key === "Enter") onClick(); }} tabIndex={0} role="button">
+    <div className="thumb-card" onClick={onClick}>
       <div className="thumb-image">
         {channel.logo ? (
           <img

@@ -13,3 +13,15 @@ python-jose[cryptography]==3.3.0
 google-auth==2.37.0
 requests==2.32.3
 webauthn>=2.0.0
+slowapi
+python-json-logger
+prometheus-fastapi-instrumentator
+pytest==8.0.0
+pytest-asyncio==0.23.5
+pytest-cov==4.1.0
+respx==0.21.1
+faker==24.0.0
+itsdangerous==2.1.2
+bcrypt==4.1.2
+stripe==8.2.0
+redis[hiredis]==5.0.1

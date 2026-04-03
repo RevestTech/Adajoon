@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import FeedbackBar from "./FeedbackBar";
+import { useShare } from "../hooks/useShare";
 
 export default function RadioPlayer({
   station,
@@ -18,6 +19,8 @@ export default function RadioPlayer({
 }) {
   const [playing, setPlaying] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+  const [shareToast, setShareToast] = useState("");
+  const { shareRadioStation } = useShare();
 
   const streamUrl = station.url_resolved || station.url;
 
@@ -79,7 +82,23 @@ export default function RadioPlayer({
               {station.language && ` · ${station.language}`}
               {station.codec && ` · ${station.codec}`}
               {station.bitrate > 0 && ` · ${station.bitrate} kbps`}
+              {station.health_status && (
+                <span className={`radio-status-badge ${station.health_status}`}>
+                  {station.health_status === 'verified' ? ' · ✓ Verified' : 
+                   station.health_status === 'online' ? ' · ● Live' : 
+                   ` · ${station.health_status}`}
+                </span>
+              )}
             </span>
+            {station.health_checked_at && (
+              <span className="radio-player-validated" title={`Last validated: ${new Date(station.health_checked_at).toLocaleString()}`}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10" />
+                  <polyline points="12 6 12 12 16 14" />
+                </svg>
+                Last checked: {new Date(station.health_checked_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+              </span>
+            )}
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             {isGuest ? (
@@ -110,6 +129,30 @@ export default function RadioPlayer({
                 </svg>
               </button>
             )}
+            <button
+              type="button"
+              className="modal-share-btn"
+              onClick={async () => {
+                const result = await shareRadioStation(station);
+                if (result.success) {
+                  setShareToast(result.method === 'native' ? 'Shared!' : 'Link copied!');
+                  setTimeout(() => setShareToast(""), 2000);
+                } else {
+                  setShareToast('Failed to share');
+                  setTimeout(() => setShareToast(""), 2000);
+                }
+              }}
+              title="Share this station"
+              aria-label="Share this station"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="18" cy="5" r="3" />
+                <circle cx="6" cy="12" r="3" />
+                <circle cx="18" cy="19" r="3" />
+                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+                <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+              </svg>
+            </button>
             {typeof onMinimize === "function" && (
               <button
                 type="button"
@@ -124,6 +167,9 @@ export default function RadioPlayer({
               </button>
             )}
             <button className="modal-close" onClick={onClose} aria-label="Stop and close player">×</button>
+            {shareToast && (
+              <div className="share-toast">{shareToast}</div>
+            )}
           </div>
         </div>
         <div className="radio-player-body">

@@ -1,5 +1,4 @@
 import math
-import time
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,22 +11,11 @@ from app.schemas import (
 from app.services.radio_service import (
     search_radio, get_radio_tags, get_radio_countries,
 )
+from app.redis_client import cache_get, cache_set
 
 router = APIRouter(prefix="/api/radio", tags=["radio"])
 
-_cache: dict[str, tuple[float, object]] = {}
-CACHE_TTL = 300
-
-
-def _get_cached(key: str):
-    entry = _cache.get(key)
-    if entry and (time.monotonic() - entry[0]) < CACHE_TTL:
-        return entry[1]
-    return None
-
-
-def _set_cached(key: str, value):
-    _cache[key] = (time.monotonic(), value)
+CACHE_TTL = 300  # 5 minutes
 
 
 @router.get("/stations", response_model=PaginatedRadio)
@@ -59,17 +47,17 @@ async def list_radio_stations(
 
 @router.get("/tags", response_model=list[RadioTagOut])
 async def list_radio_tags(db: AsyncSession = Depends(get_db)):
-    cached = _get_cached("radio_tags")
+    cached = await cache_get("radio_tags")
     if cached is not None:
         return cached
     data = await get_radio_tags(db)
-    _set_cached("radio_tags", data)
+    await cache_set("radio_tags", [{"name": d.name, "station_count": d.station_count} for d in data], CACHE_TTL)
     return data
 
 
 @router.get("/countries", response_model=list[RadioCountryOut])
 async def list_radio_countries(db: AsyncSession = Depends(get_db)):
-    cached = _get_cached("radio_countries")
+    cached = await cache_get("radio_countries")
     if cached is not None:
         return cached
     rows = await get_radio_countries(db)
@@ -77,5 +65,5 @@ async def list_radio_countries(db: AsyncSession = Depends(get_db)):
         RadioCountryOut(country=r.country, country_code=r.country_code, station_count=r.station_count)
         for r in rows
     ]
-    _set_cached("radio_countries", data)
+    await cache_set("radio_countries", [{"country": d.country, "country_code": d.country_code, "station_count": d.station_count} for d in data], CACHE_TTL)
     return data

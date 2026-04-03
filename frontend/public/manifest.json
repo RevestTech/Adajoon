@@ -1,0 +1,13 @@
+{
+  "name": "Adajoon - TV & Radio from Around the World",
+  "short_name": "Adajoon",
+  "description": "Stream live TV channels and radio stations from around the world",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1a202c",
+  "theme_color": "#e94560",
+  "orientation": "any",
+  "categories": ["entertainment", "news", "music"],
+  "lang": "en-US",
+  "dir": "ltr"
+}

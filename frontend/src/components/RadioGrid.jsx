@@ -189,14 +189,28 @@ export default function RadioGrid({
               </span>
             )}
             {activeTags.map((tag) => (
-              <span key={tag} className="filter-tag" onClick={() => onClearFilter("tag", tag)}>
+              <button 
+                key={tag} 
+                type="button"
+                className="filter-tag" 
+                onClick={() => onClearFilter("tag", tag)}
+                onKeyDown={(e) => e.key === ' ' && (e.preventDefault(), onClearFilter("tag", tag))}
+                aria-label={`Remove filter: ${tag}`}
+              >
                 {tag} ✕
-              </span>
+              </button>
             ))}
             {activeCountries.map((code) => (
-              <span key={code} className="filter-tag" onClick={() => onClearFilter("country", code)}>
+              <button 
+                key={code} 
+                type="button"
+                className="filter-tag" 
+                onClick={() => onClearFilter("country", code)}
+                onKeyDown={(e) => e.key === ' ' && (e.preventDefault(), onClearFilter("country", code))}
+                aria-label={`Remove filter: ${code}`}
+              >
                 {code} ✕
-              </span>
+              </button>
             ))}
           </div>
         )}
@@ -296,7 +310,7 @@ function RadioCard({ station, onClick, favorited, onToggleFavorite, isGuest, vot
   const streamStatus = getRadioStreamStatus(station);
 
   return (
-    <div className="channel-card radio-card" onClick={onClick} onKeyDown={(e) => { if (e.key === "Enter") onClick(); }} tabIndex={0} role="button">
+    <div className="channel-card radio-card" onClick={onClick}>
       {isGuest ? (
         <button
           type="button"
@@ -374,7 +388,7 @@ function RadioRow({ station, onClick, favorited, onToggleFavorite, isGuest, vote
   const streamStatus = getRadioStreamStatus(station);
 
   return (
-    <div className="list-row" onClick={onClick} onKeyDown={(e) => { if (e.key === "Enter") onClick(); }} tabIndex={0} role="button">
+    <div className="list-row" onClick={onClick}>
       <div className="list-row-logo">
         {station.favicon ? (
           <img
@@ -447,7 +461,7 @@ function RadioThumb({ station, onClick, favorited, onToggleFavorite, isGuest, vo
   const streamStatus = getRadioStreamStatus(station);
 
   return (
-    <div className="thumb-card" onClick={onClick} onKeyDown={(e) => { if (e.key === "Enter") onClick(); }} tabIndex={0} role="button">
+    <div className="thumb-card" onClick={onClick}>
       <div className="thumb-image">
         {station.favicon ? (
           <img

@@ -21,12 +21,13 @@ async def fetch_radio_json(path: str, params: dict | None = None) -> list[dict]:
 
 
 async def sync_radio_stations(db: AsyncSession) -> int:
-    """Fetch top radio stations from Radio Browser API."""
+    """Fetch top radio stations from Radio Browser API with batched inserts."""
     logger.info("Starting radio station sync...")
     count = 0
     batch_size = 10000
     offset = 0
     max_stations = 50000
+    insert_batch_size = 500
 
     while offset < max_stations:
         data = await fetch_radio_json("/json/stations/search", {
@@ -40,51 +41,62 @@ async def sync_radio_stations(db: AsyncSession) -> int:
         if not data:
             break
 
+        # Prepare batch of values for bulk insert
+        values_batch = []
         for item in data:
             station_id = item.get("stationuuid", "")
             if not station_id:
                 continue
 
-            stmt = pg_insert(RadioStation).values(
-                id=station_id,
-                name=item.get("name", "").strip(),
-                url=item.get("url", ""),
-                url_resolved=item.get("url_resolved", ""),
-                homepage=item.get("homepage", ""),
-                favicon=item.get("favicon", ""),
-                tags=item.get("tags", ""),
-                country=item.get("country", ""),
-                country_code=(item.get("countrycode", "") or "").upper(),
-                state=item.get("state", ""),
-                language=item.get("language", ""),
-                codec=item.get("codec", ""),
-                bitrate=item.get("bitrate", 0) or 0,
-                votes=item.get("votes", 0) or 0,
-                last_check_ok=bool(item.get("lastcheckok", 0)),
-            ).on_conflict_do_update(
+            values_batch.append({
+                "id": station_id,
+                "name": item.get("name", "").strip(),
+                "url": item.get("url", ""),
+                "url_resolved": item.get("url_resolved", ""),
+                "homepage": item.get("homepage", ""),
+                "favicon": item.get("favicon", ""),
+                "tags": item.get("tags", ""),
+                "country": item.get("country", ""),
+                "country_code": (item.get("countrycode", "") or "").upper(),
+                "state": item.get("state", ""),
+                "language": item.get("language", ""),
+                "codec": item.get("codec", ""),
+                "bitrate": item.get("bitrate", 0) or 0,
+                "votes": item.get("votes", 0) or 0,
+                "last_check_ok": bool(item.get("lastcheckok", 0)),
+            })
+
+        # Process in smaller chunks to avoid huge single statements
+        for i in range(0, len(values_batch), insert_batch_size):
+            chunk = values_batch[i:i + insert_batch_size]
+            if not chunk:
+                continue
+                
+            stmt = pg_insert(RadioStation).values(chunk)
+            stmt = stmt.on_conflict_do_update(
                 index_elements=["id"],
                 set_={
-                    "name": item.get("name", "").strip(),
-                    "url": item.get("url", ""),
-                    "url_resolved": item.get("url_resolved", ""),
-                    "homepage": item.get("homepage", ""),
-                    "favicon": item.get("favicon", ""),
-                    "tags": item.get("tags", ""),
-                    "country": item.get("country", ""),
-                    "country_code": (item.get("countrycode", "") or "").upper(),
-                    "state": item.get("state", ""),
-                    "language": item.get("language", ""),
-                    "codec": item.get("codec", ""),
-                    "bitrate": item.get("bitrate", 0) or 0,
-                    "votes": item.get("votes", 0) or 0,
-                    "last_check_ok": bool(item.get("lastcheckok", 0)),
+                    "name": stmt.excluded.name,
+                    "url": stmt.excluded.url,
+                    "url_resolved": stmt.excluded.url_resolved,
+                    "homepage": stmt.excluded.homepage,
+                    "favicon": stmt.excluded.favicon,
+                    "tags": stmt.excluded.tags,
+                    "country": stmt.excluded.country,
+                    "country_code": stmt.excluded.country_code,
+                    "state": stmt.excluded.state,
+                    "language": stmt.excluded.language,
+                    "codec": stmt.excluded.codec,
+                    "bitrate": stmt.excluded.bitrate,
+                    "votes": stmt.excluded.votes,
+                    "last_check_ok": stmt.excluded.last_check_ok,
                 },
             )
             await db.execute(stmt)
-            count += 1
+            count += len(chunk)
 
         await db.commit()
-        logger.info("Synced radio batch: offset=%d, got=%d", offset, len(data))
+        logger.info("Synced radio batch: offset=%d, got=%d, total=%d", offset, len(data), count)
         offset += batch_size
 
         if len(data) < batch_size:

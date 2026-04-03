@@ -1,0 +1,52 @@
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        type: choice
+        options:
+          - staging
+          - production
+      tag:
+        description: 'Docker image tag to deploy'
+        required: true
+        default: 'latest'
+
+jobs:
+  deploy:
+    name: Deploy to ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Deploy notification
+        run: |
+          echo "Deploying tag ${{ inputs.tag }} to ${{ inputs.environment }}"
+          echo "This workflow is a placeholder for your deployment process"
+          echo "Configure your deployment strategy here (e.g., kubectl, AWS ECS, etc.)"
+      
+      # Example for Kubernetes deployment:
+      # - name: Configure kubectl
+      #   run: |
+      #     echo "${{ secrets.KUBECONFIG }}" | base64 -d > kubeconfig
+      #     export KUBECONFIG=kubeconfig
+      #
+      # - name: Deploy to Kubernetes
+      #   run: |
+      #     kubectl set image deployment/adajoon-backend backend=ghcr.io/${{ github.repository }}-backend:${{ inputs.tag }}
+      #     kubectl set image deployment/adajoon-frontend frontend=ghcr.io/${{ github.repository }}-frontend:${{ inputs.tag }}
+      #     kubectl rollout status deployment/adajoon-backend
+      #     kubectl rollout status deployment/adajoon-frontend
+      
+      - name: Success notification
+        if: success()
+        run: echo "Deployment to ${{ inputs.environment }} completed successfully"
+      
+      - name: Failure notification
+        if: failure()
+        run: echo "Deployment to ${{ inputs.environment }} failed"

@@ -10,6 +10,13 @@ engine = create_async_engine(
     max_overflow=settings.db_max_overflow,
     pool_timeout=settings.db_pool_timeout,
     pool_pre_ping=True,
+    connect_args={
+        "server_settings": {
+            "application_name": "adajoon_backend",
+            "statement_timeout": "10000",  # 10 second query timeout
+        },
+        "command_timeout": 10,  # 10 second connection timeout
+    },
 )
 async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 

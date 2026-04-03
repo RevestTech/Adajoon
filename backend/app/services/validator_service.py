@@ -276,37 +276,37 @@ async def _channel_stream_url(session: AsyncSession, channel: Channel) -> str:
     return (row[0] or "").strip() if row else ""
 
 
+async def _validate_channel(channel_id: str, session: AsyncSession) -> dict[str, Any]:
+    """Validate channel and return update data (no DB write)."""
+    ch = (
+        await session.execute(select(Channel).where(Channel.id == channel_id))
+    ).scalar_one_or_none()
+    if not ch:
+        return {"skipped": True}
+
+    url = await _channel_stream_url(session, ch)
+    if not url:
+        return {"channel_id": channel_id, "status": "offline"}
+
+    if ".m3u8" in url:
+        result = await deep_validate_hls(url)
+    else:
+        result = await probe_stream(url)
+
+    return {"channel_id": channel_id, "status": result["status"]}
+
+
 async def _validate_and_update_channel(channel_id: str) -> dict[str, Any]:
+    """Legacy wrapper for backward compatibility."""
     now = datetime.now(timezone.utc).isoformat()
     async with async_session() as session:
-        ch = (
-            await session.execute(select(Channel).where(Channel.id == channel_id))
-        ).scalar_one_or_none()
-        if not ch:
-            return {"skipped": True}
-
-        url = await _channel_stream_url(session, ch)
-        if not url:
-            await session.execute(
-                update(Channel)
-                .where(Channel.id == channel_id)
-                .values(
-                    health_status="offline",
-                    health_checked_at=now,
-                    last_validated_at=now,
-                )
-            )
-            await session.commit()
-            return {"status": "offline", "channel_id": channel_id}
-
-        if ".m3u8" in url:
-            result = await deep_validate_hls(url)
-        else:
-            result = await probe_stream(url)
-
+        result = await _validate_channel(channel_id, session)
+        if result.get("skipped"):
+            return result
+        
         await session.execute(
             update(Channel)
-            .where(Channel.id == channel_id)
+            .where(Channel.id == result["channel_id"])
             .values(
                 health_status=result["status"],
                 health_checked_at=now,
@@ -314,46 +314,45 @@ async def _validate_and_update_channel(channel_id: str) -> dict[str, Any]:
             )
         )
         await session.commit()
-        return {"status": result["status"], "channel_id": channel_id}
+        return result
+
+
+async def _validate_radio(station_id: str, session: AsyncSession) -> dict[str, Any]:
+    """Validate radio station and return update data (no DB write)."""
+    st = (
+        await session.execute(select(RadioStation).where(RadioStation.id == station_id))
+    ).scalar_one_or_none()
+    if not st:
+        return {"skipped": True}
+    
+    url = (st.url_resolved or "").strip() or (st.url or "").strip()
+    if not url:
+        return {"station_id": station_id, "status": "offline", "last_check_ok": False}
+    
+    result = await deep_validate_radio(url)
+    verified = result["status"] == "verified"
+    return {"station_id": station_id, "status": result["status"], "last_check_ok": verified}
 
 
 async def _validate_and_update_radio(station_id: str) -> dict[str, Any]:
+    """Legacy wrapper for backward compatibility."""
     now = datetime.now(timezone.utc).isoformat()
     async with async_session() as session:
-        st = (
-            await session.execute(select(RadioStation).where(RadioStation.id == station_id))
-        ).scalar_one_or_none()
-        if not st:
-            return {"skipped": True}
-
-        url = (st.url_resolved or "").strip() or (st.url or "").strip()
-        if not url:
-            await session.execute(
-                update(RadioStation)
-                .where(RadioStation.id == station_id)
-                .values(
-                    health_status="offline",
-                    health_checked_at=now,
-                    last_check_ok=False,
-                )
-            )
-            await session.commit()
-            return {"status": "offline", "station_id": station_id}
-
-        result = await deep_validate_radio(url)
-        verified = result["status"] == "verified"
-
+        result = await _validate_radio(station_id, session)
+        if result.get("skipped"):
+            return result
+        
         await session.execute(
             update(RadioStation)
-            .where(RadioStation.id == station_id)
+            .where(RadioStation.id == result["station_id"])
             .values(
                 health_status=result["status"],
                 health_checked_at=now,
-                last_check_ok=verified,
+                last_check_ok=result.get("last_check_ok", False),
             )
         )
         await session.commit()
-        return {"status": result["status"], "station_id": station_id}
+        return result
 
 
 async def validate_all_channels(
@@ -362,6 +361,7 @@ async def validate_all_channels(
     concurrency: int = 5,
 ) -> dict[str, Any]:
     cutoff = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(timezone.utc).isoformat()
     stats: dict[str, Any] = {
         "processed": 0,
         "batches": 0,
@@ -371,7 +371,11 @@ async def validate_all_channels(
 
     async def run_one(cid: str):
         async with sem:
-            return await _validate_and_update_channel(cid)
+            async with async_session() as session:
+                result = await _validate_channel(cid, session)
+                # Explicitly close session to free memory
+                await session.close()
+                return result
 
     batch_idx = 0
     while True:
@@ -387,22 +391,56 @@ async def validate_all_channels(
 
         ids = [r[0] for r in rows]
         batch_idx += 1
-        results = await asyncio.gather(*[run_one(i) for i in ids])
+        
+        # Process concurrently but limit task creation
+        results = await asyncio.gather(*[run_one(i) for i in ids], return_exceptions=True)
 
+        # Batch update all channels in one transaction
+        updates = []
         for r in results:
+            if isinstance(r, Exception):
+                logger.warning(f"Validation exception: {r}")
+                continue
             if r.get("skipped"):
                 continue
             stats["processed"] += 1
             st = r.get("status", "unknown")
             stats["by_status"][st] = stats["by_status"].get(st, 0) + 1
+            updates.append({
+                "id": r["channel_id"],
+                "health_status": st,
+                "health_checked_at": now,
+                "last_validated_at": now,
+            })
+        
+        if updates:
+            for u in updates:
+                await db_session.execute(
+                    update(Channel)
+                    .where(Channel.id == u["id"])
+                    .values(
+                        health_status=u["health_status"],
+                        health_checked_at=u["health_checked_at"],
+                        last_validated_at=u["last_validated_at"],
+                    )
+                )
+            await db_session.commit()
 
         stats["batches"] = batch_idx
         logger.info(
-            "Channel validation batch %d: size=%d cumulative_processed=%d",
+            "Channel validation batch %d: size=%d cumulative_processed=%d by_status=%s",
             batch_idx,
             len(ids),
             stats["processed"],
+            stats["by_status"],
         )
+        
+        # Force garbage collection after each batch to free memory
+        import gc
+        gc.collect()
+        
+        # Small delay between batches to allow memory cleanup
+        await asyncio.sleep(0.5)
 
     return stats
 
@@ -413,6 +451,7 @@ async def validate_all_radio(
     concurrency: int = 5,
 ) -> dict[str, Any]:
     cutoff = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(timezone.utc).isoformat()
     stats: dict[str, Any] = {
         "processed": 0,
         "batches": 0,
@@ -422,7 +461,11 @@ async def validate_all_radio(
 
     async def run_one(sid: str):
         async with sem:
-            return await _validate_and_update_radio(sid)
+            async with async_session() as session:
+                result = await _validate_radio(sid, session)
+                # Explicitly close session to free memory
+                await session.close()
+                return result
 
     batch_idx = 0
     while True:
@@ -438,22 +481,56 @@ async def validate_all_radio(
 
         ids = [r[0] for r in rows]
         batch_idx += 1
-        results = await asyncio.gather(*[run_one(i) for i in ids])
+        
+        # Process concurrently but handle exceptions
+        results = await asyncio.gather(*[run_one(i) for i in ids], return_exceptions=True)
 
+        # Batch update all radio stations in one transaction
+        updates = []
         for r in results:
+            if isinstance(r, Exception):
+                logger.warning(f"Radio validation exception: {r}")
+                continue
             if r.get("skipped"):
                 continue
             stats["processed"] += 1
             st = r.get("status", "unknown")
             stats["by_status"][st] = stats["by_status"].get(st, 0) + 1
+            updates.append({
+                "id": r["station_id"],
+                "health_status": st,
+                "health_checked_at": now,
+                "last_check_ok": r.get("last_check_ok", False),
+            })
+        
+        if updates:
+            for u in updates:
+                await db_session.execute(
+                    update(RadioStation)
+                    .where(RadioStation.id == u["id"])
+                    .values(
+                        health_status=u["health_status"],
+                        health_checked_at=u["health_checked_at"],
+                        last_check_ok=u["last_check_ok"],
+                    )
+                )
+            await db_session.commit()
 
         stats["batches"] = batch_idx
         logger.info(
-            "Radio validation batch %d: size=%d cumulative_processed=%d",
+            "Radio validation batch %d: size=%d cumulative_processed=%d by_status=%s",
             batch_idx,
             len(ids),
             stats["processed"],
+            stats["by_status"],
         )
+        
+        # Force garbage collection after each batch to free memory
+        import gc
+        gc.collect()
+        
+        # Small delay between batches to allow memory cleanup
+        await asyncio.sleep(0.5)
 
     return stats
 

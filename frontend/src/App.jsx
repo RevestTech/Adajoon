@@ -52,6 +52,8 @@ function readInitialFromUrl() {
     radioPage: u.mode === "radio" ? u.page : 1,
     showFavorites: u.fav,
     showRadioFavorites: u.fav,
+    initialChannel: u.channel,
+    initialStation: u.station,
   };
 }
 
@@ -634,6 +636,7 @@ export default function App() {
               activeCategories={activeCategories}
               activeCountries={activeCountries}
               categoryList={categories}
+              countryList={countries}
               search={search}
               showFavorites={false}
               activeQualities={activeQualities}
@@ -684,6 +687,7 @@ export default function App() {
       {selectedChannel && (
         <VideoPlayer
           channel={selectedChannel}
+          countries={countries}
           minimized={!tvModalOpen}
           onMinimize={() => setTvModalOpen(false)}
           onExpand={() => setTvModalOpen(true)}
@@ -701,6 +705,7 @@ export default function App() {
       {selectedStation && (
         <RadioPlayer
           station={selectedStation}
+          countries={radioCountries}
           audioRef={radioAudioRef}
           minimized={!radioModalOpen}
           onMinimize={() => setRadioModalOpen(false)}

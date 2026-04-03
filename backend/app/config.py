@@ -1,43 +1,69 @@
+"""Application configuration."""
+import os
 from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    database_url: str = "postgresql+asyncpg://retv:retv_secret@db:5432/retv"
-    sync_database_url: str = "postgresql://retv:retv_secret@db:5432/retv"
-    iptv_api_base: str = "https://iptv-org.github.io/api"
-    refresh_interval_hours: int = 6
-    port: int = 8000
-
-    db_pool_size: int = 10
-    db_max_overflow: int = 20
+    # Database
+    database_url: str = os.getenv(
+        "DATABASE_URL",
+        "postgresql+asyncpg://retv_user:retv_secret@localhost:5432/retv"
+    )
+    
+    # Database pool settings
+    db_pool_size: int = 5
+    db_max_overflow: int = 10
     db_pool_timeout: int = 30
-
-    jwt_secret: str = "change-me-in-production"
+    
+    def get_async_url(self) -> str:
+        """Convert postgres:// URL to postgresql+asyncpg://"""
+        url = self.database_url
+        if url.startswith("postgres://"):
+            url = url.replace("postgres://", "postgresql+asyncpg://", 1)
+        elif not url.startswith("postgresql+asyncpg://"):
+            url = "postgresql+asyncpg://" + url.split("://", 1)[1] if "://" in url else url
+        return url
+    
+    # JWT
+    jwt_secret: str = os.getenv("JWT_SECRET", "change-me-in-production")
     jwt_algorithm: str = "HS256"
     jwt_expiry_days: int = 30
-    google_client_id: str = ""
-    google_client_secret: str = ""
-    apple_client_id: str = ""
-    webauthn_rp_id: str = "adajoon.com"
-    webauthn_rp_name: str = "Adajoon"
-    webauthn_origin: str = "https://adajoon.com"
-
-    cors_origins: str = "https://adajoon.com,https://www.adajoon.com"
-
+    
+    # OAuth
+    google_client_id: str = os.getenv("GOOGLE_CLIENT_ID", "")
+    apple_client_id: str = os.getenv("APPLE_CLIENT_ID", "")
+    
+    # WebAuthn (Passkeys)
+    webauthn_rp_id: str = os.getenv("WEBAUTHN_RP_ID", "localhost")
+    webauthn_rp_name: str = os.getenv("WEBAUTHN_RP_NAME", "Adajoon")
+    webauthn_origin: str = os.getenv("WEBAUTHN_ORIGIN", "http://localhost:5173")
+    
+    # API Keys
+    sync_api_key: str = os.getenv("SYNC_API_KEY", "")
+    
+    # External APIs
+    iptv_api_base: str = "https://iptv-org.github.io/api"
+    iptv_github_url: str = "https://raw.githubusercontent.com/iptv-org/iptv/master/streams.json"
+    radio_browser_api: str = "https://de1.api.radio-browser.info"
+    
+    # Redis
+    redis_url: str = os.getenv("REDIS_URL", "redis://localhost:6379")
+    
+    # Stripe
+    stripe_secret_key: str = os.getenv("STRIPE_SECRET_KEY", "")
+    stripe_webhook_secret: str = os.getenv("STRIPE_WEBHOOK_SECRET", "")
+    stripe_publishable_key: str = os.getenv("STRIPE_PUBLISHABLE_KEY", "")
+    
+    # CORS
+    cors_origins: list[str] = [
+        "http://localhost:5173",
+        "http://localhost:3000",
+        "https://adajoon.com",
+        "https://www.adajoon.com",
+    ]
+    
     class Config:
         env_file = ".env"
-
-    def get_async_url(self) -> str:
-        url = self.database_url
-        if url.startswith("postgresql://"):
-            url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
-        return url
-
-    @property
-    def cors_origins_list(self) -> list[str]:
-        if self.cors_origins == "*":
-            return ["*"]
-        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
 
 
 settings = Settings()

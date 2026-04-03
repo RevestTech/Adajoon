@@ -1,5 +1,5 @@
-import time
-from fastapi import APIRouter, Depends
+import logging
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -7,47 +7,46 @@ from app.schemas import CategoryOut, CountryOut, StatsOut
 from app.services.channel_service import (
     get_categories_with_counts, get_countries_with_counts, get_stats,
 )
+from app.redis_client import cache_get, cache_set
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["metadata"])
 
-_cache: dict[str, tuple[float, object]] = {}
 CACHE_TTL = 300  # 5 minutes
-
-
-def _get_cached(key: str):
-    entry = _cache.get(key)
-    if entry and (time.monotonic() - entry[0]) < CACHE_TTL:
-        return entry[1]
-    return None
-
-
-def _set_cached(key: str, value):
-    _cache[key] = (time.monotonic(), value)
 
 
 @router.get("/categories", response_model=list[CategoryOut])
 async def list_categories(db: AsyncSession = Depends(get_db)):
-    cached = _get_cached("categories")
-    if cached is not None:
-        return cached
-    rows = await get_categories_with_counts(db)
-    data = [
-        CategoryOut(
-            id=r.id,
-            name=r.name,
-            channel_count=int(r.channel_count or 0),
-            live_count=int(r.live_count or 0),
-            verified_count=int(r.verified_count or 0),
-        )
-        for r in rows
-    ]
-    _set_cached("categories", data)
-    return data
+    try:
+        logger.info("Categories endpoint called")
+        cached = await cache_get("categories")
+        if cached is not None:
+            logger.info("Returning cached categories")
+            return cached
+        logger.info("Fetching categories from database")
+        rows = await get_categories_with_counts(db)
+        logger.info(f"Got {len(rows)} categories from database")
+        data = [
+            CategoryOut(
+                id=r.id,
+                name=r.name,
+                channel_count=int(r.channel_count or 0),
+                live_count=int(r.live_count or 0),
+                verified_count=int(r.verified_count or 0),
+            )
+            for r in rows
+        ]
+        await cache_set("categories", [d.model_dump() for d in data], CACHE_TTL)
+        logger.info("Categories cached and returning")
+        return data
+    except Exception as e:
+        logger.error(f"Error in list_categories: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to fetch categories: {str(e)}")
 
 
 @router.get("/countries", response_model=list[CountryOut])
 async def list_countries(db: AsyncSession = Depends(get_db)):
-    cached = _get_cached("countries")
+    cached = await cache_get("countries")
     if cached is not None:
         return cached
     rows = await get_countries_with_counts(db)
@@ -62,15 +61,15 @@ async def list_countries(db: AsyncSession = Depends(get_db)):
         )
         for r in rows
     ]
-    _set_cached("countries", data)
+    await cache_set("countries", [d.model_dump() for d in data], CACHE_TTL)
     return data
 
 
 @router.get("/stats", response_model=StatsOut)
 async def stats(db: AsyncSession = Depends(get_db)):
-    cached = _get_cached("stats")
+    cached = await cache_get("stats")
     if cached is not None:
         return cached
     data = await get_stats(db)
-    _set_cached("stats", data)
+    await cache_set("stats", data, CACHE_TTL)
     return data

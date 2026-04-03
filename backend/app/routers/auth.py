@@ -4,9 +4,11 @@ import base64
 import logging
 from datetime import datetime, timezone, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.responses import HTMLResponse
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from sqlalchemy import select, delete, exists, func, case
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -35,10 +37,12 @@ from webauthn.helpers import bytes_to_base64url, base64url_to_bytes
 from app.database import get_db
 from app.config import settings
 from app.models import User, UserFavorite, UserVote, Passkey
+from app.csrf import generate_csrf_token, verify_csrf_token
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
+limiter = Limiter(key_func=get_remote_address)
 security = HTTPBearer(auto_error=False)
 
 APPLE_KEYS_URL = "https://appleid.apple.com/auth/keys"
@@ -70,9 +74,35 @@ def decode_challenge_token(token: str) -> bytes:
     return base64.urlsafe_b64decode(payload["ch"])
 
 
-def _user_response(user: User, token: str) -> dict:
+def _set_auth_cookies(response: Response, user: User, token: str) -> None:
+    """Set authentication cookies (httpOnly JWT + CSRF token)."""
+    # Set JWT in httpOnly cookie (XSS-safe)
+    response.set_cookie(
+        key="auth_token",
+        value=token,
+        httponly=True,
+        secure=True,  # HTTPS only in production
+        samesite="lax",
+        max_age=settings.jwt_expiry_days * 24 * 60 * 60,
+        path="/",
+    )
+    
+    # Set CSRF token in readable cookie for frontend
+    csrf_token = generate_csrf_token()
+    response.set_cookie(
+        key="csrf_token",
+        value=csrf_token,
+        httponly=False,  # Frontend needs to read this
+        secure=True,
+        samesite="lax",
+        max_age=3600,  # 1 hour
+        path="/",
+    )
+
+
+def _user_response(user: User) -> dict:
+    """Return user data (no token in body - it's in cookies)."""
     return {
-        "token": token,
         "user": {
             "id": user.id,
             "email": user.email,
@@ -140,7 +170,8 @@ class PasskeyLoginBody(BaseModel):
 # ===========================================================================
 
 @router.post("/google")
-async def google_login(body: GoogleTokenRequest, db: AsyncSession = Depends(get_db)):
+@limiter.limit("10/minute")
+async def google_login(request: Request, response: Response, body: GoogleTokenRequest, db: AsyncSession = Depends(get_db)):
     try:
         idinfo = await asyncio.to_thread(
             id_token.verify_oauth2_token,
@@ -169,27 +200,31 @@ async def google_login(body: GoogleTokenRequest, db: AsyncSession = Depends(get_
 
     await db.commit()
     await db.refresh(user)
-    return _user_response(user, create_token(user.id, user.email))
+    token = create_token(user.id, user.email)
+    _set_auth_cookies(response, user, token)
+    return _user_response(user)
 
 
 # ===========================================================================
 # APPLE SIGN-IN
 # ===========================================================================
 
-_apple_keys_cache: tuple[float, list] | None = None
-APPLE_KEYS_TTL = 3600
+from app.redis_client import cache_get, cache_set
+
+APPLE_KEYS_TTL = 3600  # 1 hour
 
 async def _get_apple_keys() -> list:
-    """Fetch Apple JWKS with caching (1 hour TTL)."""
-    import time
-    global _apple_keys_cache
-    if _apple_keys_cache and (time.monotonic() - _apple_keys_cache[0]) < APPLE_KEYS_TTL:
-        return _apple_keys_cache[1]
+    """Fetch Apple JWKS with Redis caching (1 hour TTL)."""
+    cached = await cache_get("apple_public_keys")
+    if cached:
+        return cached
+    
     async with httpx.AsyncClient(timeout=10) as client:
         resp = await client.get(APPLE_KEYS_URL)
         resp.raise_for_status()
         keys = resp.json()["keys"]
-    _apple_keys_cache = (time.monotonic(), keys)
+    
+    await cache_set("apple_public_keys", keys, APPLE_KEYS_TTL)
     return keys
 
 
@@ -212,24 +247,43 @@ async def _verify_apple_identity_token(identity_token: str) -> dict:
 
 
 @router.post("/apple/callback")
-async def apple_callback(request: Request):
+async def apple_callback(request: Request, response: Response):
     """Apple redirects here with a form POST. We relay the data to the opener window."""
     form = await request.form()
     id_token = form.get("id_token", "")
     user_raw = form.get("user", "")
     origin = settings.webauthn_origin
-    return HTMLResponse(f"""<!DOCTYPE html><html><head><title>Signing in...</title></head>
+    
+    # Safely encode data for JavaScript embedding (XSS prevention)
+    safe_id_token = json.dumps(id_token)
+    safe_user_data = "null"
+    if user_raw:
+        try:
+            # Validate and re-serialize to ensure proper escaping
+            parsed = json.loads(user_raw)
+            safe_user_data = json.dumps(parsed)
+        except (json.JSONDecodeError, ValueError):
+            safe_user_data = "null"
+    safe_origin = json.dumps(origin)
+    
+    # Set COOP header to allow popup communication
+    response.headers["Cross-Origin-Opener-Policy"] = "same-origin-allow-popups"
+    
+    html_content = f"""<!DOCTYPE html><html><head><title>Signing in...</title></head>
 <body><p>Completing sign-in...</p><script>
 try {{
-  var data = {{ type:"apple-signin", idToken:"{id_token}", userData:{user_raw or "null"} }};
-  if (window.opener) {{ window.opener.postMessage(data,"{origin}"); window.close(); }}
-  else {{ window.location.href = "{origin}"; }}
-}} catch(e) {{ window.location.href = "{origin}"; }}
-</script></body></html>""")
+  var data = {{ type:"apple-signin", idToken:{safe_id_token}, userData:{safe_user_data} }};
+  if (window.opener) {{ window.opener.postMessage(data, {safe_origin}); window.close(); }}
+  else {{ window.location.href = {safe_origin}; }}
+}} catch(e) {{ window.location.href = {safe_origin}; }}
+</script></body></html>"""
+    
+    return HTMLResponse(content=html_content, headers=dict(response.headers))
 
 
 @router.post("/apple")
-async def apple_login(body: AppleTokenRequest, db: AsyncSession = Depends(get_db)):
+@limiter.limit("10/minute")
+async def apple_login(request: Request, response: Response, body: AppleTokenRequest, db: AsyncSession = Depends(get_db)):
     if not settings.apple_client_id:
         raise HTTPException(status_code=501, detail="Apple Sign-In not configured")
 
@@ -255,7 +309,9 @@ async def apple_login(body: AppleTokenRequest, db: AsyncSession = Depends(get_db
 
     await db.commit()
     await db.refresh(user)
-    return _user_response(user, create_token(user.id, user.email))
+    token = create_token(user.id, user.email)
+    _set_auth_cookies(response, user, token)
+    return _user_response(user)
 
 
 # ===========================================================================
@@ -263,7 +319,9 @@ async def apple_login(body: AppleTokenRequest, db: AsyncSession = Depends(get_db
 # ===========================================================================
 
 @router.post("/passkey/register-options")
-async def passkey_register_options(user: User = Depends(require_user), db: AsyncSession = Depends(get_db)):
+@limiter.limit("10/minute")
+async def passkey_register_options(
+    request: Request,user: User = Depends(require_user), db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Passkey).where(Passkey.user_id == user.id))
     existing = result.scalars().all()
 
@@ -347,7 +405,7 @@ async def passkey_login_options():
 
 
 @router.post("/passkey/login")
-async def passkey_login(body: PasskeyLoginBody, db: AsyncSession = Depends(get_db)):
+async def passkey_login(body: PasskeyLoginBody, response: Response, db: AsyncSession = Depends(get_db)):
     try:
         expected_challenge = decode_challenge_token(body.challenge_token)
     except Exception:
@@ -382,7 +440,9 @@ async def passkey_login(body: PasskeyLoginBody, db: AsyncSession = Depends(get_d
     if not user:
         raise HTTPException(status_code=400, detail="User not found")
 
-    return _user_response(user, create_token(user.id, user.email))
+    token = create_token(user.id, user.email)
+    _set_auth_cookies(response, user, token)
+    return _user_response(user)
 
 
 @router.get("/passkeys")

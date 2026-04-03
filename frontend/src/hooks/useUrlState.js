@@ -7,6 +7,7 @@ function splitList(value) {
 
 /**
  * Read and decode listing-related params from the current location.
+ * Also reads channel/station from URL path for shareable links.
  * @returns {{
  *   mode: 'tv'|'radio',
  *   q: string,
@@ -16,14 +17,36 @@ function splitList(value) {
  *   status: string[],
  *   page: number,
  *   view: string,
- *   fav: boolean
+ *   fav: boolean,
+ *   channel: string|null,
+ *   station: string|null
  * }}
  */
 export function readUrlParams() {
   const sp = new URLSearchParams(
     typeof window !== "undefined" ? window.location.search : "",
   );
-  const modeRaw = (sp.get("mode") || "tv").toLowerCase();
+  
+  // Read from URL path (e.g., /tv/channel/123 or /radio/station/456)
+  let channel = sp.get("channel") || null;
+  let station = sp.get("station") || null;
+  let modeFromPath = sp.get("mode") || "tv";
+  
+  if (typeof window !== "undefined") {
+    const path = window.location.pathname;
+    const tvMatch = path.match(/^\/tv\/channel\/([^/]+)/);
+    const radioMatch = path.match(/^\/radio\/station\/([^/]+)/);
+    
+    if (tvMatch) {
+      channel = tvMatch[1];
+      modeFromPath = "tv";
+    } else if (radioMatch) {
+      station = radioMatch[1];
+      modeFromPath = "radio";
+    }
+  }
+  
+  const modeRaw = (modeFromPath || "tv").toLowerCase();
   const mode = modeRaw === "radio" ? "radio" : "tv";
   const pageRaw = parseInt(sp.get("page") || "1", 10);
   const page = Number.isFinite(pageRaw) && pageRaw >= 1 ? pageRaw : 1;
@@ -41,6 +64,8 @@ export function readUrlParams() {
     page,
     view,
     fav,
+    channel,
+    station,
   };
 }
 
@@ -84,26 +109,43 @@ export function writeUrlParams(params) {
 }
 
 /**
- * Push a history entry so Back closes the player. State includes player key.
+ * Push a history entry with real URL path for shareable links.
  * @param {'tv'|'radio'} type
  * @param {string|number} id
  */
 export function pushPlayerState(type, id) {
   if (typeof window === "undefined") return;
-  const prev =
-    typeof history.state === "object" && history.state !== null
-      ? history.state
-      : {};
-  const href = window.location.href;
+  
+  // Build shareable URL path
+  const path = type === "tv" ? `/tv/channel/${id}` : `/radio/station/${id}`;
+  
+  // Preserve query params
+  const sp = new URLSearchParams(window.location.search);
+  const search = sp.toString() ? `?${sp.toString()}` : "";
+  
+  const newUrl = `${path}${search}`;
+  
   history.pushState(
-    { ...prev, [PLAYER_KEY]: { type, id: String(id) } },
+    { [PLAYER_KEY]: { type, id: String(id) } },
     "",
-    href,
+    newUrl,
   );
 }
 
-/** Pop the player history entry (browser Back). */
+/** 
+ * Pop the player history entry (browser Back).
+ * Returns to listing view with preserved filters.
+ */
 export function popPlayerState() {
   if (typeof window === "undefined") return;
-  history.back();
+  
+  // If we're on a player URL, navigate back to root with preserved query params
+  const path = window.location.pathname;
+  if (path.match(/^\/(tv\/channel|radio\/station)\//)) {
+    const sp = new URLSearchParams(window.location.search);
+    const search = sp.toString() ? `?${sp.toString()}` : "";
+    history.pushState(null, "", `/${search}`);
+  } else {
+    history.back();
+  }
 }

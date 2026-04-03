@@ -21,6 +21,11 @@ RUN pip install --no-cache-dir --no-index --find-links=/wheels -r requirements.t
 
 COPY . .
 
+RUN chmod +x start.sh
+
 EXPOSE 8000
 
-CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --timeout-keep-alive 5 --limit-concurrency 500
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health').read()" || exit 1
+
+CMD ["./start.sh"]

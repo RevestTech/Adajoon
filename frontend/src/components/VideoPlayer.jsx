@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { fetchStreams, runHealthCheck } from "../api/channels";
 import FeedbackBar from "./FeedbackBar";
 import MiniPlayer from "./MiniPlayer";
+import { useShare } from "../hooks/useShare";
 
 function healthCheckPresentation(status) {
   const s = status || "unknown";
@@ -34,6 +35,7 @@ function HealthCheckResultRow({ result }) {
 
 export default function VideoPlayer({
   channel,
+  countries = [],
   onClose,
   onMinimize,
   onExpand,
@@ -47,6 +49,11 @@ export default function VideoPlayer({
   voteSummary,
   onVote,
 }) {
+  const getCountryName = (code) => {
+    if (!code) return null;
+    const country = countries.find(c => c.code === code);
+    return country ? country.name : code;
+  };
   const videoRef = useRef(null);
   const hlsRef = useRef(null);
   const [streams, setStreams] = useState([]);
@@ -54,6 +61,8 @@ export default function VideoPlayer({
   const [errorMsg, setErrorMsg] = useState("");
   const [healthResult, setHealthResult] = useState(null);
   const [checking, setChecking] = useState(false);
+  const [shareToast, setShareToast] = useState("");
+  const { shareTvChannel } = useShare();
 
   useEffect(() => {
     fetchStreams(channel.id).then(setStreams).catch(() => {});
@@ -131,15 +140,68 @@ export default function VideoPlayer({
       <div className="modal-content channel-player-modal__shell" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header channel-modal-header">
           <div className="channel-modal-header__main">
-            <h3 id="player-title">{channel.name}</h3>
+            <h3 id="player-title">
+              {channel.name}
+              {channel.alt_names && channel.alt_names !== channel.name && (
+                <span className="channel-alt-name"> ({channel.alt_names})</span>
+              )}
+            </h3>
             {(channel.country_code || channel.categories) && (
               <div className="channel-modal-meta">
                 {channel.country_code && (
-                  <span className="channel-modal-pill channel-modal-pill--country">{channel.country_code}</span>
+                  <span className="channel-modal-pill channel-modal-pill--country">
+                    {getCountryName(channel.country_code)}
+                  </span>
                 )}
                 {channel.categories && (
                   <span className="channel-modal-pill channel-modal-pill--cats">
                     {channel.categories.replace(/;/g, ", ")}
+                  </span>
+                )}
+                {channel.health_status && (
+                  <span className={`channel-modal-pill channel-modal-pill--status ${channel.health_status}`}>
+                    {channel.health_status === 'verified' ? '✓ Verified' : 
+                     channel.health_status === 'online' ? '● Live' : 
+                     channel.health_status}
+                  </span>
+                )}
+              </div>
+            )}
+            {(channel.network || channel.website) && (
+              <div className="channel-modal-info">
+                {channel.network && (
+                  <span className="channel-info-item">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="10" />
+                      <line x1="2" y1="12" x2="22" y2="12" />
+                      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+                    </svg>
+                    {channel.network}
+                  </span>
+                )}
+                {channel.website && (
+                  <a 
+                    href={channel.website} 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    className="channel-info-item channel-info-link"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                      <polyline points="15 3 21 3 21 9" />
+                      <line x1="10" y1="14" x2="21" y2="3" />
+                    </svg>
+                    Website
+                  </a>
+                )}
+                {channel.health_checked_at && (
+                  <span className="channel-info-item channel-info-validated" title={`Last validated: ${new Date(channel.health_checked_at).toLocaleString()}`}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="10" />
+                      <polyline points="12 6 12 12 16 14" />
+                    </svg>
+                    {new Date(channel.health_checked_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                   </span>
                 )}
               </div>
@@ -172,6 +234,30 @@ export default function VideoPlayer({
                 </svg>
               </button>
             )}
+            <button
+              type="button"
+              className="modal-share-btn"
+              onClick={async () => {
+                const result = await shareTvChannel(channel);
+                if (result.success) {
+                  setShareToast(result.method === 'native' ? 'Shared!' : 'Link copied!');
+                  setTimeout(() => setShareToast(""), 2000);
+                } else {
+                  setShareToast('Failed to share');
+                  setTimeout(() => setShareToast(""), 2000);
+                }
+              }}
+              title="Share this channel"
+              aria-label="Share this channel"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="18" cy="5" r="3" />
+                <circle cx="6" cy="12" r="3" />
+                <circle cx="18" cy="19" r="3" />
+                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+                <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+              </svg>
+            </button>
             {typeof onMinimize === "function" && (
               <button
                 type="button"
@@ -186,6 +272,9 @@ export default function VideoPlayer({
               </button>
             )}
             <button className="modal-close channel-modal-close" onClick={onClose} aria-label="Stop and close player">×</button>
+            {shareToast && (
+              <div className="share-toast">{shareToast}</div>
+            )}
           </div>
         </div>
         <div className="modal-body channel-modal-body">

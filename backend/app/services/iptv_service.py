@@ -63,52 +63,66 @@ async def sync_languages(db: AsyncSession) -> int:
 
 async def sync_channels(db: AsyncSession) -> int:
     data = await fetch_json(f"{API}/channels.json")
-    count = 0
+    now_iso = datetime.now(timezone.utc).isoformat()
+    insert_batch_size = 500
+    
+    # Prepare all values first
+    values_batch = []
     for item in data:
         cats = item.get("categories", [])
         cat_id = cats[0] if cats else None
         langs = item.get("languages", [])
 
-        stmt = pg_insert(Channel).values(
-            id=item["id"],
-            name=item["name"],
-            alt_names=";".join(item.get("alt_names", [])),
-            network=item.get("network", "") or "",
-            country_code=item.get("country", "") or "",
-            subdivision=item.get("subdivision", "") or "",
-            city=item.get("city", "") or "",
-            categories=";".join(cats),
-            category_id=cat_id,
-            is_nsfw=item.get("is_nsfw", False),
-            launched=item.get("launched", "") or "",
-            closed=item.get("closed", "") or "",
-            website=item.get("website", "") or "",
-            logo=item.get("logo", "") or "",
-            languages=";".join(langs),
-            is_active=not bool(item.get("closed")),
-            updated_at=datetime.now(timezone.utc).isoformat(),
-        ).on_conflict_do_update(
+        values_batch.append({
+            "id": item["id"],
+            "name": item["name"],
+            "alt_names": ";".join(item.get("alt_names", [])),
+            "network": item.get("network", "") or "",
+            "country_code": item.get("country", "") or "",
+            "subdivision": item.get("subdivision", "") or "",
+            "city": item.get("city", "") or "",
+            "categories": ";".join(cats),
+            "category_id": cat_id,
+            "is_nsfw": item.get("is_nsfw", False),
+            "launched": item.get("launched", "") or "",
+            "closed": item.get("closed", "") or "",
+            "website": item.get("website", "") or "",
+            "logo": item.get("logo", "") or "",
+            "languages": ";".join(langs),
+            "is_active": not bool(item.get("closed")),
+            "updated_at": now_iso,
+        })
+    
+    # Process in chunks
+    count = 0
+    for i in range(0, len(values_batch), insert_batch_size):
+        chunk = values_batch[i:i + insert_batch_size]
+        if not chunk:
+            continue
+            
+        stmt = pg_insert(Channel).values(chunk)
+        stmt = stmt.on_conflict_do_update(
             index_elements=["id"],
             set_={
-                "name": item["name"],
-                "alt_names": ";".join(item.get("alt_names", [])),
-                "network": item.get("network", "") or "",
-                "country_code": item.get("country", "") or "",
-                "categories": ";".join(cats),
-                "category_id": cat_id,
-                "is_nsfw": item.get("is_nsfw", False),
-                "logo": item.get("logo", "") or "",
-                "website": item.get("website", "") or "",
-                "languages": ";".join(langs),
-                "is_active": not bool(item.get("closed")),
-                "updated_at": datetime.now(timezone.utc).isoformat(),
+                "name": stmt.excluded.name,
+                "alt_names": stmt.excluded.alt_names,
+                "network": stmt.excluded.network,
+                "country_code": stmt.excluded.country_code,
+                "categories": stmt.excluded.categories,
+                "category_id": stmt.excluded.category_id,
+                "is_nsfw": stmt.excluded.is_nsfw,
+                "logo": stmt.excluded.logo,
+                "website": stmt.excluded.website,
+                "languages": stmt.excluded.languages,
+                "is_active": stmt.excluded.is_active,
+                "updated_at": stmt.excluded.updated_at,
             },
         )
         await db.execute(stmt)
-        count += 1
+        count += len(chunk)
 
     await db.commit()
-    logger.info("Synced %d channels", count)
+    logger.info("Synced %d channels in batches of %d", count, insert_batch_size)
     return count
 
 

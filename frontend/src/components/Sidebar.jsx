@@ -259,6 +259,12 @@ export default function Sidebar({
         <SortToggle sortBy={sortBy} onChange={setSortBy} />
       </div>
 
+      <div className="sidebar-legend">
+        <span className="sidebar-legend-item" title="Total channels">Total</span>
+        <span className="sidebar-legend-item sidebar-legend-item--live" title="Live/playable streams">L Live</span>
+        <span className="sidebar-legend-item sidebar-legend-item--verified" title="Verified streams">✓ Verified</span>
+      </div>
+
       {tab === "categories" && (
         <SidebarList
           items={filteredCategories}
