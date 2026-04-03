@@ -54,23 +54,30 @@ async def list_radio_tags():
     Get popular radio tags/genres.
     Returns a static curated list for performance.
     """
-    try:
-        logger.info("list_radio_tags called")
-        cached = await cache_get("radio_tags")
-        if cached is not None:
-            logger.info(f"Returning {len(cached)} cached radio tags")
-            return cached
-        
-        # Get static tag list (no DB access needed)
-        data = get_radio_tags()
-        logger.info(f"Got {len(data)} radio tags, caching for {TAGS_CACHE_TTL}s")
-        
-        # Cache for 1 hour since tags don't change often
-        await cache_set("radio_tags", data, TAGS_CACHE_TTL)
-        return data
-    except Exception as e:
-        logger.error(f"Error in list_radio_tags: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to fetch radio tags: {str(e)}")
+    # Simplified: Just return static list without caching complexity
+    # Tags don't change often enough to warrant complex caching
+    return [
+        {"name": "music", "station_count": 5000},
+        {"name": "pop", "station_count": 3500},
+        {"name": "news", "station_count": 2800},
+        {"name": "rock", "station_count": 2500},
+        {"name": "talk", "station_count": 2200},
+        {"name": "jazz", "station_count": 1800},
+        {"name": "classical", "station_count": 1500},
+        {"name": "electronic", "station_count": 1400},
+        {"name": "dance", "station_count": 1300},
+        {"name": "country", "station_count": 1200},
+        {"name": "hip hop", "station_count": 1100},
+        {"name": "sports", "station_count": 1000},
+        {"name": "oldies", "station_count": 950},
+        {"name": "80s", "station_count": 900},
+        {"name": "90s", "station_count": 850},
+        {"name": "christian", "station_count": 800},
+        {"name": "alternative", "station_count": 750},
+        {"name": "latin", "station_count": 700},
+        {"name": "blues", "station_count": 650},
+        {"name": "variety", "station_count": 600},
+    ]
 
 
 @router.get("/countries", response_model=list[RadioCountryOut])
