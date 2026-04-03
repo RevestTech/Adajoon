@@ -178,18 +178,19 @@ async def search_radio(db: AsyncSession, params: RadioSearchParams):
 
 
 async def get_radio_tags(db: AsyncSession, limit: int = 60):
-    """Get top tags with station counts using SQL-side aggregation."""
+    """Get top tags with station counts using SQL-side aggregation.
+    
+    Uses top 30K stations by votes to speed up query while getting good tag coverage.
+    """
     from sqlalchemy import text
     try:
-        # Add explicit timeout for this expensive query
-        await db.execute(text("SET LOCAL statement_timeout = '15000'"))  # 15 seconds
-        
         result = await db.execute(text("""
             SELECT tag, COUNT(*) AS cnt
             FROM (
                 SELECT lower(trim(unnest(string_to_array(tags, ',')))) AS tag
                 FROM radio_stations
                 WHERE tags != '' AND tags IS NOT NULL
+                ORDER BY votes DESC
                 LIMIT 30000
             ) t
             WHERE length(tag) > 1
