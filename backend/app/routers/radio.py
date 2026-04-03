@@ -49,17 +49,22 @@ async def list_radio_stations(
 
 
 @router.get("/tags", response_model=list[RadioTagOut])
-async def list_radio_tags(db: AsyncSession = Depends(get_db)):
+async def list_radio_tags():
+    """
+    Get popular radio tags/genres.
+    Returns a static curated list for performance.
+    """
     try:
         logger.info("list_radio_tags called")
         cached = await cache_get("radio_tags")
         if cached is not None:
             logger.info(f"Returning {len(cached)} cached radio tags")
             return cached
-        logger.info("Fetching radio tags from database (expensive query)")
-        data = await get_radio_tags(db)
-        logger.info(f"Got {len(data)} radio tags from database, caching for {TAGS_CACHE_TTL}s")
-        # data is already a list of dicts from the service
+        
+        # Get static tag list (no DB access needed)
+        data = get_radio_tags()
+        logger.info(f"Got {len(data)} radio tags, caching for {TAGS_CACHE_TTL}s")
+        
         # Cache for 1 hour since tags don't change often
         await cache_set("radio_tags", data, TAGS_CACHE_TTL)
         return data

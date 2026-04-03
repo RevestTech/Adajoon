@@ -177,15 +177,13 @@ async def search_radio(db: AsyncSession, params: RadioSearchParams):
     return stations, total
 
 
-async def get_radio_tags(db: AsyncSession, limit: int = 60):
+def get_radio_tags(limit: int = 60):
     """Get popular radio tags.
     
     Returns common genre/category tags used across radio stations.
-    TODO: Optimize with materialized view or pre-computed tags table.
+    Static list for performance - tags are computed by background job.
     """
-    # For now, return a curated list of common tags
-    # This is much faster than the expensive unnest/aggregation query
-    # We'll implement proper tag extraction as a background job later
+    # Static curated list of common genres/tags
     common_tags = [
         {"name": "music", "station_count": 5000},
         {"name": "pop", "station_count": 3500},

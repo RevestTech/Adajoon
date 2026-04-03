@@ -12,7 +12,8 @@ if (ANALYTICS_ENABLED) {
     persistence: 'localStorage',
     ignore_dnt: false,
   });
-} else {
+} else if (import.meta.env.DEV) {
+  // Only log in development mode
   console.log('[Analytics] Mixpanel disabled (no token or dev mode)');
 }
 
@@ -25,7 +26,10 @@ export const analytics = {
    */
   track(eventName, properties = {}) {
     if (!ANALYTICS_ENABLED) {
-      console.log('[Analytics]', eventName, properties);
+      // Only log in dev mode to reduce console noise
+      if (import.meta.env.DEV) {
+        console.log('[Analytics]', eventName, properties);
+      }
       return;
     }
     

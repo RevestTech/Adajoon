@@ -39,16 +39,24 @@ const FALLBACK_TAGS = [
   { name: "variety", station_count: 600 },
 ];
 
+let tagsWarningShown = false;
+
 export async function fetchRadioTags() {
   try {
     const res = await fetch(`${BASE}/tags`);
     if (!res.ok) {
-      console.warn("Radio tags API failed, using fallback list");
+      if (!tagsWarningShown) {
+        console.warn("Radio tags API failed, using fallback list");
+        tagsWarningShown = true;
+      }
       return FALLBACK_TAGS;
     }
     return res.json();
   } catch (error) {
-    console.warn("Radio tags API error, using fallback list:", error);
+    if (!tagsWarningShown) {
+      console.warn("Radio tags API error, using fallback list:", error.message);
+      tagsWarningShown = true;
+    }
     return FALLBACK_TAGS;
   }
 }
