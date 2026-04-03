@@ -180,19 +180,28 @@ async def search_radio(db: AsyncSession, params: RadioSearchParams):
 async def get_radio_tags(db: AsyncSession, limit: int = 60):
     """Get top tags with station counts using SQL-side aggregation."""
     from sqlalchemy import text
-    result = await db.execute(text("""
-        SELECT tag, COUNT(*) AS cnt
-        FROM (
-            SELECT lower(trim(unnest(string_to_array(tags, ',')))) AS tag
-            FROM radio_stations
-            WHERE tags != ''
-        ) t
-        WHERE length(tag) > 1
-        GROUP BY tag
-        ORDER BY cnt DESC
-        LIMIT :lim
-    """), {"lim": limit})
-    return [{"name": row[0], "station_count": row[1]} for row in result]
+    try:
+        # Add explicit timeout for this expensive query
+        await db.execute(text("SET LOCAL statement_timeout = '15000'"))  # 15 seconds
+        
+        result = await db.execute(text("""
+            SELECT tag, COUNT(*) AS cnt
+            FROM (
+                SELECT lower(trim(unnest(string_to_array(tags, ',')))) AS tag
+                FROM radio_stations
+                WHERE tags != '' AND tags IS NOT NULL
+                LIMIT 30000
+            ) t
+            WHERE length(tag) > 1
+            GROUP BY tag
+            ORDER BY cnt DESC
+            LIMIT :lim
+        """), {"lim": limit})
+        return [{"name": row[0], "station_count": row[1]} for row in result]
+    except Exception as e:
+        logger.error(f"Error in get_radio_tags: {e}", exc_info=True)
+        # Return empty list on error so it doesn't break the endpoint
+        return []
 
 
 async def get_radio_countries(db: AsyncSession):
