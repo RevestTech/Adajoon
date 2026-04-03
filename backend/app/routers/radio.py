@@ -10,7 +10,7 @@ from app.schemas import (
     RadioTagOut, RadioCountryOut,
 )
 from app.services.radio_service import (
-    search_radio, get_radio_tags, get_radio_countries,
+    search_radio, get_radio_countries,
 )
 from app.redis_client import cache_get, cache_set
 
