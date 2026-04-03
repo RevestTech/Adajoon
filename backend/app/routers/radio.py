@@ -72,7 +72,7 @@ STATIC_TAGS = [
 ]
 
 @router.get("/tags")
-def list_radio_tags():
+async def list_radio_tags():
     """
     Get popular radio tags/genres.
     Returns a static curated list for performance.
