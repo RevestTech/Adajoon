@@ -155,9 +155,68 @@ async def health():
 
 @app.get("/api/health/ready")
 async def health_ready(db: AsyncSession = Depends(get_db)):
-    """Readiness probe — verifies DB connectivity."""
-    await db.execute(text("SELECT 1"))
-    return {"status": "ok"}
+    """
+    Comprehensive readiness check.
+    Tests all critical dependencies and queries.
+    """
+    import time
+    from datetime import datetime
+    from app.redis_client import health_check as redis_health_check
+    from app.services.channel_service import get_categories_with_counts
+    
+    checks = {}
+    start = time.time()
+    overall_status = "healthy"
+    
+    # 1. Database connectivity
+    try:
+        await db.execute(text("SELECT 1"))
+        checks["database"] = {"status": "ok"}
+    except Exception as e:
+        checks["database"] = {"status": "error", "message": str(e)}
+        overall_status = "unhealthy"
+    
+    # 2. Redis connectivity (optional - degraded if unavailable)
+    try:
+        redis_ok = await redis_health_check()
+        checks["redis"] = {"status": "ok" if redis_ok else "degraded"}
+        if not redis_ok:
+            overall_status = "degraded" if overall_status == "healthy" else overall_status
+    except Exception as e:
+        checks["redis"] = {"status": "degraded", "message": str(e)}
+        overall_status = "degraded" if overall_status == "healthy" else overall_status
+    
+    # 3. Critical query test (categories - the one that failed previously)
+    try:
+        query_start = time.time()
+        rows = await get_categories_with_counts(db)
+        query_time_ms = (time.time() - query_start) * 1000
+        
+        if query_time_ms > 5000:  # Warn if > 5 seconds
+            checks["categories_query"] = {
+                "status": "slow",
+                "rows": len(rows),
+                "time_ms": round(query_time_ms, 2)
+            }
+            overall_status = "degraded" if overall_status == "healthy" else overall_status
+        else:
+            checks["categories_query"] = {
+                "status": "ok",
+                "rows": len(rows),
+                "time_ms": round(query_time_ms, 2)
+            }
+    except Exception as e:
+        checks["categories_query"] = {"status": "error", "message": str(e)}
+        overall_status = "unhealthy"
+    
+    total_time_ms = (time.time() - start) * 1000
+    
+    return {
+        "status": overall_status,
+        "checks": checks,
+        "total_time_ms": round(total_time_ms, 2),
+        "timestamp": datetime.utcnow().isoformat()
+    }
 
 
 @app.post("/api/sync")
