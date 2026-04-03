@@ -48,14 +48,13 @@ async def list_radio_stations(
     )
 
 
-@router.get("/tags", response_model=list[RadioTagOut])
+@router.get("/tags")
 async def list_radio_tags():
     """
     Get popular radio tags/genres.
     Returns a static curated list for performance.
     """
-    # Simplified: Just return static list without caching complexity
-    # Tags don't change often enough to warrant complex caching
+    # Ultra simple: Just return plain dicts, let FastAPI handle it
     return [
         {"name": "music", "station_count": 5000},
         {"name": "pop", "station_count": 3500},
