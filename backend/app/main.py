@@ -5,12 +5,14 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Depends, HTTPException, status, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 from starlette.middleware.gzip import GZipMiddleware
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
+import httpx
 
 from app.database import engine, Base, async_session, get_db
 from app.config import settings
@@ -228,3 +230,43 @@ async def trigger_sync(x_sync_key: str | None = Header(default=None, alias="X-Sy
     async with async_session() as db:
         results = await full_sync(db)
     return {"status": "complete", "results": results}
+
+
+# Frontend proxy configuration
+FRONTEND_URL = os.getenv("FRONTEND_URL", "https://frontend-production-d863.up.railway.app")
+http_client = httpx.AsyncClient(timeout=30.0, follow_redirects=True)
+
+
+@app.get("/{full_path:path}")
+async def proxy_to_frontend(request: Request, full_path: str):
+    """
+    Catch-all route to proxy non-API requests to frontend.
+    This allows backend to serve as the main entry point with proper security headers,
+    while frontend handles the actual SPA rendering.
+    """
+    # Build the full URL to frontend
+    url = f"{FRONTEND_URL}/{full_path}"
+    
+    # Preserve query parameters
+    if request.url.query:
+        url = f"{url}?{request.url.query}"
+    
+    try:
+        # Proxy the request to frontend
+        response = await http_client.get(
+            url,
+            headers={k: v for k, v in request.headers.items() if k.lower() not in ['host', 'connection']},
+        )
+        
+        # Return the response with original content but backend's security headers will be applied by middleware
+        return Response(
+            content=response.content,
+            status_code=response.status_code,
+            headers={
+                k: v for k, v in response.headers.items() 
+                if k.lower() not in ['content-encoding', 'content-length', 'transfer-encoding', 'connection']
+            },
+        )
+    except Exception as e:
+        logger.error(f"Frontend proxy error: {e}")
+        raise HTTPException(status_code=502, detail="Frontend service unavailable")
