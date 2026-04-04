@@ -14,26 +14,65 @@ A skill system that works in Cursor Agent, Cursor Composer/Chat, and direct Clau
 
 ## Step 1: Analyze (10 minutes)
 
-Identify 3-6 technical areas in your project:
+### ⚠️ CRITICAL: Understand YOUR Project First
+
+**Don't create generic skills! Extract actual patterns from THIS codebase.**
+
+#### Check Project Type
+
+**Company Project?**
+- Look for existing company style guides/rules
+- Include compliance/regulatory requirements
+- Follow company branding/terminology
+
+**Private Project?**
+- Focus on technical patterns and architecture
+- Team/individual conventions
+
+**Open Source?**
+- Contributor guidelines, API stability, documentation
+
+#### Quick Analysis Commands
 
 ```bash
-# Common areas for most projects:
+# What type of project is this?
+ls -la  # Check root directory
+cat README.md | head -20  # Project description
+
+# Existing rules?
+find . -name "*STYLE*" -o -name "*GUIDE*" -o -name ".cursorrules" | head -10
+
+# What tech is actually used?
+find . -name "package.json" -o -name "requirements.txt" -o -name "go.mod" | head -5
+
+# What's the actual structure?
+ls -d backend/ frontend/ src/ api/ components/ 2>/dev/null
+```
+
+#### Identify Technical Areas (Based on Actual Code)
+
+**For Company Project:**
+```
+1. Company style guide (FIRST - foundation for others)
+2. Backend API
+3. Frontend
+4. Security + Compliance
+5. Database
+6. Deployment
+7. Conventions
+```
+
+**For Private Project:**
+```
 1. Backend/API
-2. Frontend
+2. Frontend  
 3. Database
 4. Security
 5. Deployment
 6. Conventions
 ```
 
-**Quick analysis command:**
-```bash
-# Count files by type
-find . -name "*.py" -o -name "*.js" -o -name "*.jsx" -o -name "*.ts" -o -name "*.tsx" | wc -l
-
-# List key directories
-ls -d backend/ frontend/ src/ api/ components/ 2>/dev/null
-```
+**Adjust based on what YOUR project actually has!**
 
 ---
 

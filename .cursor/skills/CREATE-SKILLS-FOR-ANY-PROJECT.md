@@ -22,7 +22,34 @@
 
 ### What is a Skill System?
 
-A comprehensive skill system provides AI assistants with project-specific coding patterns, conventions, and best practices. It ensures consistency across the codebase and prevents common mistakes.
+A comprehensive skill system provides AI assistants with **project-specific** coding patterns, conventions, and best practices. It ensures consistency across the codebase and prevents common mistakes.
+
+### ⚠️ CRITICAL: Skills Must Reflect YOUR Project
+
+**DO NOT create generic "best practices" skills!**
+
+Each project has unique:
+- **Context**: Private project vs company project vs open source
+- **Patterns**: Actual coding patterns used in THIS codebase
+- **Rules**: Company style guides, team conventions, regulatory requirements
+- **Technology**: Specific frameworks, libraries, versions
+- **Architecture**: Unique design decisions and tradeoffs
+
+**Examples:**
+- ❌ Generic: "Use RESTful API design"
+- ✅ Project-specific: "All endpoints use `/api/v1/` prefix. Use cookie-based JWT (not Authorization header). CSRF tokens required on mutations."
+
+- ❌ Generic: "Follow React best practices"  
+- ✅ Project-specific: "Components in `src/components/`, hooks in `src/hooks/`. Use authenticatedFetch() wrapper for all API calls. OAuth via Google/Apple using window.postMessage pattern."
+
+- ❌ Generic: "Use company branding"
+- ✅ Company-specific: "Follow Future Capital Style Guide. Use 'plan sponsors' not 'employers'. Products: IMA, Core, Select, Construct (capitalize). No superlatives."
+
+**Analysis Process:**
+1. **Read the codebase** - Look at ACTUAL files, not assumptions
+2. **Extract patterns** - What does THIS project actually do?
+3. **Document context** - Why were these decisions made?
+4. **Capture exceptions** - When do the rules NOT apply?
 
 ### Three-Tier Architecture
 
@@ -58,60 +85,265 @@ Before starting, ensure you have:
 
 ## Phase 1: Analyze the Codebase
 
-### Step 1.1: Identify Technology Areas
+### Step 1.1: Understand Project Context
 
-Create a list of distinct technical areas in the project. Common areas include:
+**BEFORE analyzing technical areas, understand the project context:**
 
-- **Backend/API** (e.g., FastAPI, Django, Express)
-- **Frontend** (e.g., React, Vue, Angular)
-- **Database** (e.g., SQLAlchemy, Prisma, Mongoose)
-- **Security** (authentication, authorization, input validation)
-- **Deployment** (Docker, CI/CD, cloud platforms)
-- **Testing** (unit tests, integration tests)
-- **Code Quality** (conventions, naming, formatting)
+#### Project Type
 
-**Example for a typical full-stack app:**
-```
-1. Backend API patterns
-2. Frontend component patterns
-3. Database models and migrations
-4. Security and authentication
-5. Deployment and infrastructure
-6. Code conventions
-```
+**Private Project** (e.g., Adajoon):
+- Focus: Technical patterns, architecture decisions
+- Scope: Team/individual preferences
+- Examples: Authentication approach, caching strategy, deployment setup
 
-### Step 1.2: Analyze Each Area
+**Company Project** (e.g., Future Capital):
+- Focus: Technical patterns + company standards + compliance
+- Scope: Company style guide, regulatory requirements, brand guidelines
+- Examples: FC style guide skill, financial compliance patterns, approved terminology
 
-For each technical area, examine:
+**Open Source Project**:
+- Focus: Contributor guidelines, API stability, documentation
+- Scope: Broad community, clear documentation, versioning
+- Examples: Contribution process, breaking change policy, public API patterns
 
-**Files to Review:**
+**Client Project**:
+- Focus: Client requirements, handoff documentation, maintainability
+- Scope: Client preferences, contractual requirements
+- Examples: Client-approved patterns, specific framework choices, documentation standards
+
+#### Existing Rules and Guidelines
+
+**Check for existing documentation:**
 ```bash
-# Backend
-find backend/ -name "*.py" -o -name "*.js" -o -name "*.ts" | head -20
+# Look for existing style guides
+find . -name "*STYLE*" -o -name "*GUIDE*" -o -name "*CONVENTION*" -o -name "CONTRIBUTING.md"
 
-# Frontend
-find frontend/src -name "*.jsx" -o -name "*.tsx" -o -name "*.vue" | head -20
+# Check for company/team standards
+find . -name ".cursorrules" -o -name ".cursor/rules/" -o -name "docs/standards/"
 
-# Config
-find . -name "Dockerfile" -o -name "docker-compose.yml" -o -name ".env.example"
+# Look for linter configs (reflect actual preferences)
+find . -name ".eslintrc*" -o -name "pyproject.toml" -o -name ".prettierrc*"
 ```
 
-**Patterns to Extract:**
-- ✅ File structure and organization
-- ✅ Naming conventions (files, functions, variables)
-- ✅ Import patterns
-- ✅ Error handling approaches
-- ✅ Authentication/authorization patterns
-- ✅ Database query patterns
-- ✅ API endpoint structure
-- ✅ Testing patterns
-- ✅ Deployment configurations
+**Examples of existing rules to integrate:**
+- Company style guide (e.g., Future Capital style guide skill)
+- Regulatory compliance (HIPAA, SOC2, GDPR, financial regulations)
+- Brand guidelines (terminology, tone, visual standards)
+- Team conventions (code review process, commit format)
+- Client requirements (specific patterns, technologies)
 
-### Step 1.3: Create Skill List
+#### Integration Strategy
 
-Based on your analysis, create a prioritized list of skills to create:
+If existing rules/guides exist:
 
-**Priority 1 (Core Patterns):**
+1. **Create a company/brand skill FIRST**
+   - Example: `fc-style-guide/SKILL.md` for Future Capital projects
+   - Example: `company-compliance/SKILL.md` for regulated industries
+   - This becomes the foundation for other skills
+
+2. **Reference company skill from technical skills**
+   - Backend skill: "Follow company API naming from company-standards skill"
+   - Frontend skill: "Use approved terminology from company-style-guide skill"
+
+3. **Don't duplicate - cross-reference**
+   - ❌ "Use 'plan sponsors' terminology" in 5 different skills
+   - ✅ "See fc-style-guide skill for terminology" in technical skills
+
+### Step 1.2: Identify Technology Areas
+
+**NOW analyze technical areas specific to THIS project:**
+
+**Look at actual directory structure:**
+```bash
+# What does THIS project actually have?
+ls -la
+find . -type d -maxdepth 2 | head -20
+```
+
+**Examples based on real project structure:**
+
+**Adajoon (Streaming Platform - Private):**
+```
+1. Backend API patterns (FastAPI, cookie-based JWT)
+2. Frontend patterns (React, OAuth, authenticatedFetch)
+3. Database patterns (SQLAlchemy async, Alembic)
+4. Security patterns (COOP headers for OAuth, CSRF tokens)
+5. Deployment patterns (Railway dual-service, backend-as-proxy)
+6. Code conventions (Python type hints, no obvious comments)
+```
+
+**Future Capital (Financial - Company):**
+```
+1. FC style guide (terminology, tone, compliance language)
+2. Backend API patterns (specific to FC's architecture)
+3. Frontend patterns (FC brand components, approved libraries)
+4. Financial compliance (data handling, audit trails)
+5. Deployment patterns (FC's infrastructure)
+6. Code conventions (FC's code review standards)
+```
+
+**E-commerce Platform:**
+```
+1. Backend API patterns (product catalog, checkout flow)
+2. Frontend patterns (cart state, payment integration)
+3. Database patterns (inventory, order management)
+4. Security patterns (PCI compliance, customer data)
+5. Payment integration patterns (Stripe, PayPal)
+6. Code conventions (team standards)
+```
+
+**The technology areas are unique to EACH project based on:**
+- What the project actually does
+- What technologies it actually uses
+- What patterns it actually follows
+- What rules/regulations apply to it
+
+### Step 1.3: Analyze Each Area (Extract Real Patterns)
+
+**For each technical area, examine ACTUAL code in THIS project:**
+
+#### Analysis Process
+
+**1. Read Real Files (Don't Assume)**
+
+```bash
+# Find actual backend files
+find backend/ api/ src/ -name "*.py" -o -name "*.js" -o -name "*.ts" 2>/dev/null | head -20
+
+# Find actual frontend files  
+find frontend/ client/ src/components/ -name "*.jsx" -o -name "*.tsx" -o -name "*.vue" 2>/dev/null | head -20
+
+# Find actual config files
+find . -name "Dockerfile" -o -name "docker-compose.yml" -o -name ".env.example" -o -name "config.*"
+```
+
+**2. Extract Patterns from Real Code**
+
+**Example: Authentication Pattern Analysis**
+
+Read: `backend/app/routers/auth.py` or equivalent
+
+**Look for:**
+- How is auth actually implemented? (JWT? Session? OAuth?)
+- Where is the token stored? (Cookie? Header? LocalStorage?)
+- What dependencies are used? (FastAPI Cookie? Authorization header?)
+- What are the actual function signatures?
+
+**Document what you SEE, not what you think should be:**
+```markdown
+✅ GOOD - Actual Pattern:
+"Authentication uses cookie-based JWT. Token stored in 'auth_token' cookie 
+with httponly, secure, SameSite=Lax attributes. Backend reads token using 
+FastAPI Cookie dependency: `token: str = Cookie(None, alias="auth_token")`. 
+Falls back to Authorization header for API clients."
+
+❌ BAD - Generic:
+"Use JWT for authentication and follow best practices."
+```
+
+**3. Document Actual Decisions and Tradeoffs**
+
+**Example: Why this pattern?**
+```markdown
+## Cookie-Based JWT (Not Authorization Header)
+
+**Pattern**: JWT stored in httpOnly cookie, not Authorization header
+
+**Why**: 
+- XSS protection (httpOnly prevents JavaScript access)
+- OAuth flows work better with cookies (Google/Apple redirect patterns)
+- Domain cookies allow backend/worker services to share auth
+
+**Tradeoff**: 
+- CSRF protection required (we use csrf_token cookie + X-CSRF-Token header)
+- More complex than Bearer token
+- Doesn't work with some API testing tools (use fallback header)
+
+**When NOT to use**:
+- Public API for third-party clients (they need Bearer tokens)
+- Non-browser clients (mobile apps, CLI tools)
+```
+
+**4. Patterns to Extract (Project-Specific)**
+
+**Backend:**
+- ✅ Actual routing structure (prefixes, versioning)
+- ✅ Real authentication/authorization flow
+- ✅ Actual error handling (HTTP exceptions, logging)
+- ✅ Database connection/session management as implemented
+- ✅ Caching strategy actually used
+- ✅ Real middleware stack and order
+
+**Frontend:**
+- ✅ Actual component structure and file organization
+- ✅ State management as implemented (Context, Redux, Zustand, etc.)
+- ✅ Real API call patterns (fetch wrapper, axios, etc.)
+- ✅ Authentication flow actually used
+- ✅ Routing implementation
+- ✅ Form handling patterns
+
+**Database:**
+- ✅ Actual ORM/query patterns used
+- ✅ Migration tool actually used (Alembic, Prisma, etc.)
+- ✅ Real model relationships and constraints
+- ✅ Actual query optimization approaches
+
+**Company/Brand (if applicable):**
+- ✅ Actual terminology used (read docs, UI text)
+- ✅ Real tone and voice in existing content
+- ✅ Actual compliance requirements
+- ✅ Approved vendors/technologies
+- ✅ Brand color codes, fonts, styling
+
+**Security:**
+- ✅ Actual security headers configured
+- ✅ Real input validation approach
+- ✅ CSRF/XSS protection as implemented
+- ✅ Rate limiting strategy
+- ✅ Secrets management approach
+
+**5. Capture Exceptions and Edge Cases**
+
+```markdown
+## API Versioning Pattern
+
+**Standard**: All endpoints use `/api/v1/` prefix
+
+**Exceptions**:
+- Health checks: `/health` (no version, must be stable)
+- Metrics: `/metrics` (Prometheus standard, no version)
+- OAuth callbacks: `/api/auth/{provider}/callback` (no version, external dependencies)
+
+**Why exceptions exist**: [reason for each]
+```
+
+### Step 1.4: Create Skill List (Project-Specific)
+
+Based on your ACTUAL project analysis, create a prioritized list:
+
+**For Company Projects (e.g., Future Capital):**
+
+**Priority 1 (Company Standards):**
+1. **Company style guide skill** (terminology, tone, compliance)
+   - MUST exist before technical skills
+   - Foundation for all other skills
+
+**Priority 2 (Core Technical Patterns):**
+2. Backend/API skill (reference company skill for naming)
+3. Frontend skill (reference company skill for content)
+4. Security skill (include company compliance requirements)
+
+**Priority 3 (Infrastructure):**
+5. Database skill (include audit trail requirements if needed)
+6. Deployment skill (company infrastructure)
+
+**Priority 4 (Quality):**
+7. Code conventions skill (company code review standards)
+8. Continuous improvement meta-skill
+
+**For Private Projects (e.g., Adajoon):**
+
+**Priority 1 (Core Technical Patterns):**
 1. Backend/API skill
 2. Frontend skill
 3. Security skill
@@ -123,6 +355,25 @@ Based on your analysis, create a prioritized list of skills to create:
 **Priority 3 (Quality):**
 6. Code conventions skill
 7. Continuous improvement meta-skill
+
+**For Open Source Projects:**
+
+**Priority 1 (Contributor Experience):**
+1. Contribution guidelines skill
+2. Code conventions skill
+3. API stability skill
+
+**Priority 2 (Core Technical):**
+4. Backend/API skill
+5. Frontend skill
+6. Security skill
+
+**Priority 3 (Infrastructure):**
+7. Testing skill (critical for open source)
+8. Documentation skill
+9. Release process skill
+
+**Adjust based on your project's actual needs!**
 
 ---
 
