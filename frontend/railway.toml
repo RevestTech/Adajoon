@@ -7,7 +7,7 @@ restartPolicyType = "always"
 [[deploy.headers]]
 path = "/*"
 key = "Cross-Origin-Opener-Policy"
-value = "unsafe-none"
+value = "same-origin-allow-popups"
 
 [[deploy.headers]]
 path = "/*"

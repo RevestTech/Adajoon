@@ -4,9 +4,9 @@ server {
     root /usr/share/nginx/html;
     index index.html;
 
-    # Security headers - COOP must be unsafe-none for OAuth to work
-    # Google/Apple OAuth requires window.postMessage which same-origin-allow-popups blocks
-    add_header Cross-Origin-Opener-Policy "unsafe-none" always;
+    # Security headers - COOP allows OAuth popups to postMessage back
+    # same-origin-allow-popups lets our page communicate with OAuth popup windows
+    add_header Cross-Origin-Opener-Policy "same-origin-allow-popups" always;
     add_header Cross-Origin-Embedder-Policy "unsafe-none" always;
 
     location /api/ {
