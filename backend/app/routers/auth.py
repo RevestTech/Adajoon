@@ -4,7 +4,7 @@ import base64
 import logging
 from datetime import datetime, timezone, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status, Cookie
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.responses import HTMLResponse
 from slowapi import Limiter
@@ -122,13 +122,16 @@ def _user_response(user: User) -> dict:
 # ---------------------------------------------------------------------------
 
 async def get_current_user(
+    auth_token: str | None = Cookie(default=None),
     creds: HTTPAuthorizationCredentials = Depends(security),
     db: AsyncSession = Depends(get_db),
 ) -> User | None:
-    if not creds:
+    # Try cookie first (new auth method), then fall back to header (legacy)
+    token = auth_token or (creds.credentials if creds else None)
+    if not token:
         return None
     try:
-        payload = jwt.decode(creds.credentials, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
+        payload = jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
         user_id = int(payload["sub"])
     except (JWTError, KeyError, ValueError):
         return None
