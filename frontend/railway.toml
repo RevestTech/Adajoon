@@ -1,0 +1,15 @@
+[build]
+
+[deploy]
+startCommand = "/start.sh"
+restartPolicyType = "always"
+
+[[deploy.headers]]
+path = "/*"
+key = "Cross-Origin-Opener-Policy"
+value = "unsafe-none"
+
+[[deploy.headers]]
+path = "/*"
+key = "Cross-Origin-Embedder-Policy"
+value = "unsafe-none"
