@@ -44,7 +44,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
                 "style-src 'self' 'unsafe-inline' https://accounts.google.com https://appleid.cdn-apple.com https://fonts.googleapis.com",  # OAuth + Google Fonts
                 "img-src 'self' data: https:",  # Allow external logos/images
                 "media-src 'self' blob: https:",  # Allow streaming from external sources
-                "connect-src 'self' https://iptv-org.github.io https://de1.api.radio-browser.info https://raw.githubusercontent.com https://accounts.google.com https://appleid.apple.com",  # OAuth + API endpoints
+                "connect-src 'self' https://iptv-org.github.io https://de1.api.radio-browser.info https://raw.githubusercontent.com https://accounts.google.com https://appleid.apple.com https://fonts.googleapis.com https://fonts.gstatic.com https://imasdk.googleapis.com https://www.gstatic.com",  # OAuth + API endpoints + Google Fonts + IMA SDK
                 "font-src 'self' data: https://fonts.gstatic.com",  # Google Fonts font files
                 "object-src 'none'",
                 "base-uri 'self'",
