@@ -245,7 +245,8 @@ async def proxy_to_frontend(request: Request, full_path: str):
     while frontend handles the actual SPA rendering.
     """
     # Prevent API paths from being proxied to frontend (avoids loops/502s)
-    if full_path.startswith("api/"):
+    # Check for both with and without leading slash
+    if full_path.startswith("api/") or full_path.startswith("/api/") or full_path == "api":
         raise HTTPException(status_code=404, detail="API endpoint not found")
 
     # Build the full URL to frontend
