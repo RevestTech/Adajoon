@@ -5,7 +5,12 @@ description: Enforce Adajoon security best practices including security headers 
 
 # Adajoon Security Best Practices
 
+**Version**: 1.0.0 (Updated: 2026-04-04)
+
 Security patterns and requirements for the Adajoon streaming platform. All authentication, data handling, and API endpoints MUST follow these guidelines.
+
+## Changelog
+- v1.0.0 (2026-04-04): Initial versioning - established baseline security patterns
 
 ## 1. Security Headers
 

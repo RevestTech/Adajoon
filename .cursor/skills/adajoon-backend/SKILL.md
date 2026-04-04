@@ -5,7 +5,12 @@ description: Enforces Adajoon backend FastAPI patterns including router structur
 
 # Adajoon Backend FastAPI Patterns
 
+**Version**: 1.0.0 (Updated: 2026-04-04)
+
 This skill enforces consistent patterns for Adajoon's FastAPI backend architecture.
+
+## Changelog
+- v1.0.0 (2026-04-04): Initial versioning - established baseline backend patterns
 
 ## Router Structure
 

@@ -1,7 +1,12 @@
 # Adajoon Deployment & Railway Patterns
 
+**Version**: 1.0.0 (Updated: 2026-04-04)
+
 **Skill Type:** Deployment, Infrastructure, Docker  
 **Auto-triggers:** When working with Dockerfiles, Railway configuration, deployment scripts, nginx configs, or environment variables
+
+## Changelog
+- v1.0.0 (2026-04-04): Initial versioning - established baseline deployment patterns
 
 ---
 

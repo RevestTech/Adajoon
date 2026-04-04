@@ -5,6 +5,11 @@ description: Enforce Adajoon frontend React patterns including custom hooks with
 
 # Adajoon Frontend React Patterns
 
+**Version**: 1.0.0 (Updated: 2026-04-04)
+
+## Changelog
+- v1.0.0 (2026-04-04): Initial versioning - established baseline frontend patterns
+
 ## Custom Hooks Pattern
 
 ### Context + Hook Pattern

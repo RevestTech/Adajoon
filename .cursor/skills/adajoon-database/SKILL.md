@@ -5,6 +5,11 @@ description: Enforces Adajoon database patterns for SQLAlchemy models, Alembic m
 
 # Adajoon Database Patterns
 
+**Version**: 1.0.0 (Updated: 2026-04-04)
+
+## Changelog
+- v1.0.0 (2026-04-04): Initial versioning - established baseline database patterns
+
 ## Core Principles
 
 **CRITICAL**: NEVER manually create tables in `main.py` or application code. ALWAYS use Alembic migrations for schema changes.

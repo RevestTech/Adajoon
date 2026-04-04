@@ -5,7 +5,12 @@ description: Enforces Adajoon code quality standards and conventions across Pyth
 
 # Adajoon Code Quality & Conventions
 
+**Version**: 1.0.0 (Updated: 2026-04-04)
+
 Enforces consistent code patterns across the Adajoon codebase.
+
+## Changelog
+- v1.0.0 (2026-04-04): Initial versioning - established baseline conventions
 
 ## Python Backend Standards
 
