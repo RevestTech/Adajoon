@@ -100,12 +100,31 @@ Code quality and naming conventions.
 
 ## Usage
 
-These skills are automatically activated by Cursor when you work on relevant files or mention related keywords. They provide:
+### Cursor Agent Mode (Automatic)
+Skills are automatically activated by Cursor Agent when you work on relevant files or mention related keywords.
+
+### Cursor Composer/Chat Mode
+- Quick rules: Read from `../.cursorrules` at project root
+- Detailed reference: Use `@.cursor/skills/CLAUDE.md` for comprehensive guidance
+- Specific skills: Reference individual SKILL.md files with @ mentions
+
+### Direct Claude Conversations (Outside Cursor)
+- Copy relevant sections from `.cursor/skills/CLAUDE.md`
+- Search for patterns you need (Cmd/Ctrl+F)
+- Include in your conversation prompt
+
+### What Skills Provide
 
 1. **Pattern enforcement** - Ensures consistency across the codebase
 2. **Best practices** - Prevents common mistakes and security issues
 3. **Quick reference** - Code examples and checklists
 4. **Anti-patterns** - What to avoid and why
+
+### Unified System
+
+This directory contains the source of truth. Other formats reference these skills:
+- **`.cursorrules`** (project root) - Concise summary for Cursor's built-in rules
+- **`CLAUDE.md`** (this directory) - Comprehensive reference for direct Claude conversations
 
 ## Maintenance
 

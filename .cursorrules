@@ -1,0 +1,317 @@
+# Adajoon Project Rules
+
+This file provides quick-reference rules for Cursor's built-in system (applies to Agent, Composer, and Chat modes).
+For detailed guidelines, see `.cursor/skills/` or reference `@.cursor/skills/CLAUDE.md`.
+
+## Project Context
+
+Adajoon is a streaming TV/radio platform built with:
+- **Backend**: FastAPI (Python 3.12), SQLAlchemy async, PostgreSQL, Redis
+- **Frontend**: React 18 + Vite, OAuth (Google/Apple), cookie-based JWT auth
+- **Deployment**: Railway (dual-service: backend proxies to frontend)
+
+## Core Principles
+
+1. **Security First**: CSRF on mutations, httpOnly cookies, input validation always
+2. **Type Safety**: Python type hints on all functions, explicit return types
+3. **Async/Await**: All DB and I/O operations use async patterns
+4. **Single Source of Truth**: Alembic migrations only (never manual schema changes)
+5. **No Obvious Comments**: Only explain non-obvious intent, not what code does
+
+---
+
+## Backend Patterns (FastAPI)
+
+### When: Creating/editing `backend/**/*.py` files
+
+**Router Structure**
+- Prefix: `/api/` for all routes
+- Logger: `logging.getLogger(__name__)` at module level
+- Tags: Match feature name for API docs
+
+**Authentication**
+- Use `get_current_user` (optional) or `require_user` (required) dependencies
+- Cookie-based JWT (not Authorization headers)
+- Set cookies: `httponly=True, secure=True, samesite="lax"`
+- Domain: `.adajoon.com` in production, `None` in dev
+
+**CSRF Protection**
+- Apply to ALL mutating endpoints (POST/PUT/PATCH/DELETE)
+- Add `_csrf: None = Depends(verify_csrf_token)` as last parameter
+- Skip for GET/HEAD/OPTIONS
+
+**Caching**
+- Use `cache_get`/`cache_set` from `app.redis_client`
+- TTL: 300s (5min) for dynamic, 3600s (1hr) for static
+- Invalidate with `cache_delete` on mutations
+
+**Database**
+- Use `get_db` dependency: `db: AsyncSession = Depends(get_db)`
+- Always async/await: `await db.execute(select(Model))`
+- Commit after mutations: `await db.commit()`
+
+**Type Hints**
+```python
+async def func(db: AsyncSession, param: str) -> Model | None:
+    return result
+```
+
+**Error Handling**
+```python
+if not valid:
+    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid")
+```
+
+---
+
+## Frontend Patterns (React)
+
+### When: Creating/editing `frontend/src/**/*.{jsx,tsx,js,ts}` files
+
+**API Calls**
+- GET requests: Use regular `fetch` for public data
+- Mutations (POST/PUT/DELETE): ALWAYS use `authenticatedFetch` (handles CSRF automatically)
+```javascript
+import { authenticatedFetch } from '../utils/csrf';
+await authenticatedFetch('/api/endpoint', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify(data)
+});
+```
+
+**Custom Hooks**
+- Context + Provider + hook pattern
+- Use `useCallback` for all functions in context
+- Use `useMemo` for context value object
+- Include `loading` state for async operations
+
+**OAuth Integration**
+- Google: Use `window.google.accounts.id` with `use_fedcm_for_prompt: true`
+- Apple: Use postMessage with origin validation
+
+**Loading States**
+```javascript
+const [loading, setLoading] = useState(false);
+try {
+  setLoading(true);
+  // async operation
+} finally {
+  setLoading(false);
+}
+```
+
+---
+
+## Security Rules
+
+### When: Working with auth, cookies, headers, user input, webhooks
+
+**Security Headers** (applied via middleware)
+- COOP: `unsafe-none` (required for OAuth popups)
+- CSP: Production only, whitelist specific domains
+- HSTS: Production only, `max-age=63072000`
+
+**JWT Secrets**
+- Minimum 32 characters
+- Validate on startup (fail if missing/weak)
+- Never use default values
+
+**CSRF Tokens**
+- 32 bytes minimum, signed with itsdangerous
+- 1-hour expiry
+- Header: `X-CSRF-Token`
+
+**OAuth Validation**
+- Always verify tokens server-side
+- Use `json.dumps()` for embedding data in HTML (XSS prevention)
+- Validate redirect URIs against whitelist
+
+**Input Validation**
+- Use Pydantic `Field()` with `max_length`
+- Validate against whitelists (not blacklists)
+- Parameterized queries (never string concatenation)
+
+**Rate Limiting**
+- Auth endpoints: 10/minute
+- Public endpoints: 100/minute
+- Use `@limiter.limit("10/minute")`
+
+---
+
+## Database Rules
+
+### When: Creating/editing models, migrations, queries
+
+**CRITICAL**: NEVER manually create tables (no `Base.metadata.create_all()`). ALWAYS use Alembic migrations.
+
+**Timestamps**
+- ALWAYS use `DateTime(timezone=True)`, NEVER strings
+- Use `server_default=func.now()` for created_at
+- Use `onupdate=func.now()` for updated_at
+
+**Foreign Keys**
+```python
+user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+```
+
+**Migrations**
+- Naming: `NNN_descriptive_name.py` (e.g., `001_initial_schema.py`)
+- Use `IF NOT EXISTS` / `IF EXISTS` in all operations
+- Always implement downgrade
+- Chain with `down_revision`
+
+**Indexes**
+- Always index foreign keys
+- Composite indexes for multi-column queries
+- GIN indexes for full-text search (pg_trgm)
+
+---
+
+## Deployment Rules
+
+### When: Working with Dockerfiles, Railway config, nginx, environment variables
+
+**Architecture**
+- Backend proxies to frontend (all traffic flows through backend)
+- Frontend is NOT publicly exposed
+- Security headers applied by backend middleware
+
+**Environment Variables**
+- Backend requires: `DATABASE_URL`, `REDIS_URL`, `JWT_SECRET`, `FRONTEND_URL`
+- Frontend requires: `BACKEND_URL`
+- Production: `JSON_LOGS=true` for structured logging
+
+**Docker**
+- Use multi-stage builds (builder + runtime)
+- Clean apt cache: `rm -rf /var/lib/apt/lists/*`
+- Health checks in Dockerfile: `/api/health` (backend), `/` (frontend)
+
+**Migrations**
+- Run `alembic upgrade head` before starting app (in start.sh)
+- Never skip migrations in production
+
+**Critical**: When deploying multiple services (backend, worker), ensure ALL shared environment variables are set (especially `JWT_SECRET`, `DATABASE_URL`, `REDIS_URL`).
+
+---
+
+## Code Conventions
+
+### When: All code edits (Python and JavaScript)
+
+**Python**
+- Type hints: Required on all functions (params + return)
+- Use `str | None` (not `Optional[str]`)
+- String formatting: f-strings only
+- Imports: stdlib → third-party → local (blank lines between)
+- Naming: `snake_case` (functions/vars), `PascalCase` (classes), `UPPER_SNAKE_CASE` (constants)
+
+**JavaScript/React**
+- Use `const`/`let` (never `var`)
+- Arrow functions consistently
+- Async/await (not `.then()`)
+- Naming: `camelCase` (vars/functions), `PascalCase` (components), hooks start with `use`
+
+**Comments**
+- ❌ BAD: "Get the user from the database" (obvious)
+- ✅ GOOD: "Constant-time comparison to prevent timing attacks" (explains why)
+
+**File Organization**
+```
+backend/
+├── app/routers/     # API endpoints (/api/*)
+├── app/models.py    # SQLAlchemy models
+├── app/schemas.py   # Pydantic schemas
+└── alembic/         # Migrations
+
+frontend/
+├── src/components/  # React components (.jsx)
+├── src/hooks/       # Custom hooks (useAuth, etc.)
+└── src/api/         # API client functions
+```
+
+---
+
+## Skill Improvement
+
+### When: After bugs, code reviews, or security incidents
+
+**Document Deviations**
+- Track patterns violated
+- Update relevant skill within 24 hours of critical issues
+- Add examples to prevent recurrence
+
+**Weekly Reviews** (Fridays)
+- Review skill violations
+- Update unclear sections
+- Add new patterns discovered
+
+**Monthly Audits** (1st of month)
+- Analyze violation trends
+- Measure bug prevention
+- Identify skill gaps
+
+---
+
+## File-Specific Triggers
+
+### Backend
+- `backend/app/routers/*.py` → Backend + Security + Database + Conventions
+- `backend/app/models.py` → Database + Conventions
+- `backend/alembic/versions/*.py` → Database (migrations)
+- `backend/app/middleware/*.py` → Security + Backend
+- `backend/Dockerfile` → Deployment
+- `backend/start.sh` → Deployment
+
+### Frontend
+- `frontend/src/components/*.jsx` → Frontend + Security + Conventions
+- `frontend/src/hooks/*.{js,jsx}` → Frontend + Conventions
+- `frontend/src/api/*.js` → Frontend + Security
+- `frontend/nginx.conf*` → Deployment
+- `frontend/Dockerfile` → Deployment
+
+### Infrastructure
+- `docker-compose.yml` → Deployment
+- `.env*` → Security + Deployment
+
+---
+
+## Quick Checklists
+
+### Before Committing Backend Code
+- [ ] Type hints on all functions
+- [ ] Using async/await for DB
+- [ ] CSRF on mutating endpoints
+- [ ] No secrets in code
+- [ ] Routes use `/api/` prefix
+
+### Before Committing Frontend Code
+- [ ] Using `authenticatedFetch` for mutations
+- [ ] Loading states implemented
+- [ ] Error handling with user feedback
+- [ ] No obvious comments
+
+### Before Creating PR
+- [ ] Relevant skills followed
+- [ ] No skill violations
+- [ ] Tests pass
+- [ ] Conventional commit format
+
+### Before Deployment
+- [ ] Migrations tested locally
+- [ ] Environment variables set
+- [ ] Health checks work
+- [ ] `JSON_LOGS=true` for production
+
+---
+
+## For More Details
+
+- **Comprehensive Reference**: `@.cursor/skills/CLAUDE.md` (for direct Claude conversations)
+- **Individual Skills**: `.cursor/skills/adajoon-{backend,frontend,security,database,deployment,conventions,skill-improvement}/SKILL.md`
+- **Total Guidelines**: ~2,867 lines across 7 specialized skills
+
+## Version
+
+Skills created for Adajoon v2.3.0 (April 2026)
+Last updated: 2026-04-04
