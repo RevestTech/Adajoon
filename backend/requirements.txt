@@ -25,3 +25,4 @@ itsdangerous==2.1.2
 bcrypt==4.1.2
 stripe==8.2.0
 redis[hiredis]==5.0.1
+python-multipart==0.0.9
