@@ -348,7 +348,7 @@ function GuestBanner({ onLogin, total, type }) {
   );
 }
 
-function ChannelCard({ channel, onClick, favorited, onToggleFavorite, isGuest, voteSummary }) {
+function ChannelCard({ channel, onClick, favorited, onToggleFavorite, isGuest, voteSummary, countryName }) {
   const cats = channel.categories ? channel.categories.split(";").filter(Boolean) : [];
   const streamStatus = channel.stream_url ? getTvStreamStatus(channel.health_status) : null;
 
@@ -401,8 +401,8 @@ function ChannelCard({ channel, onClick, favorited, onToggleFavorite, isGuest, v
         {channel.name}
       </div>
       <div className="channel-meta">
-        {channel.country_code && (
-          <span className="channel-tag">{channel.country_code}</span>
+        {countryName && (
+          <span className="channel-tag" title={countryName}>{countryName}</span>
         )}
         {cats.slice(0, 2).map((c) => (
           <span key={c} className="channel-tag">{c}</span>
@@ -495,7 +495,7 @@ function ChannelRow({ channel, onClick, favorited, onToggleFavorite, isGuest, vo
   );
 }
 
-function ChannelThumb({ channel, onClick, favorited, onToggleFavorite, isGuest, voteSummary }) {
+function ChannelThumb({ channel, onClick, favorited, onToggleFavorite, isGuest, voteSummary, countryName }) {
   const cats = channel.categories ? channel.categories.split(";").filter(Boolean) : [];
   const streamStatus = channel.stream_url ? getTvStreamStatus(channel.health_status) : null;
 
@@ -553,7 +553,7 @@ function ChannelThumb({ channel, onClick, favorited, onToggleFavorite, isGuest, 
       <div className="thumb-info">
         <span className="thumb-name" title={channel.name}>{channel.name}</span>
         <div className="thumb-tags">
-          {channel.country_code && <span className="channel-tag">{channel.country_code}</span>}
+          {countryName && <span className="channel-tag" title={countryName}>{countryName}</span>}
           {cats.slice(0, 2).map((c) => (
             <span key={c} className="channel-tag">{c}</span>
           ))}
