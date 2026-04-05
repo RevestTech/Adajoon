@@ -18,6 +18,7 @@ from app.database import engine, Base, async_session, get_db
 from app.config import settings
 from app.logging_config import setup_logging, RequestLoggingMiddleware
 from app.middleware.security_headers import SecurityHeadersMiddleware
+from app.middleware.www_redirect import WWWRedirectMiddleware
 from app.routers import channels, categories, healthcheck, radio, auth, sitemap, history, languages, csrf, recommendations, playlists, parental, subscriptions, redis_health  # whitelabel
 from app.services.iptv_service import full_sync
 from app.services.radio_service import sync_radio_stations
@@ -92,6 +93,9 @@ app = FastAPI(
 # Add rate limiting
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# Add WWW redirect (first, before any other processing)
+app.add_middleware(WWWRedirectMiddleware)
 
 # Add request logging middleware
 app.add_middleware(RequestLoggingMiddleware)
