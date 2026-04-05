@@ -210,6 +210,20 @@ export default function ChannelGrid({
       <div className={`content-body${loading ? " content-loading" : ""}`}>
         {hasFilters && (
           <div className="active-filters">
+            {(activeCategories.length > 1 || activeCountries.length > 1) && channels.length === 0 && (
+              <div className="filter-hint">
+                <span>💡 <strong>Tip:</strong> Multiple filters are combined with AND logic. Try selecting fewer categories or countries.</span>
+                <button 
+                  className="clear-all-btn"
+                  onClick={() => {
+                    activeCategories.forEach(cat => onClearFilter("category", cat));
+                    activeCountries.forEach(country => onClearFilter("country", country));
+                  }}
+                >
+                  Clear All Filters
+                </button>
+              </div>
+            )}
             {showFavorites && (
               <span className="filter-tag" onClick={() => onClearFilter("favorites")}>
                 Favorites ✕
@@ -284,7 +298,9 @@ export default function ChannelGrid({
             <p>
               {showFavorites
                 ? "Click the heart icon on any channel to add it to your favorites."
-                : "Try adjusting your search or filters, or wait for data sync to complete."}
+                : (activeCategories.length > 1 || activeCountries.length > 1)
+                  ? `No channels match all ${activeCategories.length + activeCountries.length} selected filters. Try removing some filters above.`
+                  : "Try adjusting your search or filters, or wait for data sync to complete."}
             </p>
           </div>
         ) : (
