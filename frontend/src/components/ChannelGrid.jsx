@@ -210,9 +210,9 @@ export default function ChannelGrid({
       <div className={`content-body${loading ? " content-loading" : ""}`}>
         {hasFilters && (
           <div className="active-filters">
-            {(activeCategories.length > 1 || activeCountries.length > 1) && channels.length === 0 && (
+            {(activeCategories.length > 0 || activeCountries.length > 0) && channels.length === 0 && (
               <div className="filter-hint">
-                <span>💡 <strong>Tip:</strong> Multiple filters are combined with AND logic. Try selecting fewer categories or countries.</span>
+                <span>💡 <strong>No results found.</strong> Filters use OR logic (show channels matching ANY selected category/country). One of your filters may be invalid, or data is still syncing.</span>
                 <button 
                   className="clear-all-btn"
                   onClick={() => {
@@ -298,8 +298,8 @@ export default function ChannelGrid({
             <p>
               {showFavorites
                 ? "Click the heart icon on any channel to add it to your favorites."
-                : (activeCategories.length > 1 || activeCountries.length > 1)
-                  ? `No channels match all ${activeCategories.length + activeCountries.length} selected filters. Try removing some filters above.`
+                : (activeCategories.length > 0 || activeCountries.length > 0)
+                  ? `No channels found matching your filters. This could mean: (1) One or more filter values are invalid, (2) Data is still syncing, or (3) No channels exist for this combination. Try removing filters above.`
                   : "Try adjusting your search or filters, or wait for data sync to complete."}
             </p>
           </div>
