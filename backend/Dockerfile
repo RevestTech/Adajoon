@@ -5,7 +5,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends gcc libpq-dev && \
     rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
+COPY backend/requirements.txt .
 RUN pip wheel --no-cache-dir --wheel-dir /wheels -r requirements.txt
 
 FROM python:3.12-slim
@@ -16,10 +16,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends libpq5 && \
     rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /wheels /wheels
-COPY requirements.txt .
+COPY backend/requirements.txt .
 RUN pip install --no-cache-dir --no-index --find-links=/wheels -r requirements.txt && rm -rf /wheels
 
-COPY . .
+COPY backend/ .
 
 RUN chmod +x start.sh
 
