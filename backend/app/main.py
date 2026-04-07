@@ -265,11 +265,18 @@ async def _proxy_to_frontend(request: Request, path: str = ""):
         raise HTTPException(status_code=502, detail="Frontend service unavailable")
 
 
+
 # Specific frontend routes (not catch-all to avoid conflicts with API routes)
 @app.get("/")
-async def serve_root(request: Request):
-    """Serve frontend root."""
-    return await _proxy_to_frontend(request, "")
+async def serve_root():
+    """Root health check endpoint."""
+    return {"status": "ok"}
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    """Return empty 204 for favicon requests to avoid 502 errors."""
+    return Response(status_code=204)
 
 
 @app.get("/assets/{path:path}")

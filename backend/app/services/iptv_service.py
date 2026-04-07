@@ -63,7 +63,7 @@ async def sync_languages(db: AsyncSession) -> int:
 
 async def sync_channels(db: AsyncSession) -> int:
     data = await fetch_json(f"{API}/channels.json")
-    now_iso = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(timezone.utc)
     insert_batch_size = 500
     
     # Prepare all values first
@@ -90,7 +90,7 @@ async def sync_channels(db: AsyncSession) -> int:
             "logo": item.get("logo", "") or "",
             "languages": ";".join(langs),
             "is_active": not bool(item.get("closed")),
-            "updated_at": now_iso,
+            "updated_at": now,
         })
     
     # Process in chunks
@@ -146,7 +146,7 @@ async def sync_streams(db: AsyncSession) -> int:
             http_referrer=item.get("http_referrer", "") or "",
             user_agent=item.get("user_agent", "") or "",
             status=item.get("status", "unknown") or "unknown",
-            added_at=datetime.now(timezone.utc).isoformat(),
+            added_at=datetime.now(timezone.utc),
         )
         await db.execute(stream_stmt)
 
