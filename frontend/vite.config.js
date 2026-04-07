@@ -11,7 +11,6 @@ export default defineConfig({
   build: {
     target: "es2015",
     cssTarget: "chrome61",
-    assetsDir: `assets-${Date.now()}`,
     rollupOptions: {
       output: {
         manualChunks: {
