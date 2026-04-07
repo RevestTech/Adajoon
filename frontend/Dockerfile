@@ -5,7 +5,8 @@ WORKDIR /app
 COPY package.json ./
 RUN npm install
 
-ARG CACHEBUST=1
+ARG CACHEBUST=20260406
+ENV BUILD_ID=20260406
 COPY . .
 RUN npm run build
 
