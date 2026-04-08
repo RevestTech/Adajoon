@@ -769,26 +769,35 @@ body {
   filter: brightness(1.2);
 }
 
-/* Tooltip */
-.world-map-tooltip-content {
-  background: var(--bg-card, #1a1a2e);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  padding: 8px 12px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+/* Country name overlay - big letters on top */
+.world-map-country-label {
+  position: absolute;
+  top: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  text-align: center;
   pointer-events: none;
+  z-index: 15;
 }
 
-.world-map-tooltip-name {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-primary, #e0e0f0);
+.world-map-country-label-name {
+  font-size: 36px;
+  font-weight: 800;
+  color: #fff;
+  text-transform: uppercase;
+  letter-spacing: 3px;
+  text-shadow: 0 2px 20px rgba(0, 0, 0, 0.7), 0 0 40px rgba(0, 0, 0, 0.5);
+  line-height: 1.1;
+  white-space: nowrap;
 }
 
-.world-map-tooltip-count {
-  font-size: 11px;
-  color: var(--text-muted, #888);
-  margin-top: 2px;
+.world-map-country-label-count {
+  font-size: 16px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.7);
+  margin-top: 4px;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.6);
+  letter-spacing: 1px;
 }
 
 /* Zoom controls */

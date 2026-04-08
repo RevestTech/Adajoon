@@ -252,18 +252,17 @@ const WorldMap = ({
           ))}
         </g>
 
-        {/* Tooltip on hover */}
-        {hoveredCountry && getCountryCount(hoveredCountry) > 0 && (
-          <foreignObject x={10} y={10} width={200} height={80} className="world-map-tooltip">
-            <div className="world-map-tooltip-content">
-              <div className="world-map-tooltip-name">{getCountryName(hoveredCountry)}</div>
-              <div className="world-map-tooltip-count">
-                {getCountryCount(hoveredCountry)} {mode === 'tv' ? 'channels' : 'stations'}
-              </div>
-            </div>
-          </foreignObject>
-        )}
       </svg>
+
+      {/* Big country name overlay */}
+      {hoveredCountry && getCountryCount(hoveredCountry) > 0 && (
+        <div className="world-map-country-label">
+          <div className="world-map-country-label-name">{getCountryName(hoveredCountry)}</div>
+          <div className="world-map-country-label-count">
+            {getCountryCount(hoveredCountry)} {mode === 'tv' ? 'channels' : 'stations'}
+          </div>
+        </div>
+      )}
 
       {/* Zoom Controls */}
       <div className="world-map-controls">
