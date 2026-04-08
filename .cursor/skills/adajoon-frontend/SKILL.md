@@ -5,9 +5,10 @@ description: Enforce Adajoon frontend React patterns including custom hooks with
 
 # Adajoon Frontend React Patterns
 
-**Version**: 1.0.0 (Updated: 2026-04-04)
+**Version**: 1.1.0 (Updated: 2026-04-07)
 
 ## Changelog
+- v1.1.0 (2026-04-07): Added iOS Safari / mobile compatibility section with CSS rules, script loading, diagnostics, and build compatibility after black screen incident
 - v1.0.0 (2026-04-04): Initial versioning - established baseline frontend patterns
 
 ## Custom Hooks Pattern
@@ -417,6 +418,65 @@ useEffect(() => {
 {supported && <FeatureComponent />}
 ```
 
+## iOS Safari / Mobile Compatibility (CRITICAL)
+
+These rules were established after a production incident where the entire app was invisible on iPhone.
+
+### CSS Rules
+
+```css
+/* ✅ CORRECT — vh fallback before dvh */
+#root {
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+/* ❌ WRONG — -webkit-fill-available can compute to 0 on iOS */
+#root {
+  height: -webkit-fill-available;
+  overflow: hidden;
+}
+
+/* ❌ WRONG — dvh without vh fallback breaks iOS < 15.4 */
+.container {
+  height: 100dvh;
+}
+```
+
+**Rules:**
+- **Never use `height: -webkit-fill-available`** — can compute to 0 on certain iOS Safari versions, causing content to be clipped invisible when combined with `overflow: hidden`
+- **Always provide `vh` fallback before `dvh`** — `dvh` units only supported iOS 15.4+
+- **Test mobile layouts in Safari private browsing** to bypass cached CSS
+
+### Script Loading
+
+```html
+<!-- ✅ CORRECT — async defer for third-party SDKs -->
+<script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js" async defer></script>
+<script src="https://imasdk.googleapis.com/js/sdkloader/ima3.js" async defer></script>
+
+<!-- ❌ WRONG — sync scripts block iOS Safari parser completely -->
+<script src="https://some-sdk.js"></script>
+```
+
+**Rules:**
+- **Always load external SDKs with `async defer`** — synchronous scripts block the iOS Safari HTML parser; if the CDN is slow, the entire page is blank
+- **Guard SDK access with null checks**: `window.chrome?.cast`, `window.google?.ima`
+- **Keep `redirect.js` synchronous** (it must run before React) but keep it minimal
+
+### Diagnostics
+
+`index.html` includes two inline diagnostic tools:
+1. **Loading fallback**: `<div id="loading-fallback">Loading Adajoon…</div>` inside `#root` — visible until React mounts, confirms HTML loaded
+2. **Error handler**: `window.onerror` that replaces the fallback with error details — makes JS failures visible on mobile where dev tools aren't available
+
+**Never remove these** — they're the only way to debug mobile rendering failures without physical device access.
+
+### Build Compatibility
+
+Vite config targets `es2015` with `cssTarget: chrome61` for Samsung Tizen TV compatibility. This also ensures compatibility with older iOS Safari versions. The build transpiles modern syntax (optional chaining, nullish coalescing) to ES2015.
+
 ## Checklist for New React Components
 
 When creating a new component, verify:
@@ -429,6 +489,8 @@ When creating a new component, verify:
 - [ ] Environment variables accessed via `import.meta.env.VITE_*`
 - [ ] OAuth callbacks use proper origin validation
 - [ ] Feature detection before using browser APIs
+- [ ] No `-webkit-fill-available` in height CSS (use `vh`/`dvh` instead)
+- [ ] All `dvh` values have `vh` fallback declared first
 
 ## Checklist for New Custom Hooks
 

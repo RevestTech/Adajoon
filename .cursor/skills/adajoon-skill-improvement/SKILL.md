@@ -936,3 +936,56 @@ Skill improvement is not a one-time task but a continuous process.
 5. **Iterate fast** - Small frequent updates beat big rewrites
 
 The goal: Skills that evolve with your codebase and prevent tomorrow's bugs based on today's learnings.
+
+---
+
+## Recent Learning Entries
+
+### Learning Entry #001 — 502 Bad Gateway (v2.5.1)
+
+**Date**: 2026-04-07
+**Category**: Deployment
+**Severity**: Critical (site completely down)
+
+**What Happened**: After rebuilding the frontend container on Railway, all API calls returned 502 Bad Gateway.
+
+**Root Cause**: Frontend `start.sh` defaulted `BACKEND_URL` to port 8000, but Railway assigns port 8080 to services internally via the `PORT` env var. Private networking must use port 8080.
+
+**Fix**: Updated default in `start.sh`: `export BACKEND_URL=${BACKEND_URL:-http://backend.railway.internal:8080}`
+
+**Skills Updated**: adajoon-deployment v1.1.0 — Added "Railway Port Mapping (CRITICAL)" section.
+
+**Prevention**: Always use port 8080 for Railway private networking. Document all port assumptions.
+
+---
+
+### Learning Entry #002 — iOS Safari Black Screen (v2.5.2)
+
+**Date**: 2026-04-07
+**Category**: Frontend, Deployment, CSS
+**Severity**: Critical (app invisible on all iPhones)
+
+**What Happened**: After adding Samsung TV support (v2.5.0), the site showed a completely black screen on iPhone/iOS Safari. The issue went undetected until user testing.
+
+**Root Cause (3 compounding issues)**:
+1. **CSS**: `height: -webkit-fill-available` on `#root` computed to 0 on iOS Safari. Combined with `overflow: hidden`, all React content was clipped invisible.
+2. **Script loading**: Chromecast SDK and IMA SDK loaded synchronously blocked the iOS Safari HTML parser.
+3. **Nginx caching**: `Cache-Control: no-cache` on `location = /index.html` didn't apply when `try_files` served index.html from `location /` context. Safari cached the broken HTML.
+
+**Fix**:
+- Replaced `-webkit-fill-available` with `100vh` + `100dvh`
+- Made SDK scripts `async defer`
+- Added `vh` fallbacks for all `dvh` CSS
+- Added aggressive no-cache headers to `location /` block
+- Added inline loading fallback and `window.onerror` in index.html
+
+**Skills Updated**:
+- adajoon-frontend v1.1.0 — Added "iOS Safari / Mobile Compatibility" section
+- adajoon-deployment v1.2.0 — Added nginx `try_files` caching gotcha and iOS rules
+- CLAUDE.md — Added architecture notes, mobile compatibility rules, and "What Should Be Done" roadmap
+
+**Prevention**:
+- Never use `-webkit-fill-available` for height
+- Always load external scripts async
+- Always test on iOS Safari (private browsing) after CSS/HTML changes
+- Keep inline diagnostics in index.html for mobile debugging

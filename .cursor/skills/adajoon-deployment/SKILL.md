@@ -170,14 +170,29 @@ nginx -g 'daemon off;'
 | Redis | `Redis` | Cache and session store |
 | Postgres | `Postgres` | Primary database |
 
-### Useful Railway CLI Commands
+### Railway CLI Commands (Authenticated as khash@khash.com)
 
 ```bash
-railway status                    # Show linked project/service
-railway service logs             # View service logs
-railway variables                # List env vars
-railway redeploy                 # Trigger redeploy
+# Status and info
+railway status                    # Show linked project/service/environment
+railway whoami                    # Verify authentication
+railway deployment list           # List recent deployments with status
+
+# Deploying
+railway service frontend          # Switch to frontend service context
+railway up --detach               # Upload local dir and deploy (non-blocking)
+railway deployment redeploy       # Redeploy the latest deployment
+
+# Debugging
+railway service logs              # View service logs (live tail)
+railway variables                 # List env vars for current service
 ```
+
+**Deploy workflow** (preferred):
+1. Make code changes, commit to `main`
+2. `git push origin main` (triggers auto-deploy if configured)
+3. If auto-deploy doesn't trigger: `cd frontend && railway service frontend && railway up --detach`
+4. `railway deployment list` to verify SUCCESS
 
 ### Railway GraphQL API (for automation)
 
@@ -191,6 +206,8 @@ curl -X POST https://backboard.railway.app/graphql/v2 \
 ```
 
 Useful operations: rename services, update env vars, delete orphaned services, list all services in a project.
+
+**⚠️ Warning**: Do NOT use Railway's dashboard UI for typing-heavy operations (renaming, etc.) — Railway's Agent feature intercepts keyboard input. Use the CLI or GraphQL API instead.
 
 ---
 

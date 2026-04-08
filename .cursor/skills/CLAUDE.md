@@ -565,6 +565,31 @@ echo "Starting application..."
 uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
+### Deployment Workflow (How We Deploy)
+
+**Railway CLI** is installed at `/opt/homebrew/bin/railway` and authenticated as `khash@khash.com`.
+
+```bash
+# Check status
+cd ~/Projects/Adajoon
+railway status                    # Shows linked project/service
+railway deployment list           # Recent deployments with status
+
+# Deploy frontend (from frontend directory)
+cd frontend
+railway service frontend          # Link to frontend service
+railway up --detach               # Upload and deploy, returns immediately
+
+# Deploy backend
+cd ..
+railway service backend
+railway up --detach
+```
+
+**Git-triggered deploys**: Pushing to `main` on GitHub can also trigger Railway auto-deploy (if configured for the service). Use `railway up` for manual/immediate deploys.
+
+**Railway GraphQL API** (`https://backboard.railway.app/graphql/v2`): Used for service management (rename, delete, query). Requires Bearer token from `~/.config/railway/config.json` or Railway CLI auth.
+
 ### Deployment Checklist
 - [ ] Migrations tested locally
 - [ ] Environment variables set (especially `JWT_SECRET`)
@@ -926,9 +951,52 @@ Use your editor's search (Cmd/Ctrl+F) to find:
 
 ---
 
+## Known Issues & Lessons Learned (2026-04-07)
+
+### Incidents Resolved
+
+1. **502 Bad Gateway** (v2.5.1): Frontend nginx was proxying to `backend:8000` but Railway runs services on port 8080 internally. Fixed in `start.sh` default BACKEND_URL.
+
+2. **iOS Safari Black Screen** (v2.5.2): Three compounding causes:
+   - `height: -webkit-fill-available` on `#root` computed to 0 on iOS Safari → all content clipped by `overflow: hidden`
+   - Synchronous `<script>` tags (Chromecast SDK, IMA SDK) blocked iOS Safari's HTML parser
+   - Nginx `try_files` caching gotcha: `Cache-Control` headers on `location = /index.html` don't apply when index.html is served via `try_files` from `location /` — Safari cached stale HTML
+
+3. **Railway Agent keyboard interception**: Railway's AI Agent feature captures typed input in the dashboard. Workaround: use Railway CLI or GraphQL API instead of the UI for service management.
+
+### Rules to Follow
+
+- **CSS**: Never use `-webkit-fill-available` for height. Use `100vh` + `100dvh` fallback pattern.
+- **Scripts**: Always load third-party SDKs with `async defer`. Never block the parser.
+- **Nginx**: Always add no-cache headers to BOTH `location = /index.html` AND `location /` blocks.
+- **Railway ports**: Private networking always uses port **8080**, regardless of what `EXPOSE` says in the Dockerfile.
+- **Diagnostics**: Keep the inline `window.onerror` handler and loading fallback in `index.html` — they make future mobile debugging possible.
+- **Testing**: After any CSS or HTML change, test on iOS Safari (private browsing to bypass cache).
+
+## What Should Be Done Next
+
+### High Priority
+- [ ] **Update GitHub remote URL**: Remote still points to old `RevestTech/ReTV.git` — should be `RevestTech/Adajoon.git`
+- [ ] **Re-enable Service Worker** with proper cache-first strategy for assets, network-first for HTML
+- [ ] **Add error monitoring** (Sentry or similar) to catch mobile JS errors in production
+- [ ] **Test on Android Chrome** and other mobile browsers for parity
+
+### Medium Priority
+- [ ] **Code-split more aggressively**: Main bundle is 727KB — consider splitting by route/feature
+- [ ] **Add PWA offline support** once Service Worker is re-enabled
+- [ ] **Remove `upgrade-insecure-requests` CSP meta tag** if not needed (can cause subtle issues on mobile)
+- [ ] **Remove redundant `redirect.js`**: Server-side nginx redirect handles non-www → www, client-side JS redirect is no longer needed
+
+### Low Priority
+- [ ] **Update version in App.jsx footer**: Still shows v2.5.0, should be v2.5.2
+- [ ] **Clean up TV debug overlay** for production (TVDebugInfo component)
+- [ ] **Add automated Lighthouse CI** to catch mobile performance regressions
+
+---
+
 ## Version
 
 Created for Adajoon v2.3.0 (April 2026)
-Last updated: 2026-04-07 (v2.5.2 — iOS Safari fix, nginx caching fix)
+Last updated: 2026-04-07 (v2.5.2 — iOS Safari fix, nginx caching fix, deployment workflow)
 
 Skills are continuously improved through the [Skill Improvement](#skill-improvement) process.
