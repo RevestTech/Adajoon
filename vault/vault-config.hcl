@@ -1,10 +1,9 @@
 ui = true
 
-# Storage backend — uses Raft (integrated storage) for single-node Railway deploy.
-# Data persists in /vault/data (mount a Railway volume here).
-storage "raft" {
-  path    = "/vault/data"
-  node_id = "vault-railway-1"
+# Storage backend — file storage for single-node Railway deployment.
+# Data persists in /vault/data (Railway volume mount).
+storage "file" {
+  path = "/vault/data"
 }
 
 # Listener — HTTP for Railway internal networking.
@@ -14,10 +13,7 @@ listener "tcp" {
   tls_disable = true
 }
 
-# API address — set via env var in entrypoint
-# api_addr is injected at runtime
-
-# Disable mlock for container environments (Railway doesn't support it)
+# Disable mlock for container environments
 disable_mlock = true
 
 # Telemetry
