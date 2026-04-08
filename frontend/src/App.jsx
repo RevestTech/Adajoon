@@ -10,6 +10,7 @@ import GuestNoticeToast from "./components/GuestNoticeToast";
 import FavoritesView from "./components/FavoritesView";
 import RecentlyPlayed from "./components/RecentlyPlayed";
 import BackToTop from "./components/BackToTop";
+import AISearchModal from "./components/AISearchModal";
 import TVDebugInfo from "./components/TVDebugInfo";
 import useFavorites, { useRadioFavorites } from "./hooks/useFavorites";
 import useRecentlyPlayed from "./hooks/useRecentlyPlayed";
@@ -577,6 +578,17 @@ export default function App() {
     if (guestNoticeTimerRef.current) clearTimeout(guestNoticeTimerRef.current);
   }, []);
 
+  // AI Search state
+  const [showAISearch, setShowAISearch] = useState(false);
+
+  const handleAISelect = useCallback((item) => {
+    if (mode === "tv") {
+      openTvPlayer(item);
+    } else {
+      handleSelectStation(item);
+    }
+  }, [mode, openTvPlayer, handleSelectStation]);
+
   return (
     <>
       <Header
@@ -597,6 +609,7 @@ export default function App() {
         favoritesCount={favoritesCount + radioFavoritesCount}
         isGuest={isGuest}
         onGuestNotice={onGuestNotice}
+        onOpenAISearch={() => setShowAISearch(true)}
       />
       {sidebarOpen && <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} />}
       <div className="layout">
@@ -778,6 +791,13 @@ export default function App() {
             onSkip={() => { localStorage.setItem("adajoon_guest_skip", "1"); setShowLogin(false); }}
           />
         </Suspense>
+      )}
+      {showAISearch && (
+        <AISearchModal
+          mode={mode}
+          onSelect={handleAISelect}
+          onClose={() => setShowAISearch(false)}
+        />
       )}
       <BackToTop />
       <TVDebugInfo />

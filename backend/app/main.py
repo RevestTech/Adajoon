@@ -16,10 +16,11 @@ import httpx
 
 from app.database import engine, Base, async_session, get_db
 from app.config import settings
+from app.services.vault_service import is_vault_active, get_all_secret_keys, refresh_secrets
 from app.logging_config import setup_logging, RequestLoggingMiddleware
 from app.middleware.security_headers import SecurityHeadersMiddleware
 from app.middleware.www_redirect import WWWRedirectMiddleware
-from app.routers import channels, categories, healthcheck, radio, auth, sitemap, history, languages, csrf, recommendations, playlists, parental, subscriptions, redis_health  # whitelabel
+from app.routers import channels, categories, healthcheck, radio, auth, sitemap, history, languages, csrf, recommendations, playlists, parental, subscriptions, redis_health, ai_search  # whitelabel
 from app.services.iptv_service import full_sync
 from app.services.radio_service import sync_radio_stations
 
@@ -77,6 +78,13 @@ async def lifespan(app: FastAPI):
         await conn.run_sync(Base.metadata.create_all)
     logger.info("Database initialization complete")
 
+    # Log Vault status
+    if is_vault_active():
+        secret_keys = get_all_secret_keys()
+        logger.info("Vault active — %d secrets loaded: %s", len(secret_keys), ", ".join(secret_keys))
+    else:
+        logger.info("Vault not active — using environment variables for secrets")
+
     sync_task = asyncio.create_task(initial_sync())
     yield
     sync_task.cancel()
@@ -128,6 +136,7 @@ app.include_router(parental.router)
 app.include_router(subscriptions.router)
 # app.include_router(whitelabel.router)  # TODO: Implement Tenant model first
 app.include_router(redis_health.router)
+app.include_router(ai_search.router)
 app.include_router(sitemap.router)
 
 # Setup Prometheus metrics
@@ -218,6 +227,39 @@ async def health_ready(db: AsyncSession = Depends(get_db)):
         "total_time_ms": round(total_time_ms, 2),
         "timestamp": datetime.utcnow().isoformat()
     }
+
+
+@app.get("/api/health/vault")
+async def health_vault():
+    """Check Vault integration status."""
+    if is_vault_active():
+        keys = get_all_secret_keys()
+        return {
+            "status": "active",
+            "source": "vault",
+            "secrets_loaded": len(keys),
+            "keys": [k[:3] + "***" for k in keys],  # redacted key names
+        }
+    return {
+        "status": "inactive",
+        "source": "environment_variables",
+        "message": "VAULT_ADDR not configured — using env vars",
+    }
+
+
+@app.post("/api/vault/refresh")
+async def vault_refresh(x_sync_key: str | None = Header(default=None, alias="X-Sync-Key")):
+    """Manually refresh secrets from Vault (requires SYNC_API_KEY header)."""
+    if not SYNC_API_KEY:
+        raise HTTPException(status_code=503, detail="Endpoint disabled (SYNC_API_KEY not configured)")
+    import secrets as sec_module
+    if not x_sync_key or not sec_module.compare_digest(x_sync_key, SYNC_API_KEY):
+        raise HTTPException(status_code=403, detail="Invalid or missing X-Sync-Key header")
+
+    success = refresh_secrets()
+    if success:
+        return {"status": "refreshed", "secrets_loaded": len(get_all_secret_keys())}
+    raise HTTPException(status_code=500, detail="Failed to refresh secrets from Vault")
 
 
 @app.post("/api/sync")

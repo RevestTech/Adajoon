@@ -7,6 +7,7 @@ export default function Header({
   sidebarOpen, onToggleSidebar,
   user, onLogin, onLogout,
   showFavorites, onToggleFavorites, favoritesCount, isGuest, onGuestNotice,
+  onOpenAISearch,
 }) {
   const [localSearch, setLocalSearch] = useState(search);
   const debounceRef = useRef(null);
@@ -110,6 +111,16 @@ export default function Header({
             aria-label={mode === "tv" ? "Search channels" : "Search stations"}
           />
         </div>
+        <button
+          className="ai-search-btn"
+          onClick={onOpenAISearch}
+          aria-label="AI Search"
+          title="Search with AI"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+            <path d="M12 2L14.09 8.26L20 9.27L15.55 13.97L16.91 20L12 16.9L7.09 20L8.45 13.97L4 9.27L9.91 8.26L12 2Z" fill="currentColor" />
+          </svg>
+        </button>
       </div>
       <div className="header-user">
         <UserMenu user={user} onLogin={onLogin} onLogout={onLogout} />
