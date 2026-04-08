@@ -1,5 +1,5 @@
 #!/bin/sh
-set -e
+# NO set -e — vault status returns non-zero when uninitialized/sealed
 
 PORT="${PORT:-8200}"
 
@@ -19,31 +19,41 @@ echo "Starting Vault on port ${PORT}..."
 vault server -config=/vault/config/vault-config.hcl &
 VAULT_PID=$!
 
-# Wait for Vault to be reachable
+# Wait for Vault to be reachable (vault status exits 2 when not init, 1 when sealed — both mean "running")
 echo "Waiting for Vault to start..."
 RETRIES=0
 while [ $RETRIES -lt 30 ]; do
-    if vault status >/dev/null 2>&1; then
+    # Use curl to check if Vault is listening, since vault status returns non-zero when uninitialized
+    if curl -s -o /dev/null http://127.0.0.1:${PORT}/v1/sys/health 2>/dev/null; then
+        break
+    fi
+    # Also check with any HTTP response (Vault returns 501 when not initialized)
+    HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:${PORT}/v1/sys/health 2>/dev/null || echo "000")
+    if [ "$HTTP_CODE" != "000" ]; then
         break
     fi
     RETRIES=$((RETRIES + 1))
     sleep 1
 done
 
-if ! vault status >/dev/null 2>&1; then
+HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:${PORT}/v1/sys/health 2>/dev/null || echo "000")
+if [ "$HTTP_CODE" = "000" ]; then
     echo "ERROR: Vault did not start within 30 seconds"
     wait $VAULT_PID
     exit 1
 fi
 
-echo "Vault is up."
+echo "Vault is up (health HTTP $HTTP_CODE)."
 
 # Check if initialized
 INIT_STATUS=$(vault status -format=json 2>/dev/null | jq -r '.initialized' 2>/dev/null || echo "false")
 
 if [ "$INIT_STATUS" = "false" ]; then
-    echo "Vault is NOT initialized. Run init-vault.sh to initialize."
-    echo "Vault is running and waiting for initialization..."
+    echo "============================================"
+    echo "  Vault is NOT initialized."
+    echo "  Run init-vault.sh to set up secrets."
+    echo "  Vault is listening and waiting..."
+    echo "============================================"
     wait $VAULT_PID
     exit 0
 fi
@@ -75,7 +85,7 @@ elif [ "$SEAL_STATUS" = "false" ]; then
     echo "Vault is already unsealed."
 fi
 
-vault status
+vault status 2>/dev/null || true
 echo "Vault is ready."
 
 # Wait for vault process (keep container alive)

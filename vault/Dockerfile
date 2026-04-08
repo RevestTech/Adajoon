@@ -1,12 +1,12 @@
 FROM hashicorp/vault:1.17
 
 # Install jq for JSON parsing in entrypoint
-RUN apk add --no-cache jq
+RUN apk add --no-cache jq curl
 
 # Switch to root to set up files
 USER root
 
-# Copy Vault server config
+# Copy Vault server config (paths relative to vault/ build context)
 COPY vault-config.hcl /vault/config/vault-config.hcl
 COPY entrypoint-auto-unseal.sh /vault/entrypoint.sh
 
@@ -18,5 +18,4 @@ RUN chmod +x /vault/entrypoint.sh && \
 EXPOSE 8200
 
 # Run as root so we can bind to any port Railway assigns
-# (vault user can't bind to low ports; disable_mlock handles the security concern)
 ENTRYPOINT ["/vault/entrypoint.sh"]
