@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Text, Boolean, Integer, ForeignKey, Index, DateTime, func
+from sqlalchemy import Column, String, Text, Boolean, Integer, ForeignKey, Index, DateTime, func, JSON
 from sqlalchemy.orm import relationship
 
 from app.database import Base
@@ -238,3 +238,22 @@ class Stream(Base):
     user_agent = Column(Text, default="")
     status = Column(String(50), default="unknown")
     added_at = Column(DateTime(timezone=True), nullable=True)
+
+
+class AnalyticsEvent(Base):
+    __tablename__ = "analytics_events"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    session_id = Column(String(255), nullable=False, index=True)
+    event_name = Column(String(100), nullable=False, index=True)
+    properties = Column(JSON, default={})
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+    
+    user = relationship("User")
+
+    __table_args__ = (
+        Index("ix_analytics_event_name_created", "event_name", "created_at"),
+        Index("ix_analytics_user_created", "user_id", "created_at"),
+        Index("ix_analytics_session_created", "session_id", "created_at"),
+    )

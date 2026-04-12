@@ -17,15 +17,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Only available on desktop devices (not mobile/TV)
   - Accessible via "Pop Out" button in video/radio player controls
 
-- **Enhanced Session Tracking**: Comprehensive user engagement analytics via Mixpanel
-  - Session duration tracking (total, active, idle time)
-  - Activity detection (mouse, keyboard, touch, scroll)
-  - Tab visibility tracking (hidden/visible states)
-  - 60-second heartbeats for real-time engagement monitoring
-  - Engagement rate calculation (active time / total time)
-  - Session summary on exit with full metrics
-  - Complements existing playback tracking (30-second heartbeats per channel/station)
-  - See `docs/ANALYTICS_TRACKING.md` for full event reference
+- **Custom Self-Hosted Analytics**: Full replacement of Mixpanel with database-backed tracking
+  - All events stored in PostgreSQL (`analytics_events` table)
+  - No third-party dependencies or data sharing
+  - Session tracking (total, active, idle time with 60s heartbeats)
+  - Playback tracking (30s heartbeats per channel/station)
+  - User action tracking (searches, favorites, votes, shares)
+  - Admin API endpoints for analytics queries (`/api/admin/analytics/*`)
+  - Batch event submission for performance (5s intervals)
+  - JSONB properties for flexible event data
+  - See `docs/CUSTOM_ANALYTICS.md` for full reference
 
 - **Admin Dashboard**: Real-time statistics and user management
   - User counts by provider (Google, Apple, Passkey)
@@ -36,6 +37,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - User management (promote/revoke admin)
   - Only visible to admin users (`is_admin` flag)
   - Accessible via user avatar dropdown menu
+
+### Removed
+- **Mixpanel Integration**: Removed third-party analytics service
+  - Removed `mixpanel-browser` dependency
+  - Removed PostHog integration
+  - Replaced with custom self-hosted analytics
+  - All existing event tracking migrated to new system
 
 ## [2.5.2] - 2026-04-07
 

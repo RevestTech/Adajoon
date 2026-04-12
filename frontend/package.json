@@ -16,8 +16,6 @@
   "dependencies": {
     "@simplewebauthn/browser": "^13.3.0",
     "hls.js": "^1.5.17",
-    "mixpanel-browser": "^2.77.0",
-    "posthog-js": "^1.364.6",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-helmet-async": "^3.0.0",

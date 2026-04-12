@@ -1,21 +1,50 @@
-import mixpanel from 'mixpanel-browser';
+/**
+ * Custom Self-Hosted Analytics
+ * Sends events to our own backend API instead of third-party services.
+ */
 
-// Initialize Mixpanel (set token in .env or disable for development)
-const MIXPANEL_TOKEN = import.meta.env.VITE_MIXPANEL_TOKEN || '';
-const IS_PRODUCTION = import.meta.env.PROD;
-const ANALYTICS_ENABLED = IS_PRODUCTION && MIXPANEL_TOKEN;
+// Generate unique session ID (persists for browser session)
+const getSessionId = () => {
+  let sessionId = sessionStorage.getItem('adajoon_session_id');
+  if (!sessionId) {
+    sessionId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    sessionStorage.setItem('adajoon_session_id', sessionId);
+  }
+  return sessionId;
+};
 
-if (ANALYTICS_ENABLED) {
-  mixpanel.init(MIXPANEL_TOKEN, {
-    debug: false,
-    track_pageview: true,
-    persistence: 'localStorage',
-    ignore_dnt: false,
-  });
-} else if (import.meta.env.DEV) {
-  // Only log in development mode
-  console.log('[Analytics] Mixpanel disabled (no token or dev mode)');
-}
+// Event queue for batching
+let eventQueue = [];
+let flushTimeout = null;
+
+// Flush events to backend
+const flushEvents = async () => {
+  if (eventQueue.length === 0) return;
+  
+  const events = [...eventQueue];
+  eventQueue = [];
+  
+  try {
+    await fetch('/api/analytics/batch', {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(events),
+    });
+  } catch (error) {
+    if (import.meta.env.DEV) {
+      console.error('[Analytics] Failed to send events:', error);
+    }
+  }
+};
+
+// Schedule flush (debounced)
+const scheduleFlush = () => {
+  if (flushTimeout) clearTimeout(flushTimeout);
+  flushTimeout = setTimeout(flushEvents, 5000); // Flush every 5 seconds
+};
 
 /**
  * Analytics utility functions
@@ -25,41 +54,43 @@ export const analytics = {
    * Track an event
    */
   track(eventName, properties = {}) {
-    if (!ANALYTICS_ENABLED) {
-      // Only log in dev mode to reduce console noise
-      if (import.meta.env.DEV) {
-        console.log('[Analytics]', eventName, properties);
-      }
-      return;
+    const event = {
+      event_name: eventName,
+      session_id: getSessionId(),
+      properties: {
+        ...properties,
+        timestamp: new Date().toISOString(),
+        url: window.location.href,
+        path: window.location.pathname,
+      },
+    };
+    
+    // Log in development
+    if (import.meta.env.DEV) {
+      console.log('[Analytics]', eventName, properties);
     }
     
-    mixpanel.track(eventName, {
-      ...properties,
-      timestamp: new Date().toISOString(),
-    });
+    // Add to queue
+    eventQueue.push(event);
+    scheduleFlush();
   },
 
   /**
-   * Identify a user
+   * Identify a user (called on login)
    */
   identify(userId, traits = {}) {
-    if (!ANALYTICS_ENABLED) return;
-    
-    mixpanel.identify(userId);
-    if (Object.keys(traits).length > 0) {
-      mixpanel.people.set(traits);
-    }
+    this.track('User Identified', {
+      user_id: userId,
+      ...traits,
+    });
   },
 
   /**
    * Track page view
    */
   page(pageName, properties = {}) {
-    if (!ANALYTICS_ENABLED) return;
-    
-    mixpanel.track('Page View', {
+    this.track('Page View', {
       page: pageName,
-      url: window.location.href,
       ...properties,
     });
   },
@@ -68,8 +99,9 @@ export const analytics = {
    * Reset user (on logout)
    */
   reset() {
-    if (!ANALYTICS_ENABLED) return;
-    mixpanel.reset();
+    // Generate new session ID
+    sessionStorage.removeItem('adajoon_session_id');
+    this.track('User Logged Out');
   },
 
   /**
@@ -121,7 +153,7 @@ export const analytics = {
    */
   trackFavorite(action, itemType, item) {
     this.track('Favorite Action', {
-      action, // 'add' or 'remove'
+      action,
       item_type: itemType,
       item_id: item.id,
       item_name: item.name,
@@ -145,7 +177,7 @@ export const analytics = {
    */
   trackShare(method, itemType, item) {
     this.track('Content Shared', {
-      method, // 'native' or 'clipboard'
+      method,
       item_type: itemType,
       item_id: item.id,
       item_name: item.name,
@@ -163,6 +195,11 @@ export const analytics = {
     });
   },
 };
+
+// Flush events before page unload
+window.addEventListener('beforeunload', () => {
+  flushEvents();
+});
 
 // Track initial page load
 if (typeof window !== 'undefined') {

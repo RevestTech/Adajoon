@@ -1,225 +1,304 @@
 # Usage & Duration Tracking - Quick Guide
 
-## ✅ What's Already Tracking
+## ✅ Custom Self-Hosted Analytics
 
-Your site now tracks **comprehensive usage metrics** via Mixpanel:
+Your site now has **custom analytics** that stores all data in your own PostgreSQL database. No third-party services!
 
-### 1. Session Tracking (NEW!)
-- **Total time on site**: From page load to exit
-- **Active time**: Time user is engaged (mouse/keyboard/scroll activity)
-- **Idle time**: Time user is inactive (>60s no activity)
-- **Engagement rate**: Active time / Total time percentage
-- **Pages visited**: Number of sections browsed
+### What's Tracking
 
-### 2. Playback Tracking (Existing)
-- **Watch time per channel**: Exact duration watching each TV channel
-- **Listen time per station**: Exact duration listening to each radio station
-- **30-second heartbeats**: Continuous tracking while playing
+1. **Session Tracking**
+   - Total time on site
+   - Active vs idle time
+   - Engagement rate
+   - Heartbeats every 60 seconds
 
-### 3. User Actions (Existing)
-- Searches, favorites, votes, shares
-- Filter applications
-- Login/signup events
+2. **Playback Tracking**
+   - Watch time per channel
+   - Listen time per station
+   - Heartbeats every 30 seconds
+   - Total watch/listen sessions
+
+3. **User Actions**
+   - Searches, favorites, votes, shares
+   - Login/signup events
+   - Filter applications
 
 ---
 
-## 📊 How to View Usage Data
+## 📊 How to View Your Data
 
-### Option 1: Mixpanel Dashboard (Most Detailed)
+### Option 1: Admin Dashboard (Quick Overview)
 
-1. **Go to**: https://mixpanel.com
-2. **Log in** with your Mixpanel account
-3. **Select**: Adajoon project
+1. Go to https://www.adajoon.com
+2. Log in as admin (`khash@khash.com`)
+3. Click your avatar → **Admin Dashboard**
+4. Navigate to **Analytics** tab (when implemented)
 
-#### Key Reports to View:
-
-**Average Session Duration**:
-- Go to **Insights** → New Report
-- Event: `Session Ended`
-- Show: `Average of total_duration_seconds`
-- Group by: `Date`
-
-**Daily Active Users**:
-- Go to **Insights** → New Report
-- Event: `Session Started`
-- Show: `Unique Users`
-- Group by: `Date`
-
-**Engagement Rate**:
-- Go to **Insights** → New Report
-- Event: `Session Ended`
-- Show: `Average of engagement_rate`
-- Group by: `Date`
-
-**Top Channels by Watch Time**:
-- Go to **Insights** → New Report
-- Event: `Playback Session`
-- Filter: `item_type = 'tv'`
-- Show: `Sum of total_duration_seconds`
-- Group by: `item_name`
-- Sort by: Value (descending)
-
-**Watch Time by Hour** (Peak usage times):
-- Go to **Insights** → New Report
-- Event: `Session Heartbeat`
-- Show: `Count`
-- Group by: `Hour of Day`
-
-### Option 2: Adajoon Admin Dashboard (Quick Overview)
-
-1. **Go to**: https://www.adajoon.com
-2. **Log in** as admin (`khash@khash.com`)
-3. **Click your avatar** → **Admin Dashboard**
-
-**Shows**:
+**Currently shows** (in Overview/Activity tabs):
 - Active users (24h, 7d, 30d)
 - Recently watched content
 - User growth over time
-- System health
 
-**Note**: Admin dashboard shows database-level stats. For detailed session/duration analytics, use Mixpanel.
+**Coming soon**:
+- Session duration stats
+- Engagement metrics
+- Top content by watch time
+
+### Option 2: Direct Database Queries
+
+Connect to your PostgreSQL database and run queries:
+
+#### Daily Active Users
+```sql
+SELECT DATE(created_at) as date, COUNT(DISTINCT user_id) as users
+FROM analytics_events
+WHERE event_name = 'Session Started'
+AND created_at >= NOW() - INTERVAL '30 days'
+GROUP BY DATE(created_at)
+ORDER BY date;
+```
+
+#### Average Session Duration
+```sql
+SELECT AVG((properties->>'total_duration_seconds')::int) / 60.0 as avg_minutes
+FROM analytics_events
+WHERE event_name = 'Session Ended'
+AND created_at >= NOW() - INTERVAL '7 days';
+```
+
+#### Top Channels by Watch Time
+```sql
+SELECT 
+  properties->>'item_name' as channel,
+  COUNT(*) as plays,
+  SUM((properties->>'total_duration_seconds')::int) / 3600.0 as total_hours
+FROM analytics_events
+WHERE event_name = 'Playback Session'
+AND properties->>'item_type' = 'tv'
+AND created_at >= NOW() - INTERVAL '7 days'
+GROUP BY properties->>'item_name'
+ORDER BY total_hours DESC
+LIMIT 10;
+```
+
+### Option 3: Admin API (Programmatic Access)
+
+Use the admin API endpoints (requires admin authentication):
+
+```bash
+# Get analytics summary
+curl -s "https://www.adajoon.com/api/admin/analytics/summary?days=7" \
+  --cookie "auth_token=YOUR_TOKEN" | jq .
+
+# Get events over time
+curl -s "https://www.adajoon.com/api/admin/analytics/events-over-time?days=30" \
+  --cookie "auth_token=YOUR_TOKEN" | jq .
+
+# Get top content
+curl -s "https://www.adajoon.com/api/admin/analytics/top-content?days=7&limit=10" \
+  --cookie "auth_token=YOUR_TOKEN" | jq .
+```
 
 ---
 
-## 🎯 Key Metrics to Monitor
+## 🎯 Key Metrics
 
-### Daily/Weekly
-- **Daily Active Users (DAU)**: How many users visit per day
-- **Average Session Duration**: How long users stay on site
-- **Average Watch Time**: How long users watch content
-- **Engagement Rate**: Percentage of time users are active
+### Daily Metrics
+- **DAU (Daily Active Users)**: Unique users per day
+- **Sessions**: Total visits per day
+- **Avg Session Duration**: Time spent on site
+- **Avg Watch Time**: Time watching content
 
-### Monthly
-- **Monthly Active Users (MAU)**: Unique users per month
-- **DAU/MAU Ratio**: Stickiness metric (ideal: >20%)
-- **Retention**: 7-day and 30-day user return rates
+### Weekly/Monthly
+- **MAU (Monthly Active Users)**: Unique users per month
+- **DAU/MAU Ratio**: Stickiness (ideal: >20%)
+- **Retention**: 7-day and 30-day return rates
 - **Top Content**: Most watched channels/stations
 
-### Growth
-- **New Signups**: User growth over time
-- **Conversion Rate**: Guest → Registered user
-- **Provider Mix**: Google vs Apple vs Passkey logins
-
----
-
-## 📈 Sample Queries
-
-### 1. Total Watch Time This Month
-```
-Event: Playback Session
-Date Range: Last 30 days
-Show: Sum of total_duration_seconds
-Convert to: Hours
-```
-
-### 2. Average Time Spent Per User
-```
-Event: Session Ended
-Date Range: Last 7 days
-Show: Average of total_duration_seconds
-Convert to: Minutes
-```
-
-### 3. Most Popular Content
-```
-Event: Playback Started
-Date Range: Last 30 days
-Group by: item_name
-Show: Count
-Sort by: Value (descending)
-Limit: 10
-```
-
-### 4. User Engagement Over Time
-```
-Event: Session Ended
-Date Range: Last 30 days
-Show: Average of engagement_rate
-Group by: Date
-```
-
-### 5. Peak Usage Hours
-```
-Event: Session Heartbeat
-Date Range: Last 7 days
-Group by: Hour of Day
-Show: Count
-```
-
----
-
-## 🔔 Recommended Alerts
-
-Set up Mixpanel alerts for:
-
-1. **DAU drops >20%**: Potential site issues
-2. **Avg session duration <2 minutes**: Engagement problem
-3. **New signups <5/day**: Growth slowdown
-4. **Error rate >5%**: Technical issues
+### Engagement
+- **Active Time %**: Time engaged vs idle
+- **Watch Time per User**: Average content consumption
+- **Sessions per User**: Visit frequency
 
 ---
 
 ## 🎬 Events Being Tracked
 
-### Session Events (every user visit)
-- `Session Started` - When user loads site
-- `Session Heartbeat` - Every 60 seconds
-- `Session Ended` - When user leaves
-- `User Became Active/Idle` - Activity state changes
+All events are stored in the `analytics_events` table:
+
+### Session Events
+- `Session Started` - Page load
+- `Session Heartbeat` - Every 60s
+- `Session Ended` - Exit with full metrics
+- `User Became Active/Idle` - Activity state
 - `Tab Hidden/Visible` - Tab switching
 
-### Playback Events (when watching/listening)
+### Playback Events
 - `Playback Started` - Start watching/listening
-- `Playback Heartbeat` - Every 30 seconds
-- `Playback Ended` - Stop watching/listening
+- `Playback Heartbeat` - Every 30s
+- `Playback Ended` - Stop playback
 - `Playback Session` - Full session summary
 
 ### User Actions
-- `Content Played` - Click to play
-- `Search Performed` - Search query
-- `Favorite Action` - Add/remove favorite
-- `Vote Cast` - Upvote/downvote
-- `Content Shared` - Share channel/station
-- `Filter Applied` - Apply category/country filter
-- `User Signed Up` - New registration
-- `User Logged In` - Login event
+- `Content Played`, `Search Performed`
+- `Favorite Action`, `Vote Cast`
+- `Content Shared`, `Filter Applied`
+- `User Signed Up`, `User Logged In`
 
 ---
 
-## 🔧 Configuration
+## 📈 Sample Queries
 
-### Mixpanel Token
-Set in Railway environment variables (frontend service):
-```bash
-VITE_MIXPANEL_TOKEN=your_mixpanel_project_token
+### Total Events Today
+```sql
+SELECT COUNT(*) FROM analytics_events
+WHERE DATE(created_at) = CURRENT_DATE;
 ```
 
-### Enable/Disable
-Analytics are:
-- ✅ **Enabled**: In production with token set
-- ❌ **Disabled**: In development (logs to console only)
+### Most Active Users (Last 7 Days)
+```sql
+SELECT user_id, COUNT(*) as events
+FROM analytics_events
+WHERE created_at >= NOW() - INTERVAL '7 days'
+AND user_id IS NOT NULL
+GROUP BY user_id
+ORDER BY events DESC
+LIMIT 10;
+```
+
+### Engagement Rate by Day
+```sql
+SELECT 
+  DATE(created_at) as date,
+  AVG((properties->>'engagement_rate')::float) as avg_engagement
+FROM analytics_events
+WHERE event_name = 'Session Ended'
+AND created_at >= NOW() - INTERVAL '30 days'
+GROUP BY DATE(created_at)
+ORDER BY date;
+```
+
+### Watch Time by Category
+```sql
+SELECT 
+  properties->>'item_category' as category,
+  SUM((properties->>'total_duration_seconds')::int) / 3600.0 as total_hours
+FROM analytics_events
+WHERE event_name = 'Playback Session'
+AND properties->>'item_type' = 'tv'
+AND created_at >= NOW() - INTERVAL '7 days'
+GROUP BY properties->>'item_category'
+ORDER BY total_hours DESC;
+```
+
+---
+
+## 🔧 Database Access
+
+### Via Railway Dashboard
+
+1. Go to https://railway.app
+2. Select Adajoon project
+3. Click on **Postgres** service
+4. Click **Data** tab to browse tables
+5. Use **Query** tab to run SQL
+
+### Via psql (Command Line)
+
+```bash
+# Get connection string from Railway
+railway variables -s backend | grep DATABASE_URL
+
+# Connect
+psql "postgresql://user:pass@host:port/database"
+
+# Query
+SELECT * FROM analytics_events ORDER BY created_at DESC LIMIT 10;
+```
+
+---
+
+## 🗄️ Data Retention
+
+### Storage Estimates
+
+- **Per event**: ~500 bytes
+- **100K events/day**: ~50MB/day (~1.5GB/month)
+- **1M events**: ~500MB
+
+### Cleanup Old Data (Recommended)
+
+Keep last 90 days, archive older events:
+
+```sql
+-- Delete events older than 90 days
+DELETE FROM analytics_events
+WHERE created_at < NOW() - INTERVAL '90 days';
+```
+
+**Or archive instead**:
+```sql
+-- Create archive table (one-time)
+CREATE TABLE analytics_events_archive (LIKE analytics_events INCLUDING ALL);
+
+-- Move old data
+INSERT INTO analytics_events_archive
+SELECT * FROM analytics_events
+WHERE created_at < NOW() - INTERVAL '90 days';
+
+DELETE FROM analytics_events
+WHERE created_at < NOW() - INTERVAL '90 days';
+```
+
+---
+
+## 🔒 Privacy & GDPR
+
+### Data Collected
+
+- User ID (only for logged-in users)
+- IP address (backend adds automatically)
+- User agent (browser info)
+- Event properties (pages visited, content watched)
+
+### User Rights
+
+**Right to Access**:
+```sql
+SELECT * FROM analytics_events WHERE user_id = 123;
+```
+
+**Right to Delete**:
+```sql
+DELETE FROM analytics_events WHERE user_id = 123;
+```
+
+**Right to Opt-Out**:
+Add a toggle in user settings to disable tracking.
 
 ---
 
 ## 📚 Full Documentation
 
-For complete event schemas, privacy considerations, and advanced queries:
-- **Read**: `docs/ANALYTICS_TRACKING.md`
-- **Admin Monitoring**: `docs/RAILWAY_MONITORING.md`
+For complete technical details:
+- **Read**: `docs/CUSTOM_ANALYTICS.md`
+- **API Reference**: All endpoints and schemas
+- **SQL Queries**: Advanced analytics queries
+- **Performance**: Optimization tips
 
 ---
 
 ## 🚀 Next Steps
 
-1. **Log in to Mixpanel** and explore your data
-2. **Create key dashboards** (DAU, session duration, top content)
-3. **Set up alerts** for critical metrics
-4. **Review weekly** to understand user behavior
-5. **Optimize** based on insights (improve retention, fix drop-offs)
+1. **Run the migration**: `alembic upgrade head`
+2. **Start tracking**: Analytics are now live!
+3. **View your data**: Check admin dashboard or run SQL queries
+4. **Set up retention**: Schedule cleanup of old events
+5. **Build custom reports**: Query database for specific insights
 
 ---
 
 **Tracking since**: April 12, 2026  
-**Events tracked per session**: ~5-10 (varies by user activity)  
-**Data retention**: 90 days (Mixpanel free plan)  
+**Storage**: Your own PostgreSQL database  
+**Privacy**: 100% self-hosted, no third-party services  
 **Status**: ✅ Live in production
