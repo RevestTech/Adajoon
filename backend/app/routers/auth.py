@@ -52,10 +52,12 @@ APPLE_ISSUER = "https://appleid.apple.com"
 # JWT helpers
 # ---------------------------------------------------------------------------
 
-def create_token(user_id: int, email: str) -> str:
+def create_token(user_id: int, email: str, is_admin: bool = False, role: str = "user") -> str:
     payload = {
         "sub": str(user_id),
         "email": email,
+        "is_admin": is_admin,
+        "role": role,
         "exp": datetime.now(timezone.utc) + timedelta(days=settings.jwt_expiry_days),
     }
     return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
@@ -216,7 +218,7 @@ async def google_login(request: Request, response: Response, body: GoogleTokenRe
 
     await db.commit()
     await db.refresh(user)
-    token = create_token(user.id, user.email)
+    token = create_token(user.id, user.email, user.is_admin, user.role)
     _set_auth_cookies(response, user, token)
     return _user_response(user)
 
@@ -336,7 +338,7 @@ async def apple_login(request: Request, response: Response, body: AppleTokenRequ
 
     await db.commit()
     await db.refresh(user)
-    token = create_token(user.id, user.email)
+    token = create_token(user.id, user.email, user.is_admin, user.role)
     _set_auth_cookies(response, user, token)
     return _user_response(user)
 
@@ -469,7 +471,7 @@ async def passkey_login(body: PasskeyLoginBody, response: Response, db: AsyncSes
     user.last_login_at = datetime.now(timezone.utc)
     await db.commit()
 
-    token = create_token(user.id, user.email)
+    token = create_token(user.id, user.email, user.is_admin, user.role)
     _set_auth_cookies(response, user, token)
     return _user_response(user)
 
@@ -499,6 +501,8 @@ async def get_me(user: User = Depends(require_user), db: AsyncSession = Depends(
         "name": user.name,
         "picture": user.picture,
         "has_passkey": bool(has_passkey),
+        "is_admin": user.is_admin,
+        "role": user.role,
     }
 
 
