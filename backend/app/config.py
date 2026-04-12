@@ -1,30 +1,20 @@
 """
 Application configuration.
 
-Secrets are loaded from HashiCorp Vault when VAULT_ADDR is set.
-Falls back to environment variables if Vault is unavailable.
+All secrets are loaded from environment variables (Railway env vars).
 """
 import os
 from pydantic_settings import BaseSettings
 
-from app.services.vault_service import get_secret, init_vault, is_vault_active
-
-
-# Initialize Vault early — before Settings is instantiated.
-# If VAULT_ADDR is not set, this is a no-op and get_secret() falls back to env vars.
-init_vault()
-
 
 class Settings(BaseSettings):
-    # Environment (not a secret — always from env)
+    # Environment
     env: str = os.getenv("ENV", "development")
 
-    # ── Secrets (from Vault → env var fallback) ──
-
     # Database
-    database_url: str = get_secret("DATABASE_URL", "postgresql+asyncpg://retv_user:retv_secret@localhost:5432/retv")
+    database_url: str = ""
 
-    # Database pool settings (not secrets)
+    # Database pool settings
     db_pool_size: int = 5
     db_max_overflow: int = 10
     db_pool_timeout: int = 30
@@ -39,21 +29,21 @@ class Settings(BaseSettings):
         return url
 
     # JWT
-    jwt_secret: str = get_secret("JWT_SECRET", "")
+    jwt_secret: str = ""
     jwt_algorithm: str = "HS256"
     jwt_expiry_days: int = 30
 
     # OAuth
-    google_client_id: str = get_secret("GOOGLE_CLIENT_ID", "")
-    apple_client_id: str = get_secret("APPLE_CLIENT_ID", "")
+    google_client_id: str = ""
+    apple_client_id: str = ""
 
     # WebAuthn (Passkeys)
-    webauthn_rp_id: str = get_secret("WEBAUTHN_RP_ID", "localhost")
+    webauthn_rp_id: str = "localhost"
     webauthn_rp_name: str = os.getenv("WEBAUTHN_RP_NAME", "Adajoon")
-    webauthn_origin: str = get_secret("WEBAUTHN_ORIGIN", "http://localhost:5173")
+    webauthn_origin: str = "http://localhost:5173"
 
     # API Keys
-    sync_api_key: str = get_secret("SYNC_API_KEY", "")
+    sync_api_key: str = ""
 
     # External APIs (public URLs, not secrets)
     iptv_api_base: str = "https://iptv-org.github.io/api"
@@ -61,25 +51,22 @@ class Settings(BaseSettings):
     radio_browser_api: str = "https://de1.api.radio-browser.info"
 
     # Redis
-    redis_url: str = get_secret("REDIS_URL", "redis://localhost:6379")
+    redis_url: str = "redis://localhost:6379"
 
     # AI Search
-    anthropic_api_key: str = get_secret("ANTHROPIC_API_KEY", "")
+    anthropic_api_key: str = ""
     ai_search_enabled: bool = os.getenv("AI_SEARCH_ENABLED", "true").lower() == "true"
     ai_model: str = os.getenv("AI_MODEL", "claude-sonnet-4-20250514")
 
     # Stripe
-    stripe_secret_key: str = get_secret("STRIPE_SECRET_KEY", "")
-    stripe_webhook_secret: str = get_secret("STRIPE_WEBHOOK_SECRET", "")
-    stripe_publishable_key: str = get_secret("STRIPE_PUBLISHABLE_KEY", "")
-
-    # Vault status (computed, not a setting)
-    vault_active: bool = is_vault_active()
+    stripe_secret_key: str = ""
+    stripe_webhook_secret: str = ""
+    stripe_publishable_key: str = ""
 
     @property
     def cors_origins(self) -> list[str]:
-        """Parse CORS origins from Vault/env or use defaults."""
-        cors_env = get_secret("CORS_ORIGINS", "")
+        """Parse CORS origins from env var or use defaults."""
+        cors_env = os.getenv("CORS_ORIGINS", "")
         if cors_env:
             return [origin.strip() for origin in cors_env.split(",") if origin.strip()]
 
@@ -95,7 +82,7 @@ class Settings(BaseSettings):
         errors = []
 
         if not self.jwt_secret:
-            errors.append("JWT_SECRET must be set (in Vault or as env var)")
+            errors.append("JWT_SECRET must be set as environment variable")
         elif len(self.jwt_secret) < 32:
             errors.append("JWT_SECRET must be at least 32 characters long")
         elif self.jwt_secret == "change-me-in-production":
