@@ -5,8 +5,8 @@ WORKDIR /app
 COPY frontend/package.json ./
 RUN npm install
 
-ARG CACHEBUST=20260412
-ENV BUILD_ID=20260412
+ARG CACHEBUST=20260412_v2
+ENV BUILD_ID=20260412_v2
 COPY frontend/ .
 RUN npm run build
 
