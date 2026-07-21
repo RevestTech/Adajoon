@@ -28,10 +28,12 @@ import {
   pushPlayerState,
   popPlayerState,
 } from "./hooks/useUrlState";
-
-const LandingPage = lazy(() => import("./components/LandingPage"));
 import { fetchChannels, fetchCategories, fetchCountries, fetchStats } from "./api/channels";
 import { fetchRadioStations, fetchRadioTags, fetchRadioCountries } from "./api/radio";
+import { openRadioPopoutWindow } from "./utils/radioPopout";
+
+const LandingPage = lazy(() => import("./components/LandingPage"));
+const RadioGardenMap = lazy(() => import("./components/RadioGardenMap"));
 
 const GOOGLE_CLIENT_ID = "735750557405-01nak31482018qbfu1sigov94c1k4ca7.apps.googleusercontent.com";
 const APPLE_CLIENT_ID = "com.adajoon.web";
@@ -525,9 +527,27 @@ export default function App() {
   }, []);
 
   const handlePopOutRadio = useCallback(() => {
-    setFloatingRadio(true);
-    setRadioModalOpen(false);
-  }, []);
+    if (!selectedStation) return;
+
+    const popup = openRadioPopoutWindow(selectedStation);
+    if (!popup) {
+      // Popup blocked — keep in-app floating player
+      setFloatingRadio(true);
+      setRadioModalOpen(false);
+      return;
+    }
+
+    const a = radioAudioRef.current;
+    if (a) {
+      a.pause();
+      a.removeAttribute("src");
+      a.load();
+    }
+    setSelectedStation(null);
+    setFloatingRadio(false);
+    setRadioModalOpen(true);
+    popPlayerState();
+  }, [selectedStation]);
 
   const handleDockRadio = useCallback(() => {
     setFloatingRadio(false);
@@ -753,15 +773,21 @@ export default function App() {
                   Radio Stations
                 </button>
               </div>
-              <WorldMap
-                mode={mapSubMode}
-                countries={countries}
-                radioCountries={radioCountries}
-                activeCountries={mapSubMode === "tv" ? activeCountries : activeRadioCountries}
-                onSelectCountry={handleMapCountrySelect}
-                onSelectChannel={(ch) => { setMode("tv"); openTvPlayer(ch); }}
-                onSelectStation={(st) => { setMode("radio"); handleSelectStation(st); }}
-              />
+              {mapSubMode === "radio" ? (
+                <Suspense fallback={<div className="radio-garden-map" aria-busy="true" />}>
+                  <RadioGardenMap onSelect={handleSelectStation} />
+                </Suspense>
+              ) : (
+                <WorldMap
+                  mode="tv"
+                  countries={countries}
+                  radioCountries={radioCountries}
+                  activeCountries={activeCountries}
+                  onSelectCountry={handleMapCountrySelect}
+                  onSelectChannel={(ch) => { setMode("tv"); openTvPlayer(ch); }}
+                  onSelectStation={(st) => { setMode("radio"); handleSelectStation(st); }}
+                />
+              )}
             </div>
           ) : mode === "tv" ? (
             <ChannelGrid

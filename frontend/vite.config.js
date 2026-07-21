@@ -18,6 +18,7 @@ export default defineConfig({
           vendor: ["react", "react-dom"],
           hls: ["hls.js"],
           webauthn: ["@simplewebauthn/browser"],
+          maplibre: ["maplibre-gl"],
         },
       },
     },

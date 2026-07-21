@@ -40,11 +40,12 @@ if settings.env == "production":
     csp_directives = [
         "default-src 'self'",
         "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://accounts.google.com https://appleid.cdn-apple.com https://www.gstatic.com https://imasdk.googleapis.com",
+        "worker-src 'self' blob:",  # MapLibre GL web workers
         "style-src 'self' 'unsafe-inline' https://accounts.google.com https://appleid.cdn-apple.com https://fonts.googleapis.com",
-        "img-src 'self' data: https:",
-        "media-src 'self' blob: https:",
-        "connect-src 'self' https://iptv-org.github.io https://de1.api.radio-browser.info https://raw.githubusercontent.com https://accounts.google.com https://appleid.apple.com https://fonts.googleapis.com https://fonts.gstatic.com https://imasdk.googleapis.com https://www.gstatic.com",
-        "font-src 'self' data: https://fonts.gstatic.com",
+        "img-src 'self' data: blob: https:",
+        "media-src 'self' blob: https: http:",  # IPTV may use http:// HLS
+        "connect-src 'self' https://tiles.openfreemap.org https://iptv-org.github.io https://de1.api.radio-browser.info https://raw.githubusercontent.com https://accounts.google.com https://appleid.apple.com https://fonts.googleapis.com https://fonts.gstatic.com https://imasdk.googleapis.com https://www.gstatic.com",
+        "font-src 'self' data: https://fonts.gstatic.com https://tiles.openfreemap.org",
         "object-src 'none'",
         "base-uri 'self'",
         "form-action 'self' https://accounts.google.com https://appleid.apple.com",

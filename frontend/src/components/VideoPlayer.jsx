@@ -1,8 +1,47 @@
 import { useEffect, useRef, useState } from "react";
 import { fetchStreams, runHealthCheck } from "../api/channels";
+import { fetchEpgNow } from "../api/epg";
 import FeedbackBar from "./FeedbackBar";
 import MiniPlayer from "./MiniPlayer";
 import { useShare } from "../hooks/useShare";
+
+function formatEpgTime(iso) {
+  if (!iso) return "";
+  try {
+    return new Date(iso).toLocaleTimeString(undefined, {
+      hour: "numeric",
+      minute: "2-digit",
+    });
+  } catch {
+    return "";
+  }
+}
+
+function EpgNowNextStrip({ now, next }) {
+  if (!now && !next) return null;
+  return (
+    <div className="epg-now-next" aria-live="polite">
+      {now && (
+        <div className="epg-now-next__row epg-now-next__row--now">
+          <span className="epg-now-next__label">Now</span>
+          <span className="epg-now-next__title">{now.title || "Untitled"}</span>
+          <span className="epg-now-next__time">
+            {formatEpgTime(now.start_at)}–{formatEpgTime(now.stop_at)}
+          </span>
+        </div>
+      )}
+      {next && (
+        <div className="epg-now-next__row epg-now-next__row--next">
+          <span className="epg-now-next__label">Next</span>
+          <span className="epg-now-next__title">{next.title || "Untitled"}</span>
+          <span className="epg-now-next__time">
+            {formatEpgTime(next.start_at)}–{formatEpgTime(next.stop_at)}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function healthCheckPresentation(status) {
   const s = status || "unknown";
@@ -65,10 +104,33 @@ export default function VideoPlayer({
   const [healthResult, setHealthResult] = useState(null);
   const [checking, setChecking] = useState(false);
   const [shareToast, setShareToast] = useState("");
+  const [epgNow, setEpgNow] = useState(null);
+  const [epgNext, setEpgNext] = useState(null);
   const { shareTvChannel } = useShare();
 
   useEffect(() => {
     fetchStreams(channel.id).then(setStreams).catch(() => {});
+  }, [channel.id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setEpgNow(null);
+    setEpgNext(null);
+    fetchEpgNow(channel.id)
+      .then((data) => {
+        if (cancelled) return;
+        setEpgNow(data?.now || null);
+        setEpgNext(data?.next || null);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setEpgNow(null);
+          setEpgNext(null);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [channel.id]);
 
   useEffect(() => {
@@ -295,6 +357,9 @@ export default function VideoPlayer({
             )}
           </div>
         </div>
+        {!minimized && (epgNow || epgNext) && (
+          <EpgNowNextStrip now={epgNow} next={epgNext} />
+        )}
         <div className="modal-body channel-modal-body">
           <div className="channel-modal-stage">
             {activeUrl ? (

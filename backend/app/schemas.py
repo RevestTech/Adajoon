@@ -1,5 +1,49 @@
-from pydantic import BaseModel
-from typing import Optional
+from datetime import date, datetime
+from typing import Any, Literal
+
+from pydantic import BaseModel, Field, field_validator
+
+
+def _none_to_empty(v: Any) -> Any:
+    if v is None:
+        return ""
+    if isinstance(v, (int, float)) and not isinstance(v, bool):
+        return str(v)
+    return v
+
+
+def _coerce_timestamp(v: Any) -> str:
+    if v is None:
+        return ""
+    if isinstance(v, (datetime, date)):
+        return v.isoformat()
+    if isinstance(v, str):
+        return v
+    return str(v)
+
+
+def _none_to_unknown(v: Any) -> Any:
+    if v is None:
+        return "unknown"
+    return v
+
+
+def _none_bool(default: bool):
+    def _inner(v: Any) -> Any:
+        if v is None:
+            return default
+        return v
+
+    return _inner
+
+
+def _none_int(default: int):
+    def _inner(v: Any) -> Any:
+        if v is None:
+            return default
+        return v
+
+    return _inner
 
 
 class CategoryOut(BaseModel):
@@ -49,6 +93,41 @@ class ChannelOut(BaseModel):
 
     model_config = {"from_attributes": True}
 
+    @field_validator(
+        "alt_names",
+        "network",
+        "country_code",
+        "categories",
+        "website",
+        "logo",
+        "stream_url",
+        "languages",
+        mode="before",
+    )
+    @classmethod
+    def coerce_optional_str(cls, v: Any) -> Any:
+        return _none_to_empty(v)
+
+    @field_validator("health_status", mode="before")
+    @classmethod
+    def coerce_health_status(cls, v: Any) -> Any:
+        return _none_to_unknown(v)
+
+    @field_validator("health_checked_at", "last_validated_at", mode="before")
+    @classmethod
+    def coerce_timestamps(cls, v: Any) -> str:
+        return _coerce_timestamp(v)
+
+    @field_validator("is_nsfw", mode="before")
+    @classmethod
+    def coerce_is_nsfw(cls, v: Any) -> Any:
+        return _none_bool(False)(v)
+
+    @field_validator("is_active", mode="before")
+    @classmethod
+    def coerce_is_active(cls, v: Any) -> Any:
+        return _none_bool(True)(v)
+
 
 class HealthCheckResult(BaseModel):
     channel_id: str
@@ -69,12 +148,12 @@ class StreamOut(BaseModel):
 
 
 class ChannelSearchParams(BaseModel):
-    query: Optional[str] = None
-    category: Optional[str] = None
-    country: Optional[str] = None
-    language: Optional[str] = None
+    query: str | None = None
+    category: str | None = None
+    country: str | None = None
+    language: str | None = None
     live_only: bool = False
-    status: Optional[str] = None
+    status: str | None = None
     page: int = 1
     per_page: int = 40
 
@@ -105,17 +184,58 @@ class RadioStationOut(BaseModel):
     last_check_ok: bool = False
     health_status: str = "unknown"
     health_checked_at: str = ""
+    geo_lat: str = ""
+    geo_long: str = ""
 
     model_config = {"from_attributes": True}
 
+    @field_validator(
+        "url",
+        "url_resolved",
+        "homepage",
+        "favicon",
+        "tags",
+        "country",
+        "country_code",
+        "state",
+        "language",
+        "codec",
+        "geo_lat",
+        "geo_long",
+        mode="before",
+    )
+    @classmethod
+    def coerce_optional_str(cls, v: Any) -> Any:
+        return _none_to_empty(v)
+
+    @field_validator("health_status", mode="before")
+    @classmethod
+    def coerce_health_status(cls, v: Any) -> Any:
+        return _none_to_unknown(v)
+
+    @field_validator("health_checked_at", mode="before")
+    @classmethod
+    def coerce_timestamps(cls, v: Any) -> str:
+        return _coerce_timestamp(v)
+
+    @field_validator("last_check_ok", mode="before")
+    @classmethod
+    def coerce_last_check_ok(cls, v: Any) -> Any:
+        return _none_bool(False)(v)
+
+    @field_validator("bitrate", "votes", mode="before")
+    @classmethod
+    def coerce_bitrate_votes(cls, v: Any) -> Any:
+        return _none_int(0)(v)
+
 
 class RadioSearchParams(BaseModel):
-    query: Optional[str] = None
-    tag: Optional[str] = None
-    country: Optional[str] = None
-    language: Optional[str] = None
+    query: str | None = None
+    tag: str | None = None
+    country: str | None = None
+    language: str | None = None
     working_only: bool = False
-    status: Optional[str] = None
+    status: str | None = None
     page: int = 1
     per_page: int = 40
 
@@ -139,6 +259,27 @@ class RadioCountryOut(BaseModel):
     station_count: int = 0
 
 
+class MapStationPin(BaseModel):
+    id: str
+    name: str
+    favicon: str = ""
+    geo_lat: float
+    geo_long: float
+    country_code: str = ""
+
+
+class MapCluster(BaseModel):
+    lat: float
+    lng: float
+    count: int = Field(..., ge=1)
+
+
+class MapBboxResponse(BaseModel):
+    type: Literal["stations", "clusters"]
+    items: list[MapStationPin] | list[MapCluster]
+    zoom: int
+
+
 class StatsOut(BaseModel):
     total_channels: int
     total_categories: int
@@ -158,3 +299,40 @@ class ValidatorStatusOut(BaseModel):
     channels: ValidatorStatusBuckets
     radio: ValidatorStatusBuckets
     last_validation_cycle_at: str = ""
+
+
+class EpgProgrammeOut(BaseModel):
+    id: int
+    channel_id: str
+    start_at: datetime
+    stop_at: datetime
+    title: str = ""
+    subtitle: str = ""
+    description: str = ""
+    category: str = ""
+
+    model_config = {"from_attributes": True}
+
+
+class EpgScheduleResponse(BaseModel):
+    channel_id: str
+    from_at: datetime
+    to_at: datetime
+    programmes: list[EpgProgrammeOut]
+
+
+class EpgNowResponse(BaseModel):
+    channel_id: str
+    now: EpgProgrammeOut | None = None
+    next: EpgProgrammeOut | None = None
+
+
+class EpgOnNowItem(BaseModel):
+    channel_id: str
+    programme: EpgProgrammeOut
+
+
+class EpgOnNowResponse(BaseModel):
+    items: list[EpgOnNowItem]
+    q: str | None = None
+    category: str | None = None

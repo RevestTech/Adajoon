@@ -1,16 +1,18 @@
 import logging
 import math
 
-from fastapi import APIRouter, Depends, Query, HTTPException
+from fastapi import APIRouter, Depends, Query, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.schemas import (
     RadioStationOut, RadioSearchParams, PaginatedRadio,
-    RadioTagOut, RadioCountryOut,
+    RadioTagOut, RadioCountryOut, MapBboxResponse,
 )
 from app.services.radio_service import (
     search_radio, get_radio_countries,
+    parse_bbox, get_map_bbox, get_ride_station,
+    MAP_DEFAULT_LIMIT, MAP_MAX_LIMIT,
 )
 from app.redis_client import cache_get, cache_set
 
@@ -103,3 +105,56 @@ async def list_radio_countries(db: AsyncSession = Depends(get_db)):
     except Exception as e:
         logger.error(f"Error in list_radio_countries: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to fetch radio countries: {str(e)}")
+
+
+@router.get("/map/ride", response_model=RadioStationOut)
+async def radio_map_ride(
+    lat: float | None = Query(None, ge=-90, le=90),
+    lng: float | None = Query(None, ge=-180, le=180),
+    working_only: bool = Query(True),
+    db: AsyncSession = Depends(get_db),
+):
+    """Random playable geo station for 'Take a ride' (optionally near a point)."""
+    if (lat is None) != (lng is None):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="lat and lng must be provided together",
+        )
+    station = await get_ride_station(
+        db, lat=lat, lng=lng, working_only=working_only,
+    )
+    if station is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No geo stations available",
+        )
+    return RadioStationOut.model_validate(station)
+
+
+@router.get("/map", response_model=MapBboxResponse)
+async def radio_map_bbox(
+    bbox: str = Query(..., description="west,south,east,north"),
+    zoom: int = Query(5, ge=0, le=22),
+    limit: int = Query(MAP_DEFAULT_LIMIT, ge=1, le=MAP_MAX_LIMIT),
+    working_only: bool = Query(True),
+    db: AsyncSession = Depends(get_db),
+):
+    """Stations or grid clusters inside a viewport bbox (no PostGIS)."""
+    try:
+        west, south, east, north = parse_bbox(bbox)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+
+    return await get_map_bbox(
+        db,
+        west=west,
+        south=south,
+        east=east,
+        north=north,
+        zoom=zoom,
+        limit=limit,
+        working_only=working_only,
+    )

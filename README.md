@@ -5,11 +5,13 @@ A containerized application that connects to online TV station databases, discov
 ## Features
 
 - **Channel Discovery** — Automatically fetches and indexes thousands of live TV channels from the [iptv-org](https://github.com/iptv-org/iptv) public database
+- **Radio Stations** — Search and play internet radio (Radio Browser sync), including a **world map** explorer (MapLibre) with clusters, pins, and Take a ride
+- **TV EPG** — Programme schedules / now-next when EPG packs are ingested; powers sports “on now” in AI search
 - **Category Browsing** — Channels organized by category (News, Sports, Entertainment, Music, etc.)
 - **Country Filtering** — Filter channels by country of origin (200+ countries)
-- **Full-Text Search** — Search by channel name, network, or alternate names
-- **Built-in Video Player** — Watch live streams directly in the browser (HLS support)
-- **Auto-Sync** — Channel data refreshes automatically from upstream sources
+- **Full-Text Search** — Search by channel name, network, or alternate names; AI/keyword search for TV and radio
+- **Built-in Players** — Watch TV (HLS) and listen to radio in-browser; radio can **open in a new browser window**
+- **Auto-Sync** — Channel/radio data refreshes from upstream sources; optional EPG worker ingest
 - **Responsive UI** — Works on desktop and mobile
 
 ## Architecture
@@ -49,11 +51,18 @@ curl -X POST http://localhost:8000/api/sync
 | GET | `/api/channels` | List/search channels (supports `query`, `category`, `country`, `language`, `page`, `per_page`) |
 | GET | `/api/channels/{id}` | Get channel details |
 | GET | `/api/channels/{id}/streams` | Get available streams for a channel |
+| GET | `/api/channels/{id}/epg` | EPG schedule window for a channel |
+| GET | `/api/epg/now` | Current/next programme (`channel_id`) or on-now search (`q` / `category`) |
 | GET | `/api/categories` | List all categories with channel counts |
 | GET | `/api/countries` | List all countries with channel counts |
+| GET | `/api/radio/stations` | List/search radio stations |
+| GET | `/api/radio/map` | Geo stations or clusters for map viewport (`bbox`, `zoom`) |
+| GET | `/api/radio/map/ride` | Random playable geo station |
 | GET | `/api/stats` | Get database statistics |
 | POST | `/api/sync` | Trigger manual data sync |
 | GET | `/api/health` | Health check |
+
+More detail: [`docs/RADIO_MAP_EPG.md`](docs/RADIO_MAP_EPG.md), [`docs/FLOATING_PLAYER.md`](docs/FLOATING_PLAYER.md).
 
 ## Development
 
@@ -76,9 +85,9 @@ npm run dev
 ## Tech Stack
 
 - **Backend**: Python, FastAPI, SQLAlchemy (async), PostgreSQL
-- **Frontend**: React 18, Vite, HLS.js
-- **Infrastructure**: Docker, Docker Compose, Nginx
-- **Data Source**: [iptv-org/api](https://github.com/iptv-org/api)
+- **Frontend**: React 18, Vite, HLS.js, MapLibre GL
+- **Infrastructure**: Docker, Docker Compose, Nginx, Railway
+- **Data Source**: [iptv-org/api](https://github.com/iptv-org/api), [Radio Browser](https://www.radio-browser.info/), optional [iptv-org/epg](https://github.com/iptv-org/epg) XMLTV packs
 
 ---
 

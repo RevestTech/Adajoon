@@ -1,16 +1,62 @@
 import logging
+import math
+import random
+from typing import Any
 
 import httpx
-from sqlalchemy import select, func, or_
+from sqlalchemy import select, func, or_, and_, cast, Float
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.models import RadioStation, UserVote
-from app.schemas import RadioSearchParams
+from app.schemas import (
+    RadioSearchParams,
+    MapStationPin,
+    MapCluster,
+    MapBboxResponse,
+)
 
 logger = logging.getLogger(__name__)
 
 RADIO_API = "https://de1.api.radio-browser.info"
+
+# Zoom below this returns grid clusters; at/above returns individual pins.
+MAP_CLUSTER_ZOOM_MAX = 7
+MAP_DEFAULT_LIMIT = 500
+MAP_MAX_LIMIT = 2000
+MAP_RIDE_NEAR_CANDIDATES = 40
+
+
+def _geo_to_str(value: Any) -> str:
+    if value is None:
+        return ""
+    return str(value)
+
+
+def _station_values_from_item(item: dict) -> dict | None:
+    station_id = item.get("stationuuid", "")
+    if not station_id:
+        return None
+
+    return {
+        "id": station_id,
+        "name": item.get("name", "").strip(),
+        "url": item.get("url", ""),
+        "url_resolved": item.get("url_resolved", ""),
+        "homepage": item.get("homepage", ""),
+        "favicon": item.get("favicon", ""),
+        "tags": item.get("tags", ""),
+        "country": item.get("country", ""),
+        "country_code": (item.get("countrycode", "") or "").upper(),
+        "state": item.get("state", ""),
+        "language": item.get("language", ""),
+        "codec": item.get("codec", ""),
+        "bitrate": item.get("bitrate", 0) or 0,
+        "votes": item.get("votes", 0) or 0,
+        "last_check_ok": bool(item.get("lastcheckok", 0)),
+        "geo_lat": _geo_to_str(item.get("geo_lat")),
+        "geo_long": _geo_to_str(item.get("geo_long")),
+    }
 
 
 async def fetch_radio_json(path: str, params: dict | None = None) -> list[dict]:
@@ -41,32 +87,13 @@ async def sync_radio_stations(db: AsyncSession) -> int:
         if not data:
             break
 
-        # Prepare batch of values for bulk insert
         values_batch = []
         for item in data:
-            station_id = item.get("stationuuid", "")
-            if not station_id:
+            values = _station_values_from_item(item)
+            if values is None:
                 continue
+            values_batch.append(values)
 
-            values_batch.append({
-                "id": station_id,
-                "name": item.get("name", "").strip(),
-                "url": item.get("url", ""),
-                "url_resolved": item.get("url_resolved", ""),
-                "homepage": item.get("homepage", ""),
-                "favicon": item.get("favicon", ""),
-                "tags": item.get("tags", ""),
-                "country": item.get("country", ""),
-                "country_code": (item.get("countrycode", "") or "").upper(),
-                "state": item.get("state", ""),
-                "language": item.get("language", ""),
-                "codec": item.get("codec", ""),
-                "bitrate": item.get("bitrate", 0) or 0,
-                "votes": item.get("votes", 0) or 0,
-                "last_check_ok": bool(item.get("lastcheckok", 0)),
-            })
-
-        # Process in smaller chunks to avoid huge single statements
         for i in range(0, len(values_batch), insert_batch_size):
             chunk = values_batch[i:i + insert_batch_size]
             if not chunk:
@@ -90,6 +117,8 @@ async def sync_radio_stations(db: AsyncSession) -> int:
                     "bitrate": stmt.excluded.bitrate,
                     "votes": stmt.excluded.votes,
                     "last_check_ok": stmt.excluded.last_check_ok,
+                    "geo_lat": stmt.excluded.geo_lat,
+                    "geo_long": stmt.excluded.geo_long,
                 },
             )
             await db.execute(stmt)
@@ -252,3 +281,192 @@ async def get_radio_stats(db: AsyncSession):
         select(func.count(RadioStation.id)).where(RadioStation.last_check_ok == True)
     )).scalar() or 0
     return {"total": total, "working": working}
+
+
+def parse_bbox(bbox: str) -> tuple[float, float, float, float]:
+    """Parse `west,south,east,north` into floats. Raises ValueError on bad input.
+
+    MapLibre world views can report longitudes outside [-180, 180]; clamp rather
+    than 400 so low-zoom pan/zoom keeps working.
+    """
+    parts = [p.strip() for p in bbox.split(",")]
+    if len(parts) != 4:
+        raise ValueError("bbox must be west,south,east,north")
+    try:
+        west, south, east, north = (float(p) for p in parts)
+    except ValueError as exc:
+        raise ValueError("bbox values must be numbers") from exc
+    south = max(-90.0, min(90.0, south))
+    north = max(-90.0, min(90.0, north))
+    west = max(-180.0, min(180.0, west))
+    east = max(-180.0, min(180.0, east))
+    if south > north:
+        raise ValueError("bbox south must be <= north")
+    return west, south, east, north
+
+
+def grid_cell_degrees(zoom: int) -> float:
+    """Lat/lng grid cell size for clustering (degrees). Larger at low zoom."""
+    z = max(0, int(zoom))
+    return max(0.25, 40.0 / (2 ** z))
+
+
+def should_return_clusters(zoom: int) -> bool:
+    return int(zoom) <= MAP_CLUSTER_ZOOM_MAX
+
+
+def cluster_points(
+    points: list[tuple[float, float]],
+    cell_degrees: float,
+) -> list[MapCluster]:
+    """Bucket (lat, lng) points into a simple grid; cluster center = mean of points."""
+    if cell_degrees <= 0:
+        raise ValueError("cell_degrees must be > 0")
+    buckets: dict[tuple[int, int], list[tuple[float, float]]] = {}
+    for lat, lng in points:
+        key = (math.floor(lat / cell_degrees), math.floor(lng / cell_degrees))
+        buckets.setdefault(key, []).append((lat, lng))
+
+    clusters: list[MapCluster] = []
+    for pts in buckets.values():
+        count = len(pts)
+        avg_lat = sum(p[0] for p in pts) / count
+        avg_lng = sum(p[1] for p in pts) / count
+        clusters.append(MapCluster(lat=avg_lat, lng=avg_lng, count=count))
+    return clusters
+
+
+def _geo_lat_expr():
+    return cast(RadioStation.geo_lat, Float)
+
+
+def _geo_lng_expr():
+    return cast(RadioStation.geo_long, Float)
+
+
+def _has_geo_filter():
+    return and_(
+        RadioStation.geo_lat.isnot(None),
+        RadioStation.geo_long.isnot(None),
+        RadioStation.geo_lat != "",
+        RadioStation.geo_long != "",
+    )
+
+
+def _bbox_filter(west: float, south: float, east: float, north: float):
+    lat_f = _geo_lat_expr()
+    lng_f = _geo_lng_expr()
+    lat_cond = and_(lat_f >= south, lat_f <= north)
+    if west <= east:
+        lng_cond = and_(lng_f >= west, lng_f <= east)
+    else:
+        # Antimeridian wrap: e.g. west=170, east=-170
+        lng_cond = or_(lng_f >= west, lng_f <= east)
+    return and_(lat_cond, lng_cond)
+
+
+async def get_map_bbox(
+    db: AsyncSession,
+    *,
+    west: float,
+    south: float,
+    east: float,
+    north: float,
+    zoom: int,
+    limit: int = MAP_DEFAULT_LIMIT,
+    working_only: bool = True,
+) -> MapBboxResponse:
+    """Stations or grid clusters inside bbox for MapLibre."""
+    limit = max(1, min(int(limit), MAP_MAX_LIMIT))
+    zoom = int(zoom)
+
+    filters = [_has_geo_filter(), _bbox_filter(west, south, east, north)]
+    if working_only:
+        filters.append(RadioStation.last_check_ok == True)
+
+    if should_return_clusters(zoom):
+        cell = grid_cell_degrees(zoom)
+        lat_f = _geo_lat_expr()
+        lng_f = _geo_lng_expr()
+        bucket_lat = func.floor(lat_f / cell)
+        bucket_lng = func.floor(lng_f / cell)
+        stmt = (
+            select(
+                func.avg(lat_f).label("lat"),
+                func.avg(lng_f).label("lng"),
+                func.count().label("count"),
+            )
+            .where(and_(*filters))
+            .group_by(bucket_lat, bucket_lng)
+            .order_by(func.count().desc())
+            .limit(limit)
+        )
+        rows = (await db.execute(stmt)).all()
+        items = [
+            MapCluster(lat=float(r.lat), lng=float(r.lng), count=int(r.count))
+            for r in rows
+            if r.lat is not None and r.lng is not None
+        ]
+        return MapBboxResponse(type="clusters", items=items, zoom=zoom)
+
+    stmt = (
+        select(RadioStation)
+        .where(and_(*filters))
+        .order_by(RadioStation.votes.desc())
+        .limit(limit)
+    )
+    stations = (await db.execute(stmt)).scalars().all()
+    items: list[MapStationPin] = []
+    for s in stations:
+        try:
+            lat = float(s.geo_lat)
+            lng = float(s.geo_long)
+        except (TypeError, ValueError):
+            continue
+        items.append(
+            MapStationPin(
+                id=s.id,
+                name=s.name or "",
+                favicon=s.favicon or "",
+                geo_lat=lat,
+                geo_long=lng,
+                country_code=s.country_code or "",
+            )
+        )
+    return MapBboxResponse(type="stations", items=items, zoom=zoom)
+
+
+async def get_ride_station(
+    db: AsyncSession,
+    *,
+    lat: float | None = None,
+    lng: float | None = None,
+    working_only: bool = True,
+) -> RadioStation | None:
+    """Pick a random playable geo station; optionally biased near lat/lng."""
+    filters = [_has_geo_filter()]
+    if working_only:
+        filters.append(RadioStation.last_check_ok == True)
+
+    if lat is not None and lng is not None:
+        lat_f = _geo_lat_expr()
+        lng_f = _geo_lng_expr()
+        dist_sq = (lat_f - lat) * (lat_f - lat) + (lng_f - lng) * (lng_f - lng)
+        stmt = (
+            select(RadioStation)
+            .where(and_(*filters))
+            .order_by(dist_sq.asc())
+            .limit(MAP_RIDE_NEAR_CANDIDATES)
+        )
+        candidates = (await db.execute(stmt)).scalars().all()
+        if not candidates:
+            return None
+        return random.choice(candidates)
+
+    stmt = (
+        select(RadioStation)
+        .where(and_(*filters))
+        .order_by(func.random())
+        .limit(1)
+    )
+    return (await db.execute(stmt)).scalar_one_or_none()

@@ -159,8 +159,8 @@ export default function RadioPlayer({
                 type="button"
                 className="modal-popout"
                 onClick={onPopOut}
-                aria-label="Pop out player (floating window)"
-                title="Pop Out"
+                aria-label="Open player in a new browser window"
+                title="Open in new window"
               >
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                   <path d="M15 3h6v6" />
@@ -195,6 +195,8 @@ export default function RadioPlayer({
                 className="radio-player-art"
                 src={station.favicon}
                 alt={station.name}
+                referrerPolicy="no-referrer"
+                decoding="async"
                 onError={(e) => { e.target.style.display = "none"; }}
               />
             ) : (

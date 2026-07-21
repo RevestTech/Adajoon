@@ -41,11 +41,12 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             csp_directives = [
                 "default-src 'self'",
                 "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://accounts.google.com https://appleid.cdn-apple.com https://www.gstatic.com https://imasdk.googleapis.com",  # OAuth + Chromecast + IMA SDK
+                "worker-src 'self' blob:",  # MapLibre GL web workers
                 "style-src 'self' 'unsafe-inline' https://accounts.google.com https://appleid.cdn-apple.com https://fonts.googleapis.com",  # OAuth + Google Fonts
-                "img-src 'self' data: https:",  # Allow external logos/images
-                "media-src 'self' blob: https:",  # Allow streaming from external sources
-                "connect-src 'self' https://iptv-org.github.io https://de1.api.radio-browser.info https://raw.githubusercontent.com https://accounts.google.com https://appleid.apple.com https://fonts.googleapis.com https://fonts.gstatic.com https://imasdk.googleapis.com https://www.gstatic.com",  # OAuth + API endpoints + Google Fonts + IMA SDK
-                "font-src 'self' data: https://fonts.gstatic.com",  # Google Fonts font files
+                "img-src 'self' data: blob: https:",  # Logos + MapLibre tile/sprite images
+                "media-src 'self' blob: https: http:",  # Allow streaming from external sources (incl. legacy HTTP HLS)
+                "connect-src 'self' https://tiles.openfreemap.org https://iptv-org.github.io https://de1.api.radio-browser.info https://raw.githubusercontent.com https://accounts.google.com https://appleid.apple.com https://fonts.googleapis.com https://fonts.gstatic.com https://imasdk.googleapis.com https://www.gstatic.com",  # MapLibre tiles + OAuth + APIs
+                "font-src 'self' data: https://fonts.gstatic.com https://tiles.openfreemap.org",  # Google Fonts + MapLibre glyphs
                 "object-src 'none'",
                 "base-uri 'self'",
                 "form-action 'self' https://accounts.google.com https://appleid.apple.com",  # OAuth form actions

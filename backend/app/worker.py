@@ -6,6 +6,7 @@ from textwrap import dedent
 from sqlalchemy import text
 
 from app.database import Base, async_session, engine
+from app.services.epg_service import sync_epg
 from app.services.iptv_service import full_sync
 from app.services.radio_service import sync_radio_stations
 from app.services.validator_service import validate_all_channels, validate_all_radio
@@ -51,6 +52,9 @@ async def run_cycle():
 
     async with async_session() as db:
         await _phase("sync_radio_stations", sync_radio_stations(db))
+
+    async with async_session() as db:
+        await _phase("sync_epg", sync_epg(db))
 
 
 async def _run_migrations():

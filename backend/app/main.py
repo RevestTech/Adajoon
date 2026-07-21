@@ -19,7 +19,7 @@ from app.config import settings
 from app.logging_config import setup_logging, RequestLoggingMiddleware
 from app.middleware.security_headers import SecurityHeadersMiddleware
 from app.middleware.www_redirect import WWWRedirectMiddleware
-from app.routers import channels, categories, healthcheck, radio, auth, sitemap, history, languages, csrf, recommendations, playlists, parental, subscriptions, redis_health, ai_search, admin, analytics  # whitelabel
+from app.routers import channels, categories, healthcheck, radio, auth, sitemap, history, languages, csrf, recommendations, playlists, parental, subscriptions, redis_health, ai_search, admin, analytics, epg  # whitelabel
 from app.services.iptv_service import full_sync
 from app.services.radio_service import sync_radio_stations
 
@@ -114,6 +114,8 @@ app.add_middleware(
 )
 
 app.include_router(channels.router)
+app.include_router(epg.channels_epg_router)
+app.include_router(epg.router)
 app.include_router(categories.router)
 app.include_router(healthcheck.router)
 app.include_router(healthcheck.validator_router)

@@ -1,0 +1,150 @@
+.radio-popout-body {
+  margin: 0;
+  background: #0f1420;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+.radio-popout {
+  box-sizing: border-box;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: 16px 18px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  color: #e8eaf0;
+  font-family: system-ui, -apple-system, Segoe UI, sans-serif;
+  background: radial-gradient(ellipse at top, #1a2438 0%, #0f1420 55%);
+}
+
+.radio-popout__header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.radio-popout__brand {
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: 0.02em;
+}
+
+.radio-popout__brand span {
+  color: #2ecc71;
+}
+
+.radio-popout__close {
+  border: none;
+  background: rgba(255, 255, 255, 0.08);
+  color: #e8eaf0;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.radio-popout__art-wrap {
+  position: relative;
+  margin-top: 12px;
+  width: 160px;
+  height: 160px;
+}
+
+.radio-popout__art,
+.radio-popout__art-fallback {
+  width: 160px;
+  height: 160px;
+  border-radius: 20px;
+  object-fit: cover;
+  background: #1a2438;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+}
+
+.radio-popout__art-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 48px;
+  color: #2ecc71;
+}
+
+.radio-popout__eq {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 3px;
+  align-items: flex-end;
+  height: 18px;
+}
+
+.radio-popout__eq span {
+  width: 3px;
+  background: #2ecc71;
+  border-radius: 1px;
+  animation: radio-popout-eq 0.8s ease-in-out infinite alternate;
+}
+
+.radio-popout__eq span:nth-child(2) { animation-delay: 0.15s; height: 60%; }
+.radio-popout__eq span:nth-child(3) { animation-delay: 0.3s; height: 90%; }
+.radio-popout__eq span:nth-child(4) { animation-delay: 0.05s; height: 45%; }
+
+@keyframes radio-popout-eq {
+  from { height: 30%; opacity: 0.6; }
+  to { height: 100%; opacity: 1; }
+}
+
+.radio-popout__title {
+  margin: 8px 0 0;
+  font-size: 18px;
+  font-weight: 650;
+  text-align: center;
+  line-height: 1.3;
+  max-width: 100%;
+}
+
+.radio-popout__meta {
+  margin: 0;
+  font-size: 13px;
+  color: rgba(232, 234, 240, 0.55);
+}
+
+.radio-popout__error,
+.radio-popout__muted {
+  margin: 8px 0;
+  text-align: center;
+  font-size: 13px;
+  color: #ff8a9a;
+}
+
+.radio-popout__muted {
+  color: rgba(232, 234, 240, 0.55);
+}
+
+.radio-popout__audio {
+  width: 100%;
+  margin-top: 8px;
+}
+
+.radio-popout__play {
+  margin-top: 8px;
+  width: 100%;
+  padding: 12px 16px;
+  border: none;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #1faa5a, #148a45);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.radio-popout__play:hover {
+  filter: brightness(1.06);
+}

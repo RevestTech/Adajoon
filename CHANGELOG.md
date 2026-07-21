@@ -8,6 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Radio world map**: MapLibre explorer (Map → Radio Stations) with bbox clusters/pins, Take a ride, geo sync from Radio Browser
+- **TV EPG**: `epg_programmes` table, worker XMLTV ingest, `/api/epg/now` + channel schedule APIs, VideoPlayer now/next strip
+- **AI on-now sports**: Keyword/AI TV search merges EPG programmes airing now for soccer/football/fifa-style queries
+- **Radio browser-window pop-out**: Desktop “Open in new window” opens a dedicated popup player (`RadioPopoutWindow`)
+- See `docs/RADIO_MAP_EPG.md` and `docs/FLOATING_PLAYER.md`
+
+### Fixed
+- **Channel schema 500s**: Coerce ORM `None`/`datetime` timestamps on `ChannelOut` / `RadioStationOut`
+- **CSP for IPTV + MapLibre**: `media-src` allows `http:`; `worker-src blob:` and OpenFreeMap hosts for the radio map
+- **Map bbox at world zoom**: Clamp longitudes outside ±180 instead of returning 400
+- **Dark map contrast**: Lighten OpenFreeMap dark basemap paints; stub missing style sprites (`circle-11`)
+
+### Added (earlier unreleased)
 - **Floating Player (Desktop Only)**: Pop-out player for TV channels and radio stations
   - Draggable window that stays on top while browsing
   - Resizable from 280x160 to 800x600 pixels

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Text, Boolean, Integer, ForeignKey, Index, DateTime, func, JSON
+from sqlalchemy import Column, String, Text, Boolean, Integer, ForeignKey, Index, DateTime, func, JSON, UniqueConstraint
 from sqlalchemy.orm import relationship
 
 from app.database import Base
@@ -256,4 +256,28 @@ class AnalyticsEvent(Base):
         Index("ix_analytics_event_name_created", "event_name", "created_at"),
         Index("ix_analytics_user_created", "user_id", "created_at"),
         Index("ix_analytics_session_created", "session_id", "created_at"),
+    )
+
+
+class EpgProgramme(Base):
+    """XMLTV programme row; channel_id matches iptv-org Channel.id (Slug.cc) when available.
+
+    No FK to channels: guide packs include ids/feeds not present in our channel table.
+    """
+
+    __tablename__ = "epg_programmes"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    channel_id = Column(String, nullable=False, index=True)
+    start_at = Column(DateTime(timezone=True), nullable=False)
+    stop_at = Column(DateTime(timezone=True), nullable=False)
+    title = Column(String(500), nullable=False, default="")
+    subtitle = Column(String(500), default="")
+    description = Column(Text, default="")
+    category = Column(String(255), default="")
+
+    __table_args__ = (
+        UniqueConstraint("channel_id", "start_at", name="uq_epg_channel_start"),
+        Index("ix_epg_programmes_channel_start", "channel_id", "start_at"),
+        Index("ix_epg_programmes_start_stop", "start_at", "stop_at"),
     )

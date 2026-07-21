@@ -58,3 +58,33 @@ export async function fetchRadioCountries() {
   if (!res.ok) throw new Error("Failed to fetch radio countries");
   return res.json();
 }
+
+export async function fetchRadioMap({
+  bbox,
+  zoom = 5,
+  limit,
+  workingOnly = true,
+  signal,
+} = {}) {
+  const params = new URLSearchParams();
+  params.set("bbox", bbox);
+  params.set("zoom", String(zoom));
+  if (limit != null) params.set("limit", String(limit));
+  params.set("working_only", workingOnly ? "true" : "false");
+
+  const res = await fetch(`${BASE}/map?${params}`, { signal });
+  if (!res.ok) throw new Error("Failed to load radio map");
+  return res.json();
+}
+
+export async function fetchRadioMapRide({ lat, lng, workingOnly = true, signal } = {}) {
+  const params = new URLSearchParams();
+  if (lat != null && Number.isFinite(Number(lat))) params.set("lat", String(lat));
+  if (lng != null && Number.isFinite(Number(lng))) params.set("lng", String(lng));
+  params.set("working_only", workingOnly ? "true" : "false");
+
+  const res = await fetch(`${BASE}/map/ride?${params}`, { signal });
+  if (res.status === 404) throw new Error("No station found nearby");
+  if (!res.ok) throw new Error("Failed to take a ride");
+  return res.json();
+}
