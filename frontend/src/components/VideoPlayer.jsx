@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { fetchStreams, runHealthCheck } from "../api/channels";
+import { fetchStreams, runHealthCheck, fetchEpgNow, fetchChannelEpg } from "../api/channels";
 import FeedbackBar from "./FeedbackBar";
 import MiniPlayer from "./MiniPlayer";
 import { useShare } from "../hooks/useShare";
@@ -65,10 +65,30 @@ export default function VideoPlayer({
   const [healthResult, setHealthResult] = useState(null);
   const [checking, setChecking] = useState(false);
   const [shareToast, setShareToast] = useState("");
+  const [epgNow, setEpgNow] = useState(null);
+  const [epgNext, setEpgNext] = useState(null);
+  const [epgSchedule, setEpgSchedule] = useState([]);
+  const [showEpgPanel, setShowEpgPanel] = useState(false);
   const { shareTvChannel } = useShare();
 
   useEffect(() => {
     fetchStreams(channel.id).then(setStreams).catch(() => {});
+  }, [channel.id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setEpgNow(null);
+    setEpgNext(null);
+    setEpgSchedule([]);
+    setShowEpgPanel(false);
+    fetchEpgNow({ channelId: channel.id })
+      .then((data) => {
+        if (cancelled) return;
+        setEpgNow(data.now || null);
+        setEpgNext(data.next || null);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
   }, [channel.id]);
 
   useEffect(() => {
@@ -128,6 +148,28 @@ export default function VideoPlayer({
       setHealthResult({ status: "error", detail: "Check failed", response_time_ms: 0 });
     } finally {
       setChecking(false);
+    }
+  };
+
+  const toggleEpgPanel = async () => {
+    const next = !showEpgPanel;
+    setShowEpgPanel(next);
+    if (next && epgSchedule.length === 0) {
+      try {
+        const data = await fetchChannelEpg(channel.id);
+        setEpgSchedule(data.programmes || []);
+      } catch {
+        setEpgSchedule([]);
+      }
+    }
+  };
+
+  const formatEpgTime = (iso) => {
+    if (!iso) return "";
+    try {
+      return new Date(iso).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+    } catch {
+      return "";
     }
   };
 
@@ -206,6 +248,43 @@ export default function VideoPlayer({
                     </svg>
                     {new Date(channel.health_checked_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                   </span>
+                )}
+              </div>
+            )}
+            {(epgNow || epgNext) && (
+              <div className="channel-epg-strip">
+                {epgNow && (
+                  <div className="channel-epg-line">
+                    <span className="channel-epg-label">Now</span>
+                    <span className="channel-epg-title">{epgNow.title}</span>
+                    <span className="channel-epg-time">
+                      {formatEpgTime(epgNow.start_at)}–{formatEpgTime(epgNow.stop_at)}
+                    </span>
+                  </div>
+                )}
+                {epgNext && (
+                  <div className="channel-epg-line channel-epg-line--next">
+                    <span className="channel-epg-label">Next</span>
+                    <span className="channel-epg-title">{epgNext.title}</span>
+                    <span className="channel-epg-time">{formatEpgTime(epgNext.start_at)}</span>
+                  </div>
+                )}
+                <button type="button" className="channel-epg-toggle" onClick={toggleEpgPanel}>
+                  {showEpgPanel ? "Hide schedule" : "Today’s schedule"}
+                </button>
+              </div>
+            )}
+            {showEpgPanel && (
+              <div className="channel-epg-panel">
+                {epgSchedule.length === 0 ? (
+                  <div className="channel-epg-empty">No schedule loaded for this channel.</div>
+                ) : (
+                  epgSchedule.slice(0, 24).map((p) => (
+                    <div key={`${p.start_at}-${p.title}`} className="channel-epg-row">
+                      <span className="channel-epg-row-time">{formatEpgTime(p.start_at)}</span>
+                      <span className="channel-epg-row-title">{p.title}</span>
+                    </div>
+                  ))
                 )}
               </div>
             )}

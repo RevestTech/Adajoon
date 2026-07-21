@@ -19,7 +19,7 @@ from app.config import settings
 from app.logging_config import setup_logging, RequestLoggingMiddleware
 from app.middleware.security_headers import SecurityHeadersMiddleware
 from app.middleware.www_redirect import WWWRedirectMiddleware
-from app.routers import channels, categories, healthcheck, radio, auth, sitemap, history, languages, csrf, recommendations, playlists, parental, subscriptions, redis_health, ai_search, admin, analytics  # whitelabel
+from app.routers import channels, categories, healthcheck, radio, auth, sitemap, history, languages, csrf, recommendations, playlists, parental, subscriptions, redis_health, ai_search, admin, analytics, epg  # whitelabel
 from app.services.iptv_service import full_sync
 from app.services.radio_service import sync_radio_stations
 
@@ -129,6 +129,7 @@ app.include_router(subscriptions.router)
 # app.include_router(whitelabel.router)  # TODO: Implement Tenant model first
 app.include_router(redis_health.router)
 app.include_router(ai_search.router)
+app.include_router(epg.router)
 app.include_router(admin.router)
 app.include_router(analytics.router)
 app.include_router(sitemap.router)

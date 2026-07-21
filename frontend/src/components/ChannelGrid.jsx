@@ -1,6 +1,8 @@
+import { useEffect, useState } from "react";
 import ViewToggle from "./ViewToggle";
 import VoteIndicator from "./VoteIndicator";
 import QuickFilters from "./QuickFilters";
+import { fetchEpgNow } from "../api/channels";
 
 const GUEST_LIMIT = 20;
 
@@ -445,9 +447,26 @@ function GuestBanner({ onLogin, total, type }) {
 function ChannelCard({ channel, onClick, favorited, onToggleFavorite, isGuest, voteSummary, countryName }) {
   const cats = channel.categories ? channel.categories.split(";").filter(Boolean) : [];
   const streamStatus = channel.stream_url ? getTvStreamStatus(channel.health_status) : null;
+  const [onNowTitle, setOnNowTitle] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    setOnNowTitle("");
+    fetchEpgNow({ channelId: channel.id })
+      .then((data) => {
+        if (!cancelled && data?.now?.title) setOnNowTitle(data.now.title);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [channel.id]);
 
   return (
     <div className="channel-card" onClick={onClick}>
+      {onNowTitle && (
+        <div className="channel-on-now" title={onNowTitle}>
+          On now: {onNowTitle}
+        </div>
+      )}
       {isGuest ? (
         <button
           type="button"

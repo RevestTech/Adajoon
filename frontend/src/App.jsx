@@ -14,6 +14,7 @@ import RecentlyPlayed from "./components/RecentlyPlayed";
 import BackToTop from "./components/BackToTop";
 import AISearchModal from "./components/AISearchModal";
 import WorldMap from "./components/WorldMap";
+import RadioGardenMap from "./components/RadioGardenMap";
 import TVDebugInfo from "./components/TVDebugInfo";
 import useFavorites, { useRadioFavorites } from "./hooks/useFavorites";
 import useRecentlyPlayed from "./hooks/useRecentlyPlayed";
@@ -753,15 +754,24 @@ export default function App() {
                   Radio Stations
                 </button>
               </div>
-              <WorldMap
-                mode={mapSubMode}
-                countries={countries}
-                radioCountries={radioCountries}
-                activeCountries={mapSubMode === "tv" ? activeCountries : activeRadioCountries}
-                onSelectCountry={handleMapCountrySelect}
-                onSelectChannel={(ch) => { setMode("tv"); openTvPlayer(ch); }}
-                onSelectStation={(st) => { setMode("radio"); handleSelectStation(st); }}
-              />
+              {mapSubMode === "radio" ? (
+                <RadioGardenMap
+                  selectedStation={selectedStation}
+                  onSelectStation={(st) => {
+                    handleSelectStation(st);
+                  }}
+                />
+              ) : (
+                <WorldMap
+                  mode={mapSubMode}
+                  countries={countries}
+                  radioCountries={radioCountries}
+                  activeCountries={activeCountries}
+                  onSelectCountry={handleMapCountrySelect}
+                  onSelectChannel={(ch) => { setMode("tv"); openTvPlayer(ch); }}
+                  onSelectStation={(st) => { setMode("radio"); handleSelectStation(st); }}
+                />
+              )}
             </div>
           ) : mode === "tv" ? (
             <ChannelGrid

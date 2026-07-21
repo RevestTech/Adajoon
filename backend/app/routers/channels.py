@@ -10,6 +10,7 @@ from app.schemas import (
 from app.services.channel_service import (
     search_channels, get_channel_by_id, get_channel_streams
 )
+from app.services.epg_service import get_channel_epg
 
 router = APIRouter(prefix="/api/channels", tags=["channels"])
 
@@ -53,3 +54,12 @@ async def get_channel(channel_id: str, db: AsyncSession = Depends(get_db)):
 async def get_streams(channel_id: str, db: AsyncSession = Depends(get_db)):
     streams = await get_channel_streams(db, channel_id)
     return [StreamOut.model_validate(s) for s in streams]
+
+
+@router.get("/{channel_id}/epg")
+async def get_channel_epg_schedule(channel_id: str, db: AsyncSession = Depends(get_db)):
+    channel = await get_channel_by_id(db, channel_id)
+    if not channel:
+        raise HTTPException(status_code=404, detail="Channel not found")
+    programmes = await get_channel_epg(db, channel_id)
+    return {"channel_id": channel_id, "programmes": programmes}

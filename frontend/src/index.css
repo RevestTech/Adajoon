@@ -751,6 +751,125 @@ body {
   cursor: grabbing;
 }
 
+.radio-garden-map {
+  position: relative;
+  flex: 1;
+  min-height: 420px;
+  overflow: hidden;
+  background: #0a0e17;
+}
+
+.radio-garden-map__canvas {
+  position: absolute;
+  inset: 0;
+}
+
+.radio-garden-map__reticle {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 72px;
+  height: 72px;
+  margin: -36px 0 0 -36px;
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  border-radius: 50%;
+  pointer-events: none;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
+  z-index: 2;
+}
+
+.radio-garden-map__now {
+  position: absolute;
+  left: 50%;
+  top: calc(50% - 56px);
+  transform: translateX(-50%);
+  z-index: 3;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(10, 14, 23, 0.82);
+  color: #f4f6fb;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  max-width: min(80vw, 420px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+
+.radio-garden-map__footer {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 24px;
+  display: flex;
+  justify-content: center;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.radio-garden-map__ride {
+  pointer-events: auto;
+  border: none;
+  border-radius: 999px;
+  padding: 12px 22px;
+  background: rgba(20, 28, 40, 0.92);
+  color: #e8eef8;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.radio-garden-map__ride:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.radio-garden-map__status,
+.radio-garden-map__error {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 3;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  background: rgba(10, 14, 23, 0.85);
+  color: #d7dde8;
+}
+
+.radio-garden-map__error {
+  color: #ffb4b4;
+  top: 44px;
+}
+
+.rg-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: none;
+  padding: 0;
+  background: #3dff9a;
+  box-shadow: 0 0 8px rgba(61, 255, 154, 0.7);
+  cursor: pointer;
+}
+
+.rg-cluster {
+  min-width: 28px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: none;
+  background: rgba(61, 255, 154, 0.9);
+  color: #062416;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 0 10px rgba(61, 255, 154, 0.45);
+}
+
+
 .world-map-svg {
   width: 100%;
   height: 100%;
@@ -5967,4 +6086,102 @@ button:focus-visible {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* ====== EPG ====== */
+.channel-epg-strip {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.channel-epg-line {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  font-size: 13px;
+  color: var(--text-secondary, #b0b0c0);
+}
+
+.channel-epg-line--next {
+  opacity: 0.85;
+}
+
+.channel-epg-label {
+  font-weight: 700;
+  color: var(--accent, #e94560);
+  min-width: 36px;
+}
+
+.channel-epg-title {
+  color: var(--text-primary, #e8e8f0);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.channel-epg-time {
+  font-size: 12px;
+  opacity: 0.75;
+}
+
+.channel-epg-toggle {
+  align-self: flex-start;
+  margin-top: 4px;
+  border: none;
+  background: transparent;
+  color: var(--accent, #e94560);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 0;
+}
+
+.channel-epg-panel {
+  margin-top: 8px;
+  max-height: 180px;
+  overflow: auto;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 8px;
+}
+
+.channel-epg-row {
+  display: flex;
+  gap: 10px;
+  font-size: 12px;
+  padding: 4px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.channel-epg-row-time {
+  min-width: 52px;
+  opacity: 0.7;
+}
+
+.channel-epg-empty {
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+.channel-on-now {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  right: 40px;
+  z-index: 2;
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(233, 69, 96, 0.9);
+  color: #fff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.channel-card {
+  position: relative;
 }

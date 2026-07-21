@@ -46,3 +46,20 @@ export async function runHealthCheck(channelId) {
   if (!res.ok) throw new Error("Health check failed");
   return res.json();
 }
+
+export async function fetchEpgNow({ channelId, q, category, limit = 40 } = {}) {
+  const params = new URLSearchParams();
+  if (channelId) params.set("channel_id", channelId);
+  if (q) params.set("q", q);
+  if (category) params.set("category", category);
+  if (limit) params.set("limit", String(limit));
+  const res = await fetch(`${BASE}/epg/now?${params}`);
+  if (!res.ok) throw new Error("Failed to fetch EPG");
+  return res.json();
+}
+
+export async function fetchChannelEpg(channelId) {
+  const res = await fetch(`${BASE}/channels/${encodeURIComponent(channelId)}/epg`);
+  if (!res.ok) throw new Error("Failed to fetch channel EPG");
+  return res.json();
+}

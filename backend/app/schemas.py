@@ -182,6 +182,8 @@ class RadioStationOut(BaseModel):
     last_check_ok: bool = False
     health_status: str = "unknown"
     health_checked_at: str = ""
+    geo_lat: str = ""
+    geo_long: str = ""
 
     model_config = {"from_attributes": True}
 
@@ -196,6 +198,8 @@ class RadioStationOut(BaseModel):
         "state",
         "language",
         "codec",
+        "geo_lat",
+        "geo_long",
         mode="before",
     )
     @classmethod

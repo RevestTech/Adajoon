@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.models import Channel, RadioStation
 from app.redis_client import cache_get, cache_set
+from app.services.epg_service import search_on_now
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +23,14 @@ _FALLBACK_STOPWORDS = frozenset({
     "the", "a", "an", "for", "that", "show", "shows", "channels", "channel",
     "me", "find", "looking", "want", "with", "and", "or", "in", "of", "to",
     "from", "using", "keyword", "search",
+})
+
+_ON_NOW_TIME_TOKENS = frozenset({
+    "now", "live", "currently", "airing", "playing", "right",
+})
+_ON_NOW_SPORT_TOKENS = frozenset({
+    "soccer", "football", "fifa", "sports", "sport", "match", "game", "games",
+    "worldcup", "basketball", "baseball", "tennis", "cricket", "golf",
 })
 
 _INTENT_MAP: dict[str, list[str]] = {
@@ -78,6 +87,56 @@ def _expand_search_terms(tokens: list[str]) -> list[str]:
 def _score_searchable(searchable: str, terms: list[str]) -> int:
     haystack = searchable.lower()
     return sum(1 for term in terms if term in haystack)
+
+
+def _wants_epg_on_now(tokens: list[str], query: str) -> bool:
+    q = query.lower()
+    has_time = any(t in _ON_NOW_TIME_TOKENS for t in tokens) or "right now" in q
+    has_sport = any(t in _ON_NOW_SPORT_TOKENS for t in tokens) or any(
+        t in _INTENT_MAP for t in tokens
+    )
+    return has_time and has_sport
+
+
+async def _epg_on_now_channels(db: AsyncSession, query: str, tokens: list[str]) -> dict | None:
+    sport_terms = [t for t in tokens if t in _ON_NOW_SPORT_TOKENS or t in _INTENT_MAP]
+    q = " ".join(sport_terms) if sport_terms else None
+    category = "sports" if any(
+        t in {"soccer", "football", "fifa", "sports", "sport", "worldcup"} for t in tokens
+    ) else None
+    try:
+        items = await search_on_now(db, q=q, category=category, limit=FALLBACK_RESULT_LIMIT)
+    except Exception as e:
+        logger.error("EPG on-now search failed: %s", e, exc_info=True)
+        return None
+    if not items:
+        return None
+    channels = []
+    for item in items:
+        ch = item.get("channel") or {}
+        if not ch.get("id"):
+            continue
+        channels.append({
+            "id": ch["id"],
+            "name": ch.get("name") or "",
+            "logo": ch.get("logo") or "",
+            "categories": ch.get("categories") or "",
+            "country_code": ch.get("country_code") or "",
+            "stream_url": ch.get("stream_url") or "",
+            "health_status": ch.get("health_status") or "unknown",
+            "epg_now": item.get("title") or "",
+        })
+    if not channels:
+        return None
+    return {
+        "channels": channels,
+        "explanation": (
+            f"Found {len(channels)} channels with matching programmes on now "
+            f"for '{query}'."
+        ),
+        "query": query,
+        "source": "epg",
+    }
 
 
 def _cache_key(query: str, mode: str) -> str:
@@ -164,6 +223,13 @@ async def ai_search_channels(
     if cached:
         logger.info(f"AI search cache hit for: {query}")
         return cached
+
+    tokens = _tokenize_fallback_query(query)
+    if _wants_epg_on_now(tokens, query):
+        epg_hit = await _epg_on_now_channels(db, query, tokens)
+        if epg_hit:
+            await cache_set(cache_key, epg_hit, AI_CACHE_TTL)
+            return epg_hit
 
     summaries = await _get_channel_summaries(db)
 
@@ -365,6 +431,12 @@ async def _fallback_search(
     if not tokens:
         stripped = query.lower().strip()
         tokens = [stripped] if stripped else []
+
+    if mode == "tv" and _wants_epg_on_now(tokens, query):
+        epg_hit = await _epg_on_now_channels(db, query, tokens)
+        if epg_hit:
+            return epg_hit
+
     # DB filter uses query tokens only so broad intents (e.g. "sports") don't
     # flood the candidate cap and drop exact name hits like FIFA+.
     filter_terms = list(tokens)

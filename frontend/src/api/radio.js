@@ -43,12 +43,10 @@ export async function fetchRadioTags() {
   try {
     const res = await fetch(`${BASE}/tags`);
     if (!res.ok) {
-      // Silent fallback - no console noise
       return FALLBACK_TAGS;
     }
     return res.json();
-  } catch (error) {
-    // Silent fallback - no console noise
+  } catch {
     return FALLBACK_TAGS;
   }
 }
@@ -56,5 +54,27 @@ export async function fetchRadioTags() {
 export async function fetchRadioCountries() {
   const res = await fetch(`${BASE}/countries`);
   if (!res.ok) throw new Error("Failed to fetch radio countries");
+  return res.json();
+}
+
+export async function fetchRadioMap({ west, south, east, north, zoom = 5, limit = 400, workingOnly = true }) {
+  const params = new URLSearchParams({
+    bbox: `${west},${south},${east},${north}`,
+    zoom: String(zoom),
+    limit: String(limit),
+    working_only: workingOnly ? "true" : "false",
+  });
+  const res = await fetch(`${BASE}/map?${params}`);
+  if (!res.ok) throw new Error("Failed to fetch radio map");
+  return res.json();
+}
+
+export async function fetchRadioMapRide({ lat, lng } = {}) {
+  const params = new URLSearchParams();
+  if (lat != null) params.set("lat", String(lat));
+  if (lng != null) params.set("lng", String(lng));
+  const qs = params.toString();
+  const res = await fetch(`${BASE}/map/ride${qs ? `?${qs}` : ""}`);
+  if (!res.ok) throw new Error("Failed to fetch ride station");
   return res.json();
 }
