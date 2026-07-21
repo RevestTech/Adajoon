@@ -1,0 +1,30 @@
+{
+  "sprint": "channels-500-hotfix",
+  "updated_at": "2026-07-21T01:01:30Z",
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "Fix ChannelOut/RadioStationOut None+datetime coercion",
+      "status": "done",
+      "files": ["backend/app/schemas.py"]
+    },
+    {
+      "id": "T2",
+      "title": "CSP media-src allow http: for IPTV streams",
+      "status": "done",
+      "files": ["backend/app/middleware/security_headers.py"]
+    },
+    {
+      "id": "T3",
+      "title": "Tests green for channels schema",
+      "status": "done",
+      "files": ["backend/tests/test_channel_schema.py"]
+    },
+    {
+      "id": "T4",
+      "title": "Deploy backend and smoke /api/channels",
+      "status": "done",
+      "notes": "Railway deploy 6068dd9c SUCCESS; smoke 200 for list, 00sReplay.us, animation, CSP has http:"
+    }
+  ]
+}

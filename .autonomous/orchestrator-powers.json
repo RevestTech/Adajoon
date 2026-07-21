@@ -1,0 +1,14 @@
+{
+  "direct": ["sprint-board", "feedback", "session-log", "loop-state", "read-only-git"],
+  "delegate": {
+    "builder": "product code",
+    "qa-test": "tests",
+    "reviewer": "diff review",
+    "ops-runner": "deploy smoke",
+    "doc-writer": "status docs"
+  },
+  "autoSupportOnTaskDone": {
+    "enabled": true,
+    "roles": ["doc-writer"]
+  }
+}

@@ -1,5 +1,47 @@
-from pydantic import BaseModel
-from typing import Optional
+from datetime import date, datetime
+from typing import Any
+
+from pydantic import BaseModel, field_validator
+
+
+def _none_to_empty(v: Any) -> Any:
+    if v is None:
+        return ""
+    return v
+
+
+def _coerce_timestamp(v: Any) -> str:
+    if v is None:
+        return ""
+    if isinstance(v, (datetime, date)):
+        return v.isoformat()
+    if isinstance(v, str):
+        return v
+    return str(v)
+
+
+def _none_to_unknown(v: Any) -> Any:
+    if v is None:
+        return "unknown"
+    return v
+
+
+def _none_bool(default: bool):
+    def _inner(v: Any) -> Any:
+        if v is None:
+            return default
+        return v
+
+    return _inner
+
+
+def _none_int(default: int):
+    def _inner(v: Any) -> Any:
+        if v is None:
+            return default
+        return v
+
+    return _inner
 
 
 class CategoryOut(BaseModel):
@@ -49,6 +91,41 @@ class ChannelOut(BaseModel):
 
     model_config = {"from_attributes": True}
 
+    @field_validator(
+        "alt_names",
+        "network",
+        "country_code",
+        "categories",
+        "website",
+        "logo",
+        "stream_url",
+        "languages",
+        mode="before",
+    )
+    @classmethod
+    def coerce_optional_str(cls, v: Any) -> Any:
+        return _none_to_empty(v)
+
+    @field_validator("health_status", mode="before")
+    @classmethod
+    def coerce_health_status(cls, v: Any) -> Any:
+        return _none_to_unknown(v)
+
+    @field_validator("health_checked_at", "last_validated_at", mode="before")
+    @classmethod
+    def coerce_timestamps(cls, v: Any) -> str:
+        return _coerce_timestamp(v)
+
+    @field_validator("is_nsfw", mode="before")
+    @classmethod
+    def coerce_is_nsfw(cls, v: Any) -> Any:
+        return _none_bool(False)(v)
+
+    @field_validator("is_active", mode="before")
+    @classmethod
+    def coerce_is_active(cls, v: Any) -> Any:
+        return _none_bool(True)(v)
+
 
 class HealthCheckResult(BaseModel):
     channel_id: str
@@ -69,12 +146,12 @@ class StreamOut(BaseModel):
 
 
 class ChannelSearchParams(BaseModel):
-    query: Optional[str] = None
-    category: Optional[str] = None
-    country: Optional[str] = None
-    language: Optional[str] = None
+    query: str | None = None
+    category: str | None = None
+    country: str | None = None
+    language: str | None = None
     live_only: bool = False
-    status: Optional[str] = None
+    status: str | None = None
     page: int = 1
     per_page: int = 40
 
@@ -108,14 +185,51 @@ class RadioStationOut(BaseModel):
 
     model_config = {"from_attributes": True}
 
+    @field_validator(
+        "url",
+        "url_resolved",
+        "homepage",
+        "favicon",
+        "tags",
+        "country",
+        "country_code",
+        "state",
+        "language",
+        "codec",
+        mode="before",
+    )
+    @classmethod
+    def coerce_optional_str(cls, v: Any) -> Any:
+        return _none_to_empty(v)
+
+    @field_validator("health_status", mode="before")
+    @classmethod
+    def coerce_health_status(cls, v: Any) -> Any:
+        return _none_to_unknown(v)
+
+    @field_validator("health_checked_at", mode="before")
+    @classmethod
+    def coerce_timestamps(cls, v: Any) -> str:
+        return _coerce_timestamp(v)
+
+    @field_validator("last_check_ok", mode="before")
+    @classmethod
+    def coerce_last_check_ok(cls, v: Any) -> Any:
+        return _none_bool(False)(v)
+
+    @field_validator("bitrate", "votes", mode="before")
+    @classmethod
+    def coerce_bitrate_votes(cls, v: Any) -> Any:
+        return _none_int(0)(v)
+
 
 class RadioSearchParams(BaseModel):
-    query: Optional[str] = None
-    tag: Optional[str] = None
-    country: Optional[str] = None
-    language: Optional[str] = None
+    query: str | None = None
+    tag: str | None = None
+    country: str | None = None
+    language: str | None = None
     working_only: bool = False
-    status: Optional[str] = None
+    status: str | None = None
     page: int = 1
     per_page: int = 40
 

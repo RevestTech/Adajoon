@@ -2,9 +2,9 @@
 import hashlib
 import json
 import logging
-from typing import Optional
+import re
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -15,6 +15,69 @@ logger = logging.getLogger(__name__)
 
 AI_CACHE_TTL = 600  # 10 minutes — AI results don't change often
 MAX_CONTEXT_CHANNELS = 500  # Max channels to send as context to AI
+FALLBACK_CANDIDATE_LIMIT = 200
+FALLBACK_RESULT_LIMIT = 20
+
+_FALLBACK_STOPWORDS = frozenset({
+    "the", "a", "an", "for", "that", "show", "shows", "channels", "channel",
+    "me", "find", "looking", "want", "with", "and", "or", "in", "of", "to",
+    "from", "using", "keyword", "search",
+})
+
+_INTENT_MAP: dict[str, list[str]] = {
+    "soccer": ["sports", "football"],
+    "football": ["sports", "football", "nfl"],
+    "fifa": ["sports", "football", "soccer"],
+    "worldcup": ["sports", "football", "soccer", "fifa"],
+    "basketball": ["sports", "basketball", "nba"],
+    "baseball": ["sports", "baseball", "mlb"],
+    "tennis": ["sports", "tennis"],
+    "cricket": ["sports", "cricket"],
+    "golf": ["sports", "golf"],
+    "news": ["news"],
+    "music": ["music"],
+    "kids": ["kids", "children", "animation"],
+    "movies": ["movies", "cinema", "film"],
+    "documentary": ["documentary"],
+    "cooking": ["cooking", "food"],
+    "comedy": ["comedy"],
+    "science": ["science", "education"],
+    "religious": ["religious", "religion"],
+    "weather": ["weather"],
+    "entertainment": ["entertainment"],
+    "persian": ["persian", "iran", "IR"],
+    "arabic": ["arabic", "arab"],
+    "spanish": ["spanish"],
+    "french": ["french"],
+    "chinese": ["chinese", "CN"],
+    "japanese": ["japanese", "JP"],
+    "korean": ["korean", "KR"],
+    "turkish": ["turkish", "TR"],
+    "indian": ["indian", "hindi", "IN"],
+    "german": ["german", "DE"],
+    "italian": ["italian", "IT"],
+    "russian": ["russian", "RU"],
+    "brazilian": ["brazilian", "portuguese", "BR"],
+}
+
+
+def _tokenize_fallback_query(query: str) -> list[str]:
+    tokens = re.findall(r"[a-z0-9+]+", query.lower())
+    return [t for t in tokens if len(t) >= 2 and t not in _FALLBACK_STOPWORDS]
+
+
+def _expand_search_terms(tokens: list[str]) -> list[str]:
+    terms: set[str] = set(tokens)
+    for token in tokens:
+        expansions = _INTENT_MAP.get(token)
+        if expansions:
+            terms.update(expansions)
+    return list(terms)
+
+
+def _score_searchable(searchable: str, terms: list[str]) -> int:
+    haystack = searchable.lower()
+    return sum(1 for term in terms if term in haystack)
 
 
 def _cache_key(query: str, mode: str) -> str:
@@ -294,85 +357,76 @@ async def ai_search_radio(
 
 
 async def _fallback_search(
-    db: AsyncSession, query: str, mode: str, summaries: list[dict]
+    db: AsyncSession, query: str, mode: str, _summaries: list[dict]
 ) -> dict:
     """Smart keyword fallback when AI is unavailable."""
     logger.info(f"Using fallback search for: {query}")
-    query_lower = query.lower()
-
-    # Common intent keywords mapped to categories/tags
-    INTENT_MAP = {
-        "soccer": ["sports", "football"],
-        "football": ["sports", "football", "nfl"],
-        "basketball": ["sports", "basketball", "nba"],
-        "baseball": ["sports", "baseball", "mlb"],
-        "tennis": ["sports", "tennis"],
-        "cricket": ["sports", "cricket"],
-        "golf": ["sports", "golf"],
-        "news": ["news"],
-        "music": ["music"],
-        "kids": ["kids", "children", "animation"],
-        "movies": ["movies", "cinema", "film"],
-        "documentary": ["documentary"],
-        "cooking": ["cooking", "food"],
-        "comedy": ["comedy"],
-        "science": ["science", "education"],
-        "religious": ["religious", "religion"],
-        "weather": ["weather"],
-        "entertainment": ["entertainment"],
-        "persian": ["persian", "iran", "IR"],
-        "arabic": ["arabic", "arab"],
-        "spanish": ["spanish"],
-        "french": ["french"],
-        "chinese": ["chinese", "CN"],
-        "japanese": ["japanese", "JP"],
-        "korean": ["korean", "KR"],
-        "turkish": ["turkish", "TR"],
-        "indian": ["indian", "hindi", "IN"],
-        "german": ["german", "DE"],
-        "italian": ["italian", "IT"],
-        "russian": ["russian", "RU"],
-        "brazilian": ["brazilian", "portuguese", "BR"],
-    }
-
-    # Expand query into search terms
-    search_terms = [query_lower]
-    for keyword, expansions in INTENT_MAP.items():
-        if keyword in query_lower:
-            search_terms.extend(expansions)
-
-    search_terms = list(set(search_terms))
-
-    # Score each summary by how many terms match
-    scored = []
-    for item in summaries:
-        searchable = " ".join([
-            item.get("name", ""),
-            item.get("categories", item.get("tags", "")),
-            item.get("country", ""),
-            item.get("languages", item.get("language", "")),
-            item.get("network", ""),
-        ]).lower()
-
-        score = sum(1 for term in search_terms if term in searchable)
-        if score > 0:
-            scored.append((item["id"], score))
-
-    # Sort by score descending, take top 20
-    scored.sort(key=lambda x: x[1], reverse=True)
-    top_ids = [item_id for item_id, _ in scored[:20]]
+    tokens = _tokenize_fallback_query(query)
+    if not tokens:
+        stripped = query.lower().strip()
+        tokens = [stripped] if stripped else []
+    # DB filter uses query tokens only so broad intents (e.g. "sports") don't
+    # flood the candidate cap and drop exact name hits like FIFA+.
+    filter_terms = list(tokens)
+    score_terms = _expand_search_terms(tokens)
+    if not filter_terms:
+        if mode == "tv":
+            return {
+                "channels": [],
+                "explanation": f"Found 0 channels matching '{query}' using keyword search.",
+                "query": query,
+                "source": "fallback",
+            }
+        return {
+            "stations": [],
+            "explanation": f"Found 0 stations matching '{query}' using keyword search.",
+            "query": query,
+            "source": "fallback",
+        }
 
     if mode == "tv":
-        if top_ids:
-            result = await db.execute(
-                select(Channel).where(Channel.id.in_(top_ids))
+        term_filters = [
+            or_(
+                Channel.name.ilike(f"%{term}%"),
+                Channel.categories.ilike(f"%{term}%"),
+                Channel.network.ilike(f"%{term}%"),
+                Channel.country_code.ilike(f"%{term}%"),
+                Channel.languages.ilike(f"%{term}%"),
             )
-            channels = result.scalars().all()
-            id_order = {cid: idx for idx, cid in enumerate(top_ids)}
-            channels = sorted(channels, key=lambda c: id_order.get(c.id, 999))
-        else:
-            channels = []
-
+            for term in filter_terms
+        ]
+        result = await db.execute(
+            select(Channel)
+            .where(Channel.is_nsfw == False)
+            .where(
+                Channel.health_status.in_(
+                    ("verified", "online", "manifest_only", "unknown")
+                )
+            )
+            .where(or_(*term_filters))
+            .order_by(Channel.name)
+            .limit(FALLBACK_CANDIDATE_LIMIT)
+        )
+        candidates = result.scalars().all()
+        scored: list[tuple[Channel, int]] = []
+        for channel in candidates:
+            name_l = (channel.name or "").lower()
+            searchable = " ".join([
+                channel.name or "",
+                channel.categories or "",
+                channel.network or "",
+                channel.country_code or "",
+                channel.languages or "",
+            ])
+            score = _score_searchable(searchable, score_terms)
+            # Prefer channels whose name contains an original query token
+            score += sum(3 for t in filter_terms if t in name_l)
+            # Extra weight when an intent keyword (fifa, soccer, …) is in the name
+            score += sum(2 for t in filter_terms if t in name_l and t in _INTENT_MAP)
+            if score > 0:
+                scored.append((channel, score))
+        scored.sort(key=lambda x: x[1], reverse=True)
+        channels = [c for c, _ in scored[:FALLBACK_RESULT_LIMIT]]
         return {
             "channels": [
                 {
@@ -390,38 +444,54 @@ async def _fallback_search(
             "query": query,
             "source": "fallback",
         }
-    else:
-        int_ids = []
-        for sid in top_ids:
-            try:
-                int_ids.append(int(sid))
-            except (ValueError, TypeError):
-                continue
 
-        if int_ids:
-            result = await db.execute(
-                select(RadioStation).where(RadioStation.id.in_(int_ids))
-            )
-            stations = result.scalars().all()
-            id_order = {sid: idx for idx, sid in enumerate(int_ids)}
-            stations = sorted(stations, key=lambda s: id_order.get(s.id, 999))
-        else:
-            stations = []
-
-        return {
-            "stations": [
-                {
-                    "id": s.id,
-                    "name": s.name,
-                    "favicon": s.favicon or "",
-                    "tags": s.tags or "",
-                    "country_code": s.country_code or "",
-                    "url": s.url or "",
-                    "url_resolved": s.url_resolved or "",
-                }
-                for s in stations
-            ],
-            "explanation": f"Found {len(stations)} stations matching '{query}' using keyword search.",
-            "query": query,
-            "source": "fallback",
-        }
+    term_filters = [
+        or_(
+            RadioStation.name.ilike(f"%{term}%"),
+            RadioStation.tags.ilike(f"%{term}%"),
+            RadioStation.country_code.ilike(f"%{term}%"),
+            RadioStation.language.ilike(f"%{term}%"),
+        )
+        for term in filter_terms
+    ]
+    result = await db.execute(
+        select(RadioStation)
+        .where(RadioStation.last_check_ok == True)
+        .where(or_(*term_filters))
+        .order_by(RadioStation.votes.desc())
+        .limit(FALLBACK_CANDIDATE_LIMIT)
+    )
+    candidates = result.scalars().all()
+    scored_stations: list[tuple[RadioStation, int]] = []
+    for station in candidates:
+        name_l = (station.name or "").lower()
+        searchable = " ".join([
+            station.name or "",
+            station.tags or "",
+            station.country_code or "",
+            station.language or "",
+        ])
+        score = _score_searchable(searchable, score_terms)
+        score += sum(3 for t in filter_terms if t in name_l)
+        score += sum(2 for t in filter_terms if t in name_l and t in _INTENT_MAP)
+        if score > 0:
+            scored_stations.append((station, score))
+    scored_stations.sort(key=lambda x: x[1], reverse=True)
+    stations = [s for s, _ in scored_stations[:FALLBACK_RESULT_LIMIT]]
+    return {
+        "stations": [
+            {
+                "id": s.id,
+                "name": s.name,
+                "favicon": s.favicon or "",
+                "tags": s.tags or "",
+                "country_code": s.country_code or "",
+                "url": s.url or "",
+                "url_resolved": s.url_resolved or "",
+            }
+            for s in stations
+        ],
+        "explanation": f"Found {len(stations)} stations matching '{query}' using keyword search.",
+        "query": query,
+        "source": "fallback",
+    }

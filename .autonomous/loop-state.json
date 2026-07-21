@@ -1,0 +1,10 @@
+{
+  "active": false,
+  "interval_minutes": 5,
+  "master_plan": ".autonomous/master-plan.md",
+  "sprint_board": ".autonomous/sprint-board.json",
+  "started_at": "2026-07-21T00:55:00Z",
+  "completed_at": "2026-07-21T01:01:30Z",
+  "last_tick_at": "2026-07-21T01:01:30Z",
+  "prompt": "Autonomous Orchestrator: read master plan and sprint board, execute next pending task, test, update board, re-arm 5m loop. Never ask user until implement+test+deploy complete."
+}
