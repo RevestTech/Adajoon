@@ -33,31 +33,27 @@ export async function fetchCsrfToken() {
  * Make an authenticated fetch request with CSRF protection.
  */
 export async function authenticatedFetch(url, options = {}) {
-  const csrfToken = getCsrfToken();
-  
-  // For mutating requests, require CSRF token
-  const method = options.method?.toUpperCase() || 'GET';
-  const isMutating = !['GET', 'HEAD', 'OPTIONS'].includes(method);
-  
+  let csrfToken = getCsrfToken();
+
+  const method = options.method?.toUpperCase() || "GET";
+  const isMutating = !["GET", "HEAD", "OPTIONS"].includes(method);
+
   if (isMutating && !csrfToken) {
-    // Try to fetch a new token
-    const newToken = await fetchCsrfToken();
-    if (!newToken) {
-      throw new Error('Failed to get CSRF token');
+    csrfToken = await fetchCsrfToken();
+    if (!csrfToken) {
+      throw new Error("Failed to get CSRF token");
     }
   }
-  
-  // Build headers
+
   const headers = {
     ...options.headers,
-    ...(csrfToken && isMutating ? { 'X-CSRF-Token': csrfToken } : {}),
+    ...(csrfToken && isMutating ? { "X-CSRF-Token": csrfToken } : {}),
   };
-  
-  // Make request with credentials (cookies)
+
   return fetch(url, {
     ...options,
     headers,
-    credentials: 'include', // Always include cookies
+    credentials: "include",
   });
 }
 

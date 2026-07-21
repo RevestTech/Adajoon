@@ -38,6 +38,7 @@ from app.database import get_db
 from app.config import settings
 from app.models import User, UserFavorite, UserVote, Passkey
 from app.csrf import generate_csrf_token, verify_csrf_token
+from app.services.analytics_service import log_auth_event
 
 logger = logging.getLogger(__name__)
 
@@ -76,32 +77,46 @@ def decode_challenge_token(token: str) -> bytes:
     return base64.urlsafe_b64decode(payload["ch"])
 
 
-def _set_auth_cookies(response: Response, user: User, token: str) -> None:
+def _cookie_domain_for_host(host: str | None) -> str | None:
+    """Use shared .adajoon.com cookies only on adajoon hosts; else host-only cookies."""
+    if settings.env != "production":
+        return None
+    h = (host or "").split(":")[0].lower()
+    if h == "adajoon.com" or h.endswith(".adajoon.com"):
+        return ".adajoon.com"
+    return None
+
+
+def _set_auth_cookies(
+    response: Response,
+    user: User,
+    token: str,
+    *,
+    request: Request | None = None,
+) -> None:
     """Set authentication cookies (httpOnly JWT + CSRF token)."""
-    # Determine cookie domain - use adajoon.com for both www and non-www
-    cookie_domain = ".adajoon.com" if settings.env == "production" else None
-    
-    # Set JWT in httpOnly cookie (XSS-safe)
+    host = request.headers.get("host") if request is not None else None
+    cookie_domain = _cookie_domain_for_host(host)
+
     response.set_cookie(
         key="auth_token",
         value=token,
         httponly=True,
-        secure=True,  # HTTPS only in production
+        secure=True,
         samesite="lax",
         max_age=settings.jwt_expiry_days * 24 * 60 * 60,
         path="/",
         domain=cookie_domain,
     )
-    
-    # Set CSRF token in readable cookie for frontend
+
     csrf_token = generate_csrf_token()
     response.set_cookie(
         key="csrf_token",
         value=csrf_token,
-        httponly=False,  # Frontend needs to read this
+        httponly=False,
         secure=True,
         samesite="lax",
-        max_age=3600,  # 1 hour
+        max_age=3600,
         path="/",
         domain=cookie_domain,
     )
@@ -182,6 +197,8 @@ class PasskeyLoginBody(BaseModel):
 @router.post("/google")
 @limiter.limit("10/minute")
 async def google_login(request: Request, response: Response, body: GoogleTokenRequest, db: AsyncSession = Depends(get_db)):
+    await log_auth_event(db, "Auth Login Attempted", properties={"method": "google"})
+
     try:
         idinfo = await asyncio.to_thread(
             id_token.verify_oauth2_token,
@@ -191,6 +208,10 @@ async def google_login(request: Request, response: Response, body: GoogleTokenRe
         )
     except Exception as e:
         logger.error("Google token verification failed: %s", e)
+        await log_auth_event(
+            db, "Auth Login Failed",
+            properties={"method": "google", "error": str(e)[:300]},
+        )
         raise HTTPException(status_code=400, detail="Invalid Google token")
 
     email = idinfo.get("email", "")
@@ -219,13 +240,14 @@ async def google_login(request: Request, response: Response, body: GoogleTokenRe
     await db.commit()
     await db.refresh(user)
     token = create_token(user.id, user.email, user.is_admin, user.role)
-    _set_auth_cookies(response, user, token)
+    _set_auth_cookies(response, user, token, request=request)
+    logger.info("Google login ok user_id=%s", user.id)
+    await log_auth_event(
+        db, "User Logged In",
+        user_id=user.id,
+        properties={"method": "google", "user_id": user.id},
+    )
     return _user_response(user)
-
-
-# ===========================================================================
-# APPLE SIGN-IN
-# ===========================================================================
 
 from app.redis_client import cache_get, cache_set
 
@@ -271,7 +293,7 @@ async def apple_callback(request: Request, response: Response):
         form = await request.form()
         id_token = form.get("id_token", "")
         user_raw = form.get("user", "")
-        origin = settings.webauthn_origin
+        origin = settings.webauthn_origins
         
         # Safely encode data for JavaScript embedding (XSS prevention)
         safe_id_token = json.dumps(id_token)
@@ -283,7 +305,10 @@ async def apple_callback(request: Request, response: Response):
                 safe_user_data = json.dumps(parsed)
             except (json.JSONDecodeError, ValueError):
                 safe_user_data = "null"
-        safe_origin = json.dumps(origin)
+        # postMessage target must be a single origin (not a comma-joined list)
+        primary_origin = origin[0] if origin else "https://www.adajoon.com"
+        safe_origins = json.dumps(origin)
+        safe_primary = json.dumps(primary_origin)
         
         # No COOP header — defaults to unsafe-none, allowing popup postMessage back to opener
         
@@ -291,9 +316,13 @@ async def apple_callback(request: Request, response: Response):
 <body><p>Completing sign-in...</p><script>
 try {{
   var data = {{ type:"apple-signin", idToken:{safe_id_token}, userData:{safe_user_data} }};
-  if (window.opener) {{ window.opener.postMessage(data, {safe_origin}); window.close(); }}
-  else {{ window.location.href = {safe_origin}; }}
-}} catch(e) {{ window.location.href = {safe_origin}; }}
+  var allowed = {safe_origins};
+  var target = (window.opener && allowed.indexOf(window.location.origin) >= 0)
+    ? window.location.origin
+    : {safe_primary};
+  if (window.opener) {{ window.opener.postMessage(data, target); window.close(); }}
+  else {{ window.location.href = target; }}
+}} catch(e) {{ window.location.href = {safe_primary}; }}
 </script></body></html>"""
         
         return HTMLResponse(content=html_content)
@@ -305,13 +334,23 @@ try {{
 @router.post("/apple")
 @limiter.limit("10/minute")
 async def apple_login(request: Request, response: Response, body: AppleTokenRequest, db: AsyncSession = Depends(get_db)):
+    await log_auth_event(db, "Auth Login Attempted", properties={"method": "apple"})
+
     if not settings.apple_client_id:
+        await log_auth_event(
+            db, "Auth Login Failed",
+            properties={"method": "apple", "error": "Apple Sign-In not configured"},
+        )
         raise HTTPException(status_code=501, detail="Apple Sign-In not configured")
 
     try:
         payload = await _verify_apple_identity_token(body.id_token)
     except Exception as e:
         logger.error("Apple token verification failed: %s", e)
+        await log_auth_event(
+            db, "Auth Login Failed",
+            properties={"method": "apple", "error": str(e)[:300]},
+        )
         raise HTTPException(status_code=400, detail="Invalid Apple token")
 
     apple_id = payload.get("sub", "")
@@ -339,13 +378,14 @@ async def apple_login(request: Request, response: Response, body: AppleTokenRequ
     await db.commit()
     await db.refresh(user)
     token = create_token(user.id, user.email, user.is_admin, user.role)
-    _set_auth_cookies(response, user, token)
+    _set_auth_cookies(response, user, token, request=request)
+    logger.info("Apple login ok user_id=%s", user.id)
+    await log_auth_event(
+        db, "User Logged In",
+        user_id=user.id,
+        properties={"method": "apple", "user_id": user.id},
+    )
     return _user_response(user)
-
-
-# ===========================================================================
-# PASSKEY / WEBAUTHN
-# ===========================================================================
 
 @router.post("/passkey/register-options")
 @limiter.limit("10/minute")
@@ -394,7 +434,7 @@ async def passkey_register(body: PasskeyRegisterBody, user: User = Depends(requi
             credential=body.credential,
             expected_challenge=expected_challenge,
             expected_rp_id=settings.webauthn_rp_id,
-            expected_origin=settings.webauthn_origin,
+            expected_origin=settings.webauthn_origins,
         )
     except Exception as e:
         logger.error("Passkey registration verification failed: %s", e)
@@ -434,10 +474,21 @@ async def passkey_login_options():
 
 
 @router.post("/passkey/login")
-async def passkey_login(body: PasskeyLoginBody, response: Response, db: AsyncSession = Depends(get_db)):
+async def passkey_login(
+    body: PasskeyLoginBody,
+    request: Request,
+    response: Response,
+    db: AsyncSession = Depends(get_db),
+):
+    await log_auth_event(db, "Auth Login Attempted", properties={"method": "passkey"})
+
     try:
         expected_challenge = decode_challenge_token(body.challenge_token)
     except Exception:
+        await log_auth_event(
+            db, "Auth Login Failed",
+            properties={"method": "passkey", "error": "Invalid or expired challenge"},
+        )
         raise HTTPException(status_code=400, detail="Invalid or expired challenge")
 
     cred_response = body.credential
@@ -446,6 +497,10 @@ async def passkey_login(body: PasskeyLoginBody, response: Response, db: AsyncSes
     result = await db.execute(select(Passkey).where(Passkey.credential_id == cred_id_b64))
     passkey = result.scalar_one_or_none()
     if not passkey:
+        await log_auth_event(
+            db, "Auth Login Failed",
+            properties={"method": "passkey", "error": "Passkey not found"},
+        )
         raise HTTPException(status_code=400, detail="Passkey not found")
 
     try:
@@ -453,12 +508,16 @@ async def passkey_login(body: PasskeyLoginBody, response: Response, db: AsyncSes
             credential=cred_response,
             expected_challenge=expected_challenge,
             expected_rp_id=settings.webauthn_rp_id,
-            expected_origin=settings.webauthn_origin,
+            expected_origin=settings.webauthn_origins,
             credential_public_key=base64url_to_bytes(passkey.public_key),
             credential_current_sign_count=passkey.sign_count,
         )
     except Exception as e:
         logger.error("Passkey login verification failed: %s", e)
+        await log_auth_event(
+            db, "Auth Login Failed",
+            properties={"method": "passkey", "error": str(e)[:300]},
+        )
         raise HTTPException(status_code=400, detail="Authentication verification failed")
 
     passkey.sign_count = verification.new_sign_count
@@ -466,13 +525,23 @@ async def passkey_login(body: PasskeyLoginBody, response: Response, db: AsyncSes
     user_result = await db.execute(select(User).where(User.id == passkey.user_id))
     user = user_result.scalar_one_or_none()
     if not user:
+        await log_auth_event(
+            db, "Auth Login Failed",
+            properties={"method": "passkey", "error": "User not found"},
+        )
         raise HTTPException(status_code=400, detail="User not found")
 
     user.last_login_at = datetime.now(timezone.utc)
     await db.commit()
 
     token = create_token(user.id, user.email, user.is_admin, user.role)
-    _set_auth_cookies(response, user, token)
+    _set_auth_cookies(response, user, token, request=request)
+    logger.info("Passkey login ok user_id=%s", user.id)
+    await log_auth_event(
+        db, "User Logged In",
+        user_id=user.id,
+        properties={"method": "passkey", "user_id": user.id},
+    )
     return _user_response(user)
 
 

@@ -92,3 +92,7 @@ Sports-style queries (soccer, football, fifa, …) merge EPG **on-now** hits ahe
 Desktop **Open in new window** on the radio player opens `/?radio_popout=1&sid=…` in a real browser popup (`RadioPopoutWindow.jsx`). Station payload is stashed in `localStorage` briefly. Main-window audio stops to avoid double play. If the popup is blocked, the in-app floating player is used as fallback.
 
 See also `docs/FLOATING_PLAYER.md`.
+
+---
+
+**App version**: 2.6.0 (2026-07-21)

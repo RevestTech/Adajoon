@@ -76,8 +76,18 @@ All authentication cookies MUST use secure attributes.
 ### JWT Authentication Cookie
 
 ```python
-def _set_auth_cookies(response: Response, user: User, token: str) -> None:
-    cookie_domain = ".adajoon.com" if settings.env == "production" else None
+def _cookie_domain_for_host(host: str | None) -> str | None:
+    # Prefer host-only cookies on Railway preview hosts; use .adajoon.com on production domains
+    if not host:
+        return None
+    h = host.split(":")[0].lower()
+    if h.endswith("adajoon.com"):
+        return ".adajoon.com"
+    return None
+
+def _set_auth_cookies(response: Response, user: User, token: str, request: Request | None = None) -> None:
+    host = request.headers.get("host") if request else None
+    cookie_domain = _cookie_domain_for_host(host)
     
     response.set_cookie(
         key="auth_token",
@@ -107,6 +117,8 @@ def _set_auth_cookies(response: Response, user: User, token: str) -> None:
 ```
 
 **Cookie Requirements:**
+- Never hardcode `Domain=.adajoon.com` for all production hosts — Railway frontend URLs reject that domain
+- Prefer `www.adajoon.com` so shared `.adajoon.com` cookies work across apex/www
 - `httponly=True` for sensitive tokens (prevents XSS)
 - `secure=True` always (HTTPS only)
 - `samesite="lax"` for CSRF protection

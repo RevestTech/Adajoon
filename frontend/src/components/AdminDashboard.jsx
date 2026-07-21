@@ -64,23 +64,27 @@ export default function AdminDashboard({ onClose }) {
 
   const loadAnalyticsStats = useCallback(async () => {
     try {
-      const [summaryRes, eventsRes, contentRes] = await Promise.all([
+      const [summaryRes, eventsRes, contentRes, authFunnelRes, pathsRes] = await Promise.all([
         authenticatedFetch(`/api/admin/analytics/summary?days=${timePeriod}`),
         authenticatedFetch(`/api/admin/analytics/events-over-time?days=${timePeriod}`),
-        authenticatedFetch(`/api/admin/analytics/top-content?days=${timePeriod}&limit=10`)
+        authenticatedFetch(`/api/admin/analytics/top-content?days=${timePeriod}&limit=10`),
+        authenticatedFetch(`/api/admin/analytics/auth-funnel?days=${timePeriod}`),
+        authenticatedFetch(`/api/admin/analytics/paths?days=${timePeriod}&limit=15`),
       ]);
-      
-      if (!summaryRes.ok || !eventsRes.ok || !contentRes.ok) {
+
+      if (!summaryRes.ok || !eventsRes.ok || !contentRes.ok || !authFunnelRes.ok || !pathsRes.ok) {
         throw new Error('Failed to load analytics');
       }
-      
-      const [summary, events, content] = await Promise.all([
+
+      const [summary, events, content, authFunnel, paths] = await Promise.all([
         summaryRes.json(),
         eventsRes.json(),
-        contentRes.json()
+        contentRes.json(),
+        authFunnelRes.json(),
+        pathsRes.json(),
       ]);
-      
-      setAnalyticsStats({ summary, events, content });
+
+      setAnalyticsStats({ summary, events, content, authFunnel, paths });
     } catch (err) {
       setError(err.message);
     }
@@ -520,6 +524,119 @@ export default function AdminDashboard({ onClose }) {
                           <td>{item.item_name || 'Unknown'}</td>
                           <td>{item.item_type || 'N/A'}</td>
                           <td>{item.play_count}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div className="admin-section">
+                <h2>Auth Funnel</h2>
+                <div className="admin-stats-grid">
+                  <div className="admin-stat-card">
+                    <div className="admin-stat-label">Attempts</div>
+                    <div className="admin-stat-value">{analyticsStats.authFunnel.attempts.toLocaleString()}</div>
+                  </div>
+                  <div className="admin-stat-card">
+                    <div className="admin-stat-label">Successes</div>
+                    <div className="admin-stat-value">{analyticsStats.authFunnel.successes.toLocaleString()}</div>
+                  </div>
+                  <div className="admin-stat-card">
+                    <div className="admin-stat-label">Failures</div>
+                    <div className="admin-stat-value">{analyticsStats.authFunnel.failures.toLocaleString()}</div>
+                  </div>
+                  <div className="admin-stat-card">
+                    <div className="admin-stat-label">Sessions Lost</div>
+                    <div className="admin-stat-value">{analyticsStats.authFunnel.session_lost.toLocaleString()}</div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="admin-section">
+                <h2>Auth by Method</h2>
+                <div className="admin-table">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Method</th>
+                        <th>Success</th>
+                        <th>Failure</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {analyticsStats.authFunnel.by_method.map((item) => (
+                        <tr key={item.method}>
+                          <td>{item.method}</td>
+                          <td>{item.success}</td>
+                          <td>{item.failure}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div className="admin-section">
+                <h2>Recent Login Failures</h2>
+                <div className="admin-table">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Time</th>
+                        <th>Method</th>
+                        <th>Error</th>
+                        <th>Session</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {analyticsStats.authFunnel.recent_failures.map((item, idx) => (
+                        <tr key={idx}>
+                          <td>{item.created_at ? new Date(item.created_at).toLocaleString() : "—"}</td>
+                          <td>{item.method}</td>
+                          <td>{item.error || "—"}</td>
+                          <td>{item.session_id}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div className="admin-section">
+                <h2>Top Screens</h2>
+                <div className="admin-chart-simple">
+                  {analyticsStats.paths.top_screens.map((item) => {
+                    const maxCount = analyticsStats.paths.top_screens[0]?.count || 1;
+                    return (
+                      <div key={item.screen} className="admin-chart-bar">
+                        <span className="admin-chart-label">{item.screen}</span>
+                        <div className="admin-chart-bar-fill" style={{ width: `${(item.count / maxCount) * 100}%` }}>
+                          <span className="admin-chart-value">{item.count.toLocaleString()}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="admin-section">
+                <h2>Top Navigations</h2>
+                <div className="admin-table">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>From</th>
+                        <th>To</th>
+                        <th>Count</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {analyticsStats.paths.top_navigations.map((item, idx) => (
+                        <tr key={idx}>
+                          <td>{item.from_screen}</td>
+                          <td>{item.to_screen}</td>
+                          <td>{item.count}</td>
                         </tr>
                       ))}
                     </tbody>

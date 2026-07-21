@@ -79,3 +79,5 @@ Adajoon supports two pop-out modes:
 ## Related
 
 - Radio map + EPG: `docs/RADIO_MAP_EPG.md`
+
+**App version**: 2.6.0 (2026-07-21)

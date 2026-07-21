@@ -11,6 +11,7 @@ A containerized application that connects to online TV station databases, discov
 - **Country Filtering** — Filter channels by country of origin (200+ countries)
 - **Full-Text Search** — Search by channel name, network, or alternate names; AI/keyword search for TV and radio
 - **Built-in Players** — Watch TV (HLS) and listen to radio in-browser; radio can **open in a new browser window**
+- **Admin analytics** — Self-hosted auth funnel + screen path tracking (Admin → Analytics)
 - **Auto-Sync** — Channel/radio data refreshes from upstream sources; optional EPG worker ingest
 - **Responsive UI** — Works on desktop and mobile
 
@@ -62,7 +63,7 @@ curl -X POST http://localhost:8000/api/sync
 | POST | `/api/sync` | Trigger manual data sync |
 | GET | `/api/health` | Health check |
 
-More detail: [`docs/RADIO_MAP_EPG.md`](docs/RADIO_MAP_EPG.md), [`docs/FLOATING_PLAYER.md`](docs/FLOATING_PLAYER.md).
+More detail: [`docs/RADIO_MAP_EPG.md`](docs/RADIO_MAP_EPG.md), [`docs/FLOATING_PLAYER.md`](docs/FLOATING_PLAYER.md), [`docs/CUSTOM_ANALYTICS.md`](docs/CUSTOM_ANALYTICS.md).
 
 ## Development
 

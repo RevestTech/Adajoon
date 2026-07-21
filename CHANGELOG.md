@@ -7,56 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.6.0] - 2026-07-21
+
 ### Added
 - **Radio world map**: MapLibre explorer (Map → Radio Stations) with bbox clusters/pins, Take a ride, geo sync from Radio Browser
 - **TV EPG**: `epg_programmes` table, worker XMLTV ingest, `/api/epg/now` + channel schedule APIs, VideoPlayer now/next strip
 - **AI on-now sports**: Keyword/AI TV search merges EPG programmes airing now for soccer/football/fifa-style queries
 - **Radio browser-window pop-out**: Desktop “Open in new window” opens a dedicated popup player (`RadioPopoutWindow`)
-- See `docs/RADIO_MAP_EPG.md` and `docs/FLOATING_PLAYER.md`
+- **Auth funnel + path analytics**: Client and server emit login attempt/success/failure/session-lost; screen + navigation tracking; Admin Analytics shows funnel, recent failures, top screens/navigations (`/api/admin/analytics/auth-funnel`, `/paths`)
+- See `docs/RADIO_MAP_EPG.md`, `docs/FLOATING_PLAYER.md`, `docs/CUSTOM_ANALYTICS.md`
 
 ### Fixed
+- **Login / cookie reliability**: Adaptive cookie domain (Railway host vs `.adajoon.com`); WebAuthn multi-origin list; Apple `postMessage` single origin; CSRF header attached on authenticated fetches; softer `/me` logout
 - **Channel schema 500s**: Coerce ORM `None`/`datetime` timestamps on `ChannelOut` / `RadioStationOut`
 - **CSP for IPTV + MapLibre**: `media-src` allows `http:`; `worker-src blob:` and OpenFreeMap hosts for the radio map
 - **Map bbox at world zoom**: Clamp longitudes outside ±180 instead of returning 400
 - **Dark map contrast**: Lighten OpenFreeMap dark basemap paints; stub missing style sprites (`circle-11`)
 
-### Added (earlier unreleased)
+### Added (carried from earlier unreleased)
 - **Floating Player (Desktop Only)**: Pop-out player for TV channels and radio stations
-  - Draggable window that stays on top while browsing
-  - Resizable from 280x160 to 800x600 pixels
-  - Dock back to main player with one click
-  - Position and size preferences saved locally
-  - Keyboard shortcut support (Escape to close)
-  - Only available on desktop devices (not mobile/TV)
-  - Accessible via "Pop Out" button in video/radio player controls
-
-- **Custom Self-Hosted Analytics**: Full replacement of Mixpanel with database-backed tracking
-  - All events stored in PostgreSQL (`analytics_events` table)
-  - No third-party dependencies or data sharing
-  - Session tracking (total, active, idle time with 60s heartbeats)
-  - Playback tracking (30s heartbeats per channel/station)
-  - User action tracking (searches, favorites, votes, shares)
-  - Admin API endpoints for analytics queries (`/api/admin/analytics/*`)
-  - Batch event submission for performance (5s intervals)
-  - JSONB properties for flexible event data
-  - See `docs/CUSTOM_ANALYTICS.md` for full reference
-
-- **Admin Dashboard**: Real-time statistics and user management
-  - User counts by provider (Google, Apple, Passkey)
-  - Active users (24h, 7d, 30d)
-  - System health monitoring (database, Redis, uptime)
-  - Content statistics (channels, stations, categories)
-  - Recent activity timeline
-  - User management (promote/revoke admin)
-  - Only visible to admin users (`is_admin` flag)
-  - Accessible via user avatar dropdown menu
+- **Custom Self-Hosted Analytics**: PostgreSQL-backed tracking (sessions, playback, actions); Admin `/api/admin/analytics/*`
+- **Admin Dashboard**: User/content/activity stats; admin-only via avatar menu
 
 ### Removed
-- **Mixpanel Integration**: Removed third-party analytics service
-  - Removed `mixpanel-browser` dependency
-  - Removed PostHog integration
-  - Replaced with custom self-hosted analytics
-  - All existing event tracking migrated to new system
+- **Mixpanel / PostHog**: Replaced by self-hosted analytics (`docs/CUSTOM_ANALYTICS.md`)
 
 ## [2.5.2] - 2026-04-07
 

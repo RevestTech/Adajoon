@@ -22,6 +22,7 @@ import { useVotes } from "./hooks/useVotes";
 import { useDevice } from "./hooks/useDevice";
 import { useTVNavigation } from "./hooks/useTVNavigation";
 import { useSessionTracking } from "./hooks/useSessionTracking";
+import { useNavigationTracking } from "./hooks/useNavigationTracking";
 import {
   readUrlParams,
   writeUrlParams,
@@ -675,6 +676,19 @@ export default function App() {
     setShowRadioFavorites(false);
   }, []);
 
+  useNavigationTracking({
+    mode,
+    mapSubMode,
+    query: mode === "tv" ? search : radioSearch,
+    showFavorites: mode === "tv" ? showFavorites : showRadioFavorites,
+    showAISearch,
+    showAdminDashboard,
+    showLogin,
+    selectedChannelId: selectedChannel?.id,
+    selectedStationId: selectedStation?.id,
+    isGuest,
+  });
+
   return (
     <>
       <Header
@@ -950,7 +964,7 @@ export default function App() {
       <TVDebugInfo />
       <footer className="app-footer">
         <span>&copy; {new Date().getFullYear()} Revest Technology. All rights reserved.</span>
-        <span className="footer-version">v2.6.0-dev</span>
+        <span className="footer-version">v2.6.0</span>
       </footer>
     </>
   );

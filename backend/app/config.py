@@ -80,6 +80,14 @@ class Settings(BaseSettings):
     webauthn_rp_name: str = os.getenv("WEBAUTHN_RP_NAME", "Adajoon")
     webauthn_origin: str = _get_secret("webauthn_origin", "http://localhost:5173")
 
+    @property
+    def webauthn_origins(self) -> list[str]:
+        """Parse one or more allowed WebAuthn origins (comma-separated env)."""
+        raw = (self.webauthn_origin or "").strip()
+        if not raw:
+            return ["http://localhost:5173"]
+        return [o.strip() for o in raw.split(",") if o.strip()]
+
     # API Keys (from vault)
     sync_api_key: str = _get_secret("sync_api_key")
 

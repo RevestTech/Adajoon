@@ -137,3 +137,4 @@ When updating project conventions:
 ## Version
 
 Created for Adajoon v2.3.0 (April 2026)
+Last updated: 2026-07-21 (app v2.6.0)
