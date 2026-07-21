@@ -11,6 +11,7 @@ from app.schemas import (
 )
 from app.services.radio_service import (
     search_radio, get_radio_countries,
+    get_stations_in_bbox, get_random_geo_station,
 )
 from app.redis_client import cache_get, cache_set
 
@@ -103,3 +104,43 @@ async def list_radio_countries(db: AsyncSession = Depends(get_db)):
     except Exception as e:
         logger.error(f"Error in list_radio_countries: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to fetch radio countries: {str(e)}")
+
+
+@router.get("/map")
+async def radio_map(
+    bbox: str = Query(..., description="west,south,east,north"),
+    zoom: int = Query(5, ge=0, le=18),
+    limit: int = Query(400, ge=1, le=1000),
+    working_only: bool = Query(True),
+    db: AsyncSession = Depends(get_db),
+):
+    """Stations or clusters inside a geographic bounding box."""
+    try:
+        parts = [float(p.strip()) for p in bbox.split(",")]
+        if len(parts) != 4:
+            raise ValueError("bbox must have 4 values")
+        west, south, east, north = parts
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=f"Invalid bbox: {e}") from e
+
+    if south < -90 or north > 90 or south > north:
+        raise HTTPException(status_code=400, detail="Invalid latitude range")
+
+    return await get_stations_in_bbox(
+        db, west=west, south=south, east=east, north=north,
+        zoom=zoom, limit=limit, working_only=working_only,
+    )
+
+
+@router.get("/map/ride")
+async def radio_map_ride(
+    lat: float | None = Query(None),
+    lng: float | None = Query(None),
+    working_only: bool = Query(True),
+    db: AsyncSession = Depends(get_db),
+):
+    """Random geo station for Take a ride."""
+    station = await get_random_geo_station(db, lat=lat, lng=lng, working_only=working_only)
+    if not station:
+        raise HTTPException(status_code=404, detail="No geo stations available")
+    return RadioStationOut.model_validate(station)

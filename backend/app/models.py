@@ -257,3 +257,22 @@ class AnalyticsEvent(Base):
         Index("ix_analytics_user_created", "user_id", "created_at"),
         Index("ix_analytics_session_created", "session_id", "created_at"),
     )
+
+
+class EpgProgramme(Base):
+    __tablename__ = "epg_programmes"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    channel_id = Column(String, ForeignKey("channels.id", ondelete="CASCADE"), nullable=False, index=True)
+    start_at = Column(DateTime(timezone=True), nullable=False, index=True)
+    stop_at = Column(DateTime(timezone=True), nullable=False, index=True)
+    title = Column(String(500), nullable=False, default="")
+    subtitle = Column(String(500), default="")
+    description = Column(Text, default="")
+    category = Column(String(255), default="")
+
+    __table_args__ = (
+        Index("ix_epg_channel_start", "channel_id", "start_at"),
+        Index("ix_epg_start_stop", "start_at", "stop_at"),
+        Index("ix_epg_channel_window", "channel_id", "start_at", "stop_at"),
+    )

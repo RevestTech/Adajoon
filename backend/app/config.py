@@ -98,6 +98,27 @@ class Settings(BaseSettings):
     stripe_webhook_secret: str = _get_secret("stripe_webhook_secret")
     stripe_publishable_key: str = _get_secret("stripe_publishable_key")
 
+    # EPG (XMLTV feeds; default epgshare packs use iptv-org-style channel ids)
+    epg_country_codes: str = os.getenv("EPG_COUNTRY_CODES", "uk,de,fr")
+    epg_feed_urls: str = os.getenv("EPG_FEED_URLS", "")
+    epg_retain_days: int = int(os.getenv("EPG_RETAIN_DAYS", "3"))
+
+    @property
+    def epg_feeds(self) -> list[str]:
+        if self.epg_feed_urls.strip():
+            return [u.strip() for u in self.epg_feed_urls.split(",") if u.strip()]
+        default_map = {
+            "uk": "https://epgshare01.online/epgshare01/epg_ripper_UK1.xml.gz",
+            "de": "https://epgshare01.online/epgshare01/epg_ripper_DE1.xml.gz",
+            "fr": "https://epgshare01.online/epgshare01/epg_ripper_FR1.xml.gz",
+        }
+        feeds: list[str] = []
+        for code in self.epg_country_codes.split(","):
+            key = code.strip().lower()
+            if key in default_map:
+                feeds.append(default_map[key])
+        return feeds
+
     @property
     def cors_origins(self) -> list[str]:
         """Parse CORS origins from env var or use defaults."""

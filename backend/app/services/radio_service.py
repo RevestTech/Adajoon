@@ -1,4 +1,5 @@
 import logging
+import random
 
 import httpx
 from sqlalchemy import select, func, or_
@@ -48,6 +49,8 @@ async def sync_radio_stations(db: AsyncSession) -> int:
             if not station_id:
                 continue
 
+            geo_lat = item.get("geo_lat")
+            geo_long = item.get("geo_long")
             values_batch.append({
                 "id": station_id,
                 "name": item.get("name", "").strip(),
@@ -64,6 +67,8 @@ async def sync_radio_stations(db: AsyncSession) -> int:
                 "bitrate": item.get("bitrate", 0) or 0,
                 "votes": item.get("votes", 0) or 0,
                 "last_check_ok": bool(item.get("lastcheckok", 0)),
+                "geo_lat": "" if geo_lat is None else str(geo_lat),
+                "geo_long": "" if geo_long is None else str(geo_long),
             })
 
         # Process in smaller chunks to avoid huge single statements
@@ -90,6 +95,8 @@ async def sync_radio_stations(db: AsyncSession) -> int:
                     "bitrate": stmt.excluded.bitrate,
                     "votes": stmt.excluded.votes,
                     "last_check_ok": stmt.excluded.last_check_ok,
+                    "geo_lat": stmt.excluded.geo_lat,
+                    "geo_long": stmt.excluded.geo_long,
                 },
             )
             await db.execute(stmt)
@@ -252,3 +259,149 @@ async def get_radio_stats(db: AsyncSession):
         select(func.count(RadioStation.id)).where(RadioStation.last_check_ok == True)
     )).scalar() or 0
     return {"total": total, "working": working}
+
+
+def _parse_geo(value: str | None) -> float | None:
+    if value is None or value == "":
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _cluster_precision(zoom: int) -> int:
+    if zoom <= 2:
+        return 0
+    if zoom <= 4:
+        return 1
+    if zoom <= 6:
+        return 2
+    if zoom <= 8:
+        return 3
+    return 4
+
+
+async def get_stations_in_bbox(
+    db: AsyncSession,
+    west: float,
+    south: float,
+    east: float,
+    north: float,
+    zoom: int = 5,
+    limit: int = 500,
+    working_only: bool = True,
+) -> dict:
+    """Return stations or clusters inside a geographic bbox."""
+    query = select(RadioStation).where(
+        RadioStation.geo_lat != "",
+        RadioStation.geo_long != "",
+    )
+    if working_only:
+        query = query.where(RadioStation.last_check_ok == True)
+
+    result = await db.execute(query.order_by(RadioStation.votes.desc()).limit(8000))
+    rows = result.scalars().all()
+
+    stations: list[dict] = []
+    for s in rows:
+        lat = _parse_geo(s.geo_lat)
+        lng = _parse_geo(s.geo_long)
+        if lat is None or lng is None:
+            continue
+        # Handle antimeridian: west > east means wrap
+        in_lng = (west <= lng <= east) if west <= east else (lng >= west or lng <= east)
+        if not (south <= lat <= north and in_lng):
+            continue
+        stations.append({
+            "id": s.id,
+            "name": s.name,
+            "favicon": s.favicon or "",
+            "tags": s.tags or "",
+            "country_code": s.country_code or "",
+            "url": s.url or "",
+            "url_resolved": s.url_resolved or "",
+            "geo_lat": str(lat),
+            "geo_long": str(lng),
+            "votes": s.votes or 0,
+            "last_check_ok": bool(s.last_check_ok),
+        })
+
+    if zoom >= 8 or len(stations) <= limit:
+        return {"type": "stations", "items": stations[:limit], "total": len(stations)}
+
+    precision = _cluster_precision(zoom)
+    buckets: dict[tuple[float, float], dict] = {}
+    for st in stations:
+        lat = float(st["geo_lat"])
+        lng = float(st["geo_long"])
+        key = (round(lat, precision), round(lng, precision))
+        bucket = buckets.get(key)
+        if bucket is None:
+            buckets[key] = {
+                "lat": key[0],
+                "lng": key[1],
+                "count": 1,
+                "sample": st,
+            }
+        else:
+            bucket["count"] += 1
+            if st["votes"] > bucket["sample"]["votes"]:
+                bucket["sample"] = st
+
+    clusters = [
+        {
+            "lat": b["lat"],
+            "lng": b["lng"],
+            "count": b["count"],
+            "sample_id": b["sample"]["id"],
+            "sample_name": b["sample"]["name"],
+        }
+        for b in buckets.values()
+    ]
+    clusters.sort(key=lambda c: c["count"], reverse=True)
+    return {"type": "clusters", "items": clusters[:limit], "total": len(stations)}
+
+
+async def get_random_geo_station(
+    db: AsyncSession,
+    lat: float | None = None,
+    lng: float | None = None,
+    working_only: bool = True,
+) -> RadioStation | None:
+    """Pick a random playable station with geo; prefer near lat/lng when given."""
+    query = select(RadioStation).where(
+        RadioStation.geo_lat != "",
+        RadioStation.geo_long != "",
+        RadioStation.url != "",
+    )
+    if working_only:
+        query = query.where(RadioStation.last_check_ok == True)
+
+    result = await db.execute(query.order_by(RadioStation.votes.desc()).limit(2000))
+    rows = list(result.scalars().all())
+    if not rows:
+        return None
+
+    parsed: list[tuple[RadioStation, float, float]] = []
+    for s in rows:
+        plat = _parse_geo(s.geo_lat)
+        plng = _parse_geo(s.geo_long)
+        if plat is None or plng is None:
+            continue
+        parsed.append((s, plat, plng))
+    if not parsed:
+        return None
+
+    if lat is None or lng is None:
+        return random.choice(parsed)[0]
+
+    # Prefer stations within ~15 degrees, else any
+    nearby = [
+        s for s, plat, plng in parsed
+        if abs(plat - lat) < 15 and abs(plng - lng) < 15
+    ]
+    if nearby:
+        return random.choice(nearby)
+    return random.choice(parsed)[0]
+
