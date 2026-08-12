@@ -273,15 +273,15 @@ async def _proxy_to_frontend(request: Request, path: str = ""):
 
 # Specific frontend routes (not catch-all to avoid conflicts with API routes)
 @app.get("/")
-async def serve_root(request: Request):
-    """Serve frontend root."""
-    return await _proxy_to_frontend(request, "")
+async def serve_root():
+    """Return a simple health check response (avoids proxy loop with frontend)."""
+    return {"status": "ok"}
 
 
 @app.get("/favicon.ico", include_in_schema=False)
-async def favicon(request: Request):
-    """Proxy favicon requests to frontend."""
-    return await _proxy_to_frontend(request, "favicon.ico")
+async def favicon():
+    """Return 204 No Content for favicon requests (avoids proxy loop with frontend)."""
+    return Response(status_code=204)
 
 
 @app.get("/assets/{path:path}")
