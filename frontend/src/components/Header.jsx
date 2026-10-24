@@ -118,17 +118,18 @@ export default function Header({
             onChange={handleChange}
             aria-label={mode === "tv" ? "Search channels" : "Search stations"}
           />
+          <button
+            type="button"
+            className="ai-search-btn ai-search-btn--inline"
+            onClick={onOpenAISearch}
+            aria-label="Search with AI instead"
+            title="Search with AI instead"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+              <path d="M12 2L14.09 8.26L20 9.27L15.55 13.97L16.91 20L12 16.9L7.09 20L8.45 13.97L4 9.27L9.91 8.26L12 2Z" fill="currentColor" />
+            </svg>
+          </button>
         </div>
-        <button
-          className="ai-search-btn"
-          onClick={onOpenAISearch}
-          aria-label="AI Search"
-          title="Search with AI"
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-            <path d="M12 2L14.09 8.26L20 9.27L15.55 13.97L16.91 20L12 16.9L7.09 20L8.45 13.97L4 9.27L9.91 8.26L12 2Z" fill="currentColor" />
-          </svg>
-        </button>
         <button
           className="whats-new-btn"
           onClick={onOpenWhatsNew}
