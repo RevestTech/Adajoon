@@ -11,6 +11,7 @@ import AdminDashboard from "./components/AdminDashboard";
 import GuestNoticeToast from "./components/GuestNoticeToast";
 import FavoritesView from "./components/FavoritesView";
 import RecentlyPlayed from "./components/RecentlyPlayed";
+import ForYouRow from "./components/ForYouRow";
 import BackToTop from "./components/BackToTop";
 import InstallPrompt from "./components/InstallPrompt";
 import AISearchModal from "./components/AISearchModal";
@@ -44,6 +45,7 @@ import {
 } from "./utils/guestSession";
 import { hasUnseenWhatsNew, markWhatsNewSeen } from "./utils/whatsNewSeen";
 import { LATEST_VERSION } from "./data/whatsNew";
+import { analytics } from "./analytics";
 
 const LandingPage = lazy(() => import("./components/LandingPage"));
 const RadioGardenMap = lazy(() => import("./components/RadioGardenMap"));
@@ -271,6 +273,7 @@ export default function App() {
     if (selectedChannel) {
       setTvModalOpen(true);
       addRecent("tv", selectedChannel);
+      analytics.trackPlay("tv", selectedChannel);
     }
   }, [selectedChannel, addRecent]);
 
@@ -864,6 +867,9 @@ export default function App() {
         <main className={`main-content${showDockedPlayer ? " main-content--mini-player" : ""}`}>
           {showRecentRow && (
             <RecentlyPlayed recentItems={recentItems} onSelect={handleRecentSelect} />
+          )}
+          {showRecentRow && mode === "tv" && activeCategories.length === 0 && activeCountries.length === 0 && activeQualities.length === 0 && (
+            <ForYouRow onSelect={openTvPlayer} />
           )}
           {notFound ? (
             <div className="not-found-view">
