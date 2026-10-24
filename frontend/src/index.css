@@ -6957,3 +6957,14 @@ button:focus-visible {
     width: 100px;
   }
 }
+
+.for-you-row {
+  border-top: none;
+  margin-bottom: 16px;
+}
+
+.for-you-row .similar-rail-title {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
