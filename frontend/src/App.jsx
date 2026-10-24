@@ -26,6 +26,7 @@ import { useDevice } from "./hooks/useDevice";
 import { useTVNavigation } from "./hooks/useTVNavigation";
 import { useSessionTracking } from "./hooks/useSessionTracking";
 import { useNavigationTracking } from "./hooks/useNavigationTracking";
+import useTheme from "./hooks/useTheme";
 import {
   readUrlParams,
   writeUrlParams,
@@ -139,6 +140,7 @@ export default function App() {
 
   const auth = useAuth();
   const isGuest = !auth.user;
+  const { theme, toggleTheme } = useTheme();
 
   useSessionTracking();
 
@@ -799,6 +801,8 @@ export default function App() {
         onOpenAdmin={() => setShowAdminDashboard(true)}
         onOpenWhatsNew={() => setShowWhatsNew(true)}
         hasUnseenWhatsNew={unseenWhatsNew}
+        theme={theme}
+        onToggleTheme={toggleTheme}
       />
       {sidebarOpen && <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} />}
       <div className="layout">
