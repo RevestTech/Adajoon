@@ -1177,8 +1177,12 @@ body {
 }
 
 @keyframes ai-slide-up {
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
+  /* pointer-events stays "none" for nearly the whole animation (it's a
+     discrete, not interpolated, property) so a click aimed at a chip's
+     final resting position can't land on the still-animating modal and
+     bubble through to the overlay's close-on-backdrop-click handler. */
+  from { opacity: 0; transform: translateY(20px); pointer-events: none; }
+  to { opacity: 1; transform: translateY(0); pointer-events: auto; }
 }
 
 .ai-search-header {
