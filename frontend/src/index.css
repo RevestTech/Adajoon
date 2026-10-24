@@ -2102,6 +2102,30 @@ body {
   height: 7px;
 }
 
+.tv-guide-btn {
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px 14px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.15s;
+}
+
+.tv-guide-btn:hover:not(:disabled) {
+  color: var(--text-primary);
+  border-color: var(--accent);
+}
+
+.tv-guide-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .view-toggle {
   display: flex;
   gap: 2px;
@@ -6592,5 +6616,224 @@ button:focus-visible {
 
   .install-prompt-actions {
     justify-content: flex-end;
+  }
+}
+
+/* TV Guide grid */
+.epg-grid-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.epg-grid-modal {
+  width: 100%;
+  max-width: 980px;
+  height: 100%;
+  max-height: 720px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.epg-grid-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.epg-grid-header h2 {
+  margin: 0;
+  font-size: 16px;
+  color: var(--text-primary);
+  flex-shrink: 0;
+}
+
+.epg-grid-nav {
+  display: flex;
+  gap: 8px;
+  flex: 1;
+}
+
+.epg-grid-nav button {
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.epg-grid-nav button:hover {
+  color: var(--text-primary);
+  border-color: var(--accent);
+}
+
+.epg-grid-close {
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 20px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.epg-grid-close:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.epg-grid-timebar {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  background: var(--bg-primary);
+}
+
+.epg-grid-timebar-spacer {
+  width: 160px;
+  flex-shrink: 0;
+}
+
+.epg-grid-timebar-marks {
+  position: relative;
+  flex: 1;
+  height: 28px;
+}
+
+.epg-grid-timemark {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 6px 0;
+  white-space: nowrap;
+}
+
+.epg-grid-error {
+  padding: 12px 20px;
+  color: #ff8a9a;
+  font-size: 13px;
+}
+
+.epg-grid-body {
+  flex: 1;
+  overflow-y: auto;
+  position: relative;
+}
+
+.epg-grid-now-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--accent);
+  z-index: 1;
+  pointer-events: none;
+}
+
+.epg-grid-row {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  min-height: 52px;
+}
+
+.epg-grid-channel {
+  width: 160px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+  text-align: left;
+}
+
+.epg-grid-channel:hover {
+  background: var(--bg-hover);
+}
+
+.epg-grid-channel-logo {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  object-fit: contain;
+  flex-shrink: 0;
+  background: var(--bg-card);
+}
+
+.epg-grid-channel-logo--placeholder {
+  background: var(--bg-card);
+}
+
+.epg-grid-channel-name {
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.epg-grid-timeline {
+  position: relative;
+  flex: 1;
+}
+
+.epg-grid-programme {
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  font-size: 12px;
+  padding: 0 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.epg-grid-programme:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: var(--accent);
+}
+
+.epg-grid-noinfo {
+  position: absolute;
+  left: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+@media (max-width: 640px) {
+  .epg-grid-timebar-spacer,
+  .epg-grid-channel {
+    width: 100px;
   }
 }
