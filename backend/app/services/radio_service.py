@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import math
 import random
@@ -9,7 +10,9 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import RadioStation
+from app.redis_client import cache_get, cache_set
 from app.schemas import MapBboxResponse, MapCluster, MapStationPin, RadioSearchParams
+from app.services.icy_service import fetch_icy_title
 from app.services.status_filters import apply_status_filters
 
 logger = logging.getLogger(__name__)
@@ -23,6 +26,9 @@ MAP_MAX_LIMIT = 2000
 MAP_RIDE_NEAR_CANDIDATES = 40
 MAP_NEARBY_DEFAULT_LIMIT = 6
 MAP_NEARBY_MAX_LIMIT = 20
+NOW_PLAYING_CACHE_TTL = 90
+NOW_PLAYING_BATCH_CONCURRENCY = 8
+NOW_PLAYING_BATCH_MAX = 40
 
 
 def _geo_to_str(value: Any) -> str:
@@ -253,6 +259,50 @@ def get_radio_tags(limit: int = 60):
 async def get_station_by_id(db: AsyncSession, station_id: str):
     result = await db.execute(select(RadioStation).where(RadioStation.id == station_id))
     return result.scalar_one_or_none()
+
+
+async def get_now_playing_batch(
+    db: AsyncSession, station_ids: list[str]
+) -> dict[str, str]:
+    """Current track title per station, for a page of visible station cards.
+    Bounded to NOW_PLAYING_BATCH_MAX stations and NOW_PLAYING_BATCH_CONCURRENCY
+    concurrent ICY fetches - this hits third-party stream servers directly,
+    so it must stay small and polite regardless of catalog size. Cached per
+    station (including "nothing found") so repeated calls across users don't
+    refetch the same station within the TTL window."""
+    ids = station_ids[:NOW_PLAYING_BATCH_MAX]
+    if not ids:
+        return {}
+
+    results: dict[str, str] = {}
+    to_fetch: list[str] = []
+
+    for sid in ids:
+        cached = await cache_get(f"now_playing:{sid}")
+        if cached is not None:
+            if cached:
+                results[sid] = cached
+        else:
+            to_fetch.append(sid)
+
+    if to_fetch:
+        stmt = select(RadioStation).where(RadioStation.id.in_(to_fetch))
+        stations = (await db.execute(stmt)).scalars().all()
+        semaphore = asyncio.Semaphore(NOW_PLAYING_BATCH_CONCURRENCY)
+
+        async def fetch_one(station: RadioStation) -> None:
+            async with semaphore:
+                url = station.url_resolved or station.url
+                title = await fetch_icy_title(url)
+                await cache_set(
+                    f"now_playing:{station.id}", title or "", ttl=NOW_PLAYING_CACHE_TTL
+                )
+                if title:
+                    results[station.id] = title
+
+        await asyncio.gather(*(fetch_one(s) for s in stations))
+
+    return results
 
 
 async def get_radio_countries(db: AsyncSession):

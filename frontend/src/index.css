@@ -725,6 +725,69 @@ body {
   pointer-events: none;
 }
 
+.trending-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 50;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  padding: 8px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.trending-dropdown-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  padding: 4px 8px 8px;
+}
+
+.trending-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.trending-dropdown-item:hover {
+  background: var(--bg-hover);
+}
+
+.trending-dropdown-logo {
+  width: 24px;
+  height: 24px;
+  border-radius: 5px;
+  object-fit: contain;
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.trending-dropdown-logo--placeholder {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.trending-dropdown-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ── World Map ── */
 .map-container {
   display: flex;
@@ -6918,4 +6981,29 @@ button:focus-visible {
   .epg-grid-channel {
     width: 100px;
   }
+}
+
+.now-playing-text {
+  font-size: 11px;
+  color: var(--accent);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin: 2px 0 0;
+}
+
+.now-playing-text--inline {
+  display: block;
+  font-size: 12px;
+}
+
+.for-you-row {
+  border-top: none;
+  margin-bottom: 16px;
+}
+
+.for-you-row .similar-rail-title {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }

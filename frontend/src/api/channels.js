@@ -56,3 +56,16 @@ export async function runHealthCheck(channelId) {
   if (!res.ok) throw new Error("Health check failed");
   return res.json();
 }
+
+/**
+ * Channels in the category this browser session watches the most, for a
+ * "For You" row - no login required.
+ * @param {string} sessionId
+ * @param {number} [limit=10]
+ */
+export async function fetchForYou(sessionId, limit = 10) {
+  const params = new URLSearchParams({ session_id: sessionId, limit: String(limit) });
+  const res = await fetch(`${BASE}/channels/for-you?${params}`);
+  if (!res.ok) throw new Error("Failed to fetch For You channels");
+  return res.json();
+}

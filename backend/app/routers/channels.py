@@ -4,10 +4,17 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.schemas import ChannelOut, ChannelSearchParams, PaginatedChannels, StreamOut
+from app.schemas import (
+    ChannelOut,
+    ChannelSearchParams,
+    ForYouResponse,
+    PaginatedChannels,
+    StreamOut,
+)
 from app.services.channel_service import (
     get_channel_by_id,
     get_channel_streams,
+    get_for_you_channels,
     search_channels,
 )
 
@@ -45,6 +52,20 @@ async def list_channels(
         page=page,
         per_page=per_page,
         total_pages=math.ceil(total / per_page) if total else 0,
+    )
+
+
+@router.get("/for-you", response_model=ForYouResponse)
+async def for_you(
+    session_id: str = Query(..., description="Client analytics session id"),
+    limit: int = Query(10, ge=1, le=20),
+    db: AsyncSession = Depends(get_db),
+):
+    """Channels in the category this browser session watches the most, for
+    a "For You" row - no login required."""
+    channels, category = await get_for_you_channels(db, session_id, limit=limit)
+    return ForYouResponse(
+        channels=[ChannelOut.model_validate(c) for c in channels], category=category
     )
 
 

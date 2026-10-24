@@ -18,8 +18,10 @@ from app.services.radio_service import (
     MAP_MAX_LIMIT,
     MAP_NEARBY_DEFAULT_LIMIT,
     MAP_NEARBY_MAX_LIMIT,
+    NOW_PLAYING_BATCH_MAX,
     get_map_bbox,
     get_nearby_stations,
+    get_now_playing_batch,
     get_radio_countries,
     get_ride_station,
     get_station_by_id,
@@ -113,6 +115,23 @@ async def list_radio_tags():
     Returns a static curated list for performance.
     """
     return STATIC_TAGS
+
+
+@router.get("/now-playing-batch")
+async def radio_now_playing_batch(
+    station_ids: str = Query(..., description="Comma-separated station ids"),
+    db: AsyncSession = Depends(get_db),
+):
+    """Current track title for a page of visible station cards, fetched
+    live from each station's ICY in-band metadata. Bounded, cached, and
+    best-effort - most stations simply don't expose this and are omitted
+    from the result rather than erroring."""
+    ids = [s.strip() for s in station_ids.split(",") if s.strip()][
+        :NOW_PLAYING_BATCH_MAX
+    ]
+    if not ids:
+        return {}
+    return await get_now_playing_batch(db, ids)
 
 
 @router.get("/countries", response_model=list[RadioCountryOut])

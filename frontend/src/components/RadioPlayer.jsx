@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import FeedbackBar from "./FeedbackBar";
 import SimilarItemsRail from "./SimilarItemsRail";
-import { fetchStation } from "../api/radio";
+import { fetchStation, fetchNowPlayingBatch } from "../api/radio";
 import { useShare } from "../hooks/useShare";
+
+const NOW_PLAYING_POLL_MS = 60000;
 
 export default function RadioPlayer({
   station,
@@ -25,10 +27,30 @@ export default function RadioPlayer({
   const [errorMsg, setErrorMsg] = useState("");
   const [retryCount, setRetryCount] = useState(0);
   const [shareToast, setShareToast] = useState("");
+  const [nowPlaying, setNowPlaying] = useState("");
   const { shareRadioStation } = useShare();
   const stallTimeoutRef = useRef(null);
 
   const streamUrl = station.url_resolved || station.url;
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = () => {
+      fetchNowPlayingBatch([station.id])
+        .then((data) => {
+          if (!cancelled) setNowPlaying(data?.[station.id] || "");
+        })
+        .catch(() => {
+          if (!cancelled) setNowPlaying("");
+        });
+    };
+    load();
+    const interval = setInterval(load, NOW_PLAYING_POLL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [station.id]);
 
   useEffect(() => {
     const audio = audioRef?.current;
@@ -120,6 +142,9 @@ export default function RadioPlayer({
         <div className="modal-header">
           <div>
             <h3 id="radio-player-title">{station.name}</h3>
+            {nowPlaying && (
+              <p className="now-playing-text" title={nowPlaying}>{nowPlaying}</p>
+            )}
             <span className="radio-player-meta">
               {station.country}
               {station.language && ` · ${station.language}`}

@@ -1,7 +1,11 @@
+import { useEffect, useState } from "react";
 import ViewToggle from "./ViewToggle";
 import VoteIndicator from "./VoteIndicator";
 import { RADIO_COLLECTIONS } from "../data/radioCollections";
 import { handleCardKey } from "../utils/keyboardNav";
+import { fetchNowPlayingBatch } from "../api/radio";
+
+const NOW_PLAYING_POLL_MS = 60000;
 
 const GUEST_LIMIT = 20;
 
@@ -113,6 +117,33 @@ export default function RadioGrid({
 }) {
   const hasFilters = activeTags.length > 0 || activeCountries.length > 0 || search || showFavorites || activeQualities.length > 0;
   const showSkeleton = loading && stations.length === 0;
+
+  const visibleStations = isGuest ? stations.slice(0, GUEST_LIMIT) : stations;
+  const [nowPlaying, setNowPlaying] = useState({});
+  const visibleIdsKey = visibleStations.map((st) => st.id).join(",");
+  useEffect(() => {
+    let cancelled = false;
+    const ids = visibleIdsKey ? visibleIdsKey.split(",") : [];
+    if (ids.length === 0) {
+      setNowPlaying({});
+      return undefined;
+    }
+    const load = () => {
+      fetchNowPlayingBatch(ids)
+        .then((data) => {
+          if (!cancelled) setNowPlaying(data || {});
+        })
+        .catch(() => {
+          if (!cancelled) setNowPlaying({});
+        });
+    };
+    load();
+    const interval = setInterval(load, NOW_PLAYING_POLL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [visibleIdsKey]);
 
   if (showSkeleton) {
     const SkeletonEl = viewMode === "list" ? "skeleton-row" : viewMode === "thumb" ? "skeleton-thumb" : "skeleton-card";
@@ -333,7 +364,7 @@ export default function RadioGrid({
         ) : (
           <>
             <div className={viewMode === "list" ? "channel-list" : viewMode === "thumb" ? "thumb-grid" : "channel-grid"}>
-              {(isGuest ? stations.slice(0, GUEST_LIMIT) : stations).map((st) => {
+              {visibleStations.map((st) => {
                 const props = {
                   key: st.id,
                   station: st,
@@ -347,6 +378,7 @@ export default function RadioGrid({
                     : (e) => { e.stopPropagation(); onToggleFavorite(st); },
                   isGuest,
                   voteSummary: getVoteSummary ? getVoteSummary(st.id) : {},
+                  nowPlaying: nowPlaying[st.id],
                 };
                 if (viewMode === "list") return <RadioRow {...props} />;
                 if (viewMode === "thumb") return <RadioThumb {...props} />;
@@ -397,7 +429,7 @@ function GuestBanner({ onLogin, total, type }) {
   );
 }
 
-function RadioCard({ station, onClick, favorited, onToggleFavorite, isGuest, voteSummary }) {
+function RadioCard({ station, onClick, favorited, onToggleFavorite, isGuest, voteSummary, nowPlaying }) {
   const tags = station.tags ? station.tags.split(",").map((t) => t.trim()).filter(Boolean) : [];
   const streamStatus = getRadioStreamStatus(station);
 
@@ -462,6 +494,9 @@ function RadioCard({ station, onClick, favorited, onToggleFavorite, isGuest, vot
       <div className="channel-name" title={station.name}>
         {station.name}
       </div>
+      {nowPlaying && (
+        <div className="now-playing-text" title={nowPlaying}>{nowPlaying}</div>
+      )}
       <div className="channel-meta">
         {station.country_code && (
           <span className="channel-tag">{station.country_code}</span>
@@ -482,7 +517,7 @@ function RadioCard({ station, onClick, favorited, onToggleFavorite, isGuest, vot
   );
 }
 
-function RadioRow({ station, onClick, favorited, onToggleFavorite, isGuest, voteSummary }) {
+function RadioRow({ station, onClick, favorited, onToggleFavorite, isGuest, voteSummary, nowPlaying }) {
   const tags = station.tags ? station.tags.split(",").map((t) => t.trim()).filter(Boolean) : [];
   const streamStatus = getRadioStreamStatus(station);
 
@@ -520,6 +555,9 @@ function RadioRow({ station, onClick, favorited, onToggleFavorite, isGuest, vote
       </div>
       <div className="list-row-info">
         <span className="list-row-name">{station.name}</span>
+        {nowPlaying && (
+          <span className="now-playing-text now-playing-text--inline" title={nowPlaying}>{nowPlaying}</span>
+        )}
         <div className="list-row-tags">
           {station.country_code && <span className="channel-tag">{station.country_code}</span>}
           {tags.slice(0, 3).map((t) => (
@@ -562,7 +600,7 @@ function RadioRow({ station, onClick, favorited, onToggleFavorite, isGuest, vote
   );
 }
 
-function RadioThumb({ station, onClick, favorited, onToggleFavorite, isGuest, voteSummary }) {
+function RadioThumb({ station, onClick, favorited, onToggleFavorite, isGuest, voteSummary, nowPlaying }) {
   const tags = station.tags ? station.tags.split(",").map((t) => t.trim()).filter(Boolean) : [];
   const streamStatus = getRadioStreamStatus(station);
 
