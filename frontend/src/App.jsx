@@ -13,6 +13,7 @@ import FavoritesView from "./components/FavoritesView";
 import RecentlyPlayed from "./components/RecentlyPlayed";
 import BackToTop from "./components/BackToTop";
 import AISearchModal from "./components/AISearchModal";
+import WhatsNewModal from "./components/WhatsNewModal";
 import WorldMap from "./components/WorldMap";
 import TVDebugInfo from "./components/TVDebugInfo";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -39,6 +40,8 @@ import {
   setSkippedGuestLogin,
   clearSkippedGuestLogin,
 } from "./utils/guestSession";
+import { hasUnseenWhatsNew, markWhatsNewSeen } from "./utils/whatsNewSeen";
+import { LATEST_VERSION } from "./data/whatsNew";
 
 const LandingPage = lazy(() => import("./components/LandingPage"));
 const RadioGardenMap = lazy(() => import("./components/RadioGardenMap"));
@@ -711,9 +714,19 @@ export default function App() {
 
   // AI Search state
   const [showAISearch, setShowAISearch] = useState(false);
-  
+
   // Admin dashboard state
   const [showAdminDashboard, setShowAdminDashboard] = useState(false);
+
+  // What's New state
+  const [showWhatsNew, setShowWhatsNew] = useState(false);
+  const [unseenWhatsNew, setUnseenWhatsNew] = useState(() => hasUnseenWhatsNew(LATEST_VERSION));
+
+  const handleCloseWhatsNew = useCallback(() => {
+    setShowWhatsNew(false);
+    markWhatsNewSeen(LATEST_VERSION);
+    setUnseenWhatsNew(false);
+  }, []);
 
   const handleAISelect = useCallback((item) => {
     if (mode === "tv") {
@@ -783,6 +796,8 @@ export default function App() {
         onGuestNotice={onGuestNotice}
         onOpenAISearch={() => setShowAISearch(true)}
         onOpenAdmin={() => setShowAdminDashboard(true)}
+        onOpenWhatsNew={() => setShowWhatsNew(true)}
+        hasUnseenWhatsNew={unseenWhatsNew}
       />
       {sidebarOpen && <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} />}
       <div className="layout">
@@ -1050,6 +1065,11 @@ export default function App() {
         <AdminDashboard
           onClose={() => setShowAdminDashboard(false)}
         />
+      )}
+      {showWhatsNew && (
+        <ErrorBoundary compact compactMessage="What's New failed to load.">
+          <WhatsNewModal onClose={handleCloseWhatsNew} />
+        </ErrorBoundary>
       )}
       <BackToTop />
       <TVDebugInfo />

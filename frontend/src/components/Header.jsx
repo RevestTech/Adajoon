@@ -9,6 +9,7 @@ export default function Header({
   showFavorites, onToggleFavorites, favoritesCount, isGuest, onGuestNotice,
   onOpenAISearch,
   onOpenAdmin,
+  onOpenWhatsNew, hasUnseenWhatsNew,
 }) {
   const [localSearch, setLocalSearch] = useState(search);
   const debounceRef = useRef(null);
@@ -129,6 +130,18 @@ export default function Header({
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
             <path d="M12 2L14.09 8.26L20 9.27L15.55 13.97L16.91 20L12 16.9L7.09 20L8.45 13.97L4 9.27L9.91 8.26L12 2Z" fill="currentColor" />
           </svg>
+        </button>
+        <button
+          className="whats-new-btn"
+          onClick={onOpenWhatsNew}
+          aria-label="What's new"
+          title="What's new"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M20.59 13.41 13.41 20.59a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82Z" />
+            <circle cx="7" cy="7" r="1" fill="currentColor" stroke="none" />
+          </svg>
+          {hasUnseenWhatsNew && <span className="whats-new-dot" aria-hidden="true" />}
         </button>
       </div>
       <div className="header-user">

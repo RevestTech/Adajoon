@@ -176,10 +176,11 @@ async def get_user_stats(
             User.email,
             User.name,
             User.created_at,
+            User.last_login_at,
             func.count(UserFavorite.id).label("favorites_count"),
         )
         .join(UserFavorite, User.id == UserFavorite.user_id, isouter=True)
-        .group_by(User.id, User.email, User.name, User.created_at)
+        .group_by(User.id, User.email, User.name, User.created_at, User.last_login_at)
         .order_by(func.count(UserFavorite.id).desc())
         .limit(10)
     )
@@ -188,6 +189,9 @@ async def get_user_stats(
             "email": row.email,
             "name": row.name,
             "joined": row.created_at.isoformat() if row.created_at else None,
+            "last_accessed": (
+                row.last_login_at.isoformat() if row.last_login_at else None
+            ),
             "favorites_count": row.favorites_count,
         }
         for row in top_users

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { authenticatedFetch } from "../utils/csrf";
+import { WHATS_NEW, formatReleaseDate } from "../data/whatsNew";
 
 export default function AdminDashboard({ onClose }) {
   const [loading, setLoading] = useState(true);
@@ -171,6 +172,12 @@ export default function AdminDashboard({ onClose }) {
           >
             Analytics
           </button>
+          <button
+            className={`admin-tab ${activeTab === "releases" ? "active" : ""}`}
+            onClick={() => setActiveTab("releases")}
+          >
+            Releases
+          </button>
         </div>
 
         {(activeTab === "users" || activeTab === "activity" || activeTab === "analytics") && (
@@ -304,6 +311,7 @@ export default function AdminDashboard({ onClose }) {
                         <th>Email</th>
                         <th>Name</th>
                         <th>Joined</th>
+                        <th>Last Accessed</th>
                         <th>Favorites</th>
                       </tr>
                     </thead>
@@ -313,6 +321,7 @@ export default function AdminDashboard({ onClose }) {
                           <td>{user.email}</td>
                           <td>{user.name || "—"}</td>
                           <td>{user.joined ? new Date(user.joined).toLocaleDateString() : "—"}</td>
+                          <td>{user.last_accessed ? new Date(user.last_accessed).toLocaleDateString() : "—"}</td>
                           <td>{user.favorites_count}</td>
                         </tr>
                       ))}
@@ -643,6 +652,24 @@ export default function AdminDashboard({ onClose }) {
                   </table>
                 </div>
               </div>
+            </div>
+          )}
+
+          {activeTab === "releases" && (
+            <div className="admin-releases">
+              {WHATS_NEW.map((release) => (
+                <div key={release.version} className="admin-section">
+                  <h2>
+                    v{release.version}
+                    <span className="admin-release-date">{formatReleaseDate(release.date)}</span>
+                  </h2>
+                  <ul className="admin-release-highlights">
+                    {release.highlights.map((h, i) => (
+                      <li key={i}>{h}</li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
             </div>
           )}
         </div>
