@@ -32,13 +32,17 @@ def upgrade() -> None:
     # Each column's existing string DEFAULT (e.g. '') must be dropped before
     # the type change - Postgres tries to cast the default expression too,
     # and '' can't be cast to timestamptz any more than a real row value can.
+    # Cast the input through ::text first - on a DB where these columns are
+    # already TIMESTAMPTZ (e.g. created fresh via create_all before this
+    # migration ever ran), comparing the bare column to '' would otherwise
+    # coerce '' to timestamptz at plan time and fail regardless of branch.
     op.execute("ALTER TABLE channels ALTER COLUMN updated_at DROP DEFAULT;")
     op.execute("""
         ALTER TABLE channels
         ALTER COLUMN updated_at TYPE TIMESTAMPTZ
         USING CASE
-            WHEN updated_at = '' OR updated_at IS NULL THEN NULL
-            ELSE updated_at::timestamptz
+            WHEN updated_at::text = '' OR updated_at IS NULL THEN NULL
+            ELSE updated_at::text::timestamptz
         END;
     """)
 
@@ -47,8 +51,8 @@ def upgrade() -> None:
         ALTER TABLE channels
         ALTER COLUMN health_checked_at TYPE TIMESTAMPTZ
         USING CASE
-            WHEN health_checked_at = '' OR health_checked_at IS NULL THEN NULL
-            ELSE health_checked_at::timestamptz
+            WHEN health_checked_at::text = '' OR health_checked_at IS NULL THEN NULL
+            ELSE health_checked_at::text::timestamptz
         END;
     """)
 
@@ -57,8 +61,8 @@ def upgrade() -> None:
         ALTER TABLE channels
         ALTER COLUMN last_validated_at TYPE TIMESTAMPTZ
         USING CASE
-            WHEN last_validated_at = '' OR last_validated_at IS NULL THEN NULL
-            ELSE last_validated_at::timestamptz
+            WHEN last_validated_at::text = '' OR last_validated_at IS NULL THEN NULL
+            ELSE last_validated_at::text::timestamptz
         END;
     """)
 
@@ -70,8 +74,8 @@ def upgrade() -> None:
         ALTER TABLE radio_stations
         ALTER COLUMN health_checked_at TYPE TIMESTAMPTZ
         USING CASE
-            WHEN health_checked_at = '' OR health_checked_at IS NULL THEN NULL
-            ELSE health_checked_at::timestamptz
+            WHEN health_checked_at::text = '' OR health_checked_at IS NULL THEN NULL
+            ELSE health_checked_at::text::timestamptz
         END;
     """)
 
@@ -81,8 +85,8 @@ def upgrade() -> None:
         ALTER TABLE streams
         ALTER COLUMN added_at TYPE TIMESTAMPTZ
         USING CASE
-            WHEN added_at = '' OR added_at IS NULL THEN NULL
-            ELSE added_at::timestamptz
+            WHEN added_at::text = '' OR added_at IS NULL THEN NULL
+            ELSE added_at::text::timestamptz
         END;
     """)
 
