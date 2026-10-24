@@ -43,12 +43,12 @@ export async function fetchRadioTags() {
   try {
     const res = await fetch(`${BASE}/tags`);
     if (!res.ok) {
-      // Silent fallback - no console noise
+      console.warn(`fetchRadioTags: /tags returned ${res.status}, using fallback tags`);
       return FALLBACK_TAGS;
     }
     return res.json();
   } catch (error) {
-    // Silent fallback - no console noise
+    console.warn("fetchRadioTags: request failed, using fallback tags", error);
     return FALLBACK_TAGS;
   }
 }

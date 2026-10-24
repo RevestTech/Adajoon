@@ -15,6 +15,7 @@ import BackToTop from "./components/BackToTop";
 import AISearchModal from "./components/AISearchModal";
 import WorldMap from "./components/WorldMap";
 import TVDebugInfo from "./components/TVDebugInfo";
+import ErrorBoundary from "./components/ErrorBoundary";
 import useFavorites, { useRadioFavorites } from "./hooks/useFavorites";
 import useRecentlyPlayed from "./hooks/useRecentlyPlayed";
 import { useAuth } from "./hooks/useAuth";
@@ -787,21 +788,23 @@ export default function App() {
                   Radio Stations
                 </button>
               </div>
-              {mapSubMode === "radio" ? (
-                <Suspense fallback={<div className="radio-garden-map" aria-busy="true" />}>
-                  <RadioGardenMap onSelect={handleSelectStation} />
-                </Suspense>
-              ) : (
-                <WorldMap
-                  mode="tv"
-                  countries={countries}
-                  radioCountries={radioCountries}
-                  activeCountries={activeCountries}
-                  onSelectCountry={handleMapCountrySelect}
-                  onSelectChannel={(ch) => { setMode("tv"); openTvPlayer(ch); }}
-                  onSelectStation={(st) => { setMode("radio"); handleSelectStation(st); }}
-                />
-              )}
+              <ErrorBoundary compact compactMessage="The map failed to load.">
+                {mapSubMode === "radio" ? (
+                  <Suspense fallback={<div className="radio-garden-map" aria-busy="true" />}>
+                    <RadioGardenMap onSelect={handleSelectStation} />
+                  </Suspense>
+                ) : (
+                  <WorldMap
+                    mode="tv"
+                    countries={countries}
+                    radioCountries={radioCountries}
+                    activeCountries={activeCountries}
+                    onSelectCountry={handleMapCountrySelect}
+                    onSelectChannel={(ch) => { setMode("tv"); openTvPlayer(ch); }}
+                    onSelectStation={(st) => { setMode("radio"); handleSelectStation(st); }}
+                  />
+                )}
+              </ErrorBoundary>
             </div>
           ) : mode === "tv" ? (
             <ChannelGrid
@@ -949,11 +952,13 @@ export default function App() {
         </Suspense>
       )}
       {showAISearch && (
-        <AISearchModal
-          mode={mode === "map" ? (mapSubMode || "tv") : mode}
-          onSelect={handleAISelect}
-          onClose={() => setShowAISearch(false)}
-        />
+        <ErrorBoundary compact compactMessage="AI search failed to load.">
+          <AISearchModal
+            mode={mode === "map" ? (mapSubMode || "tv") : mode}
+            onSelect={handleAISelect}
+            onClose={() => setShowAISearch(false)}
+          />
+        </ErrorBoundary>
       )}
       {showAdminDashboard && (
         <AdminDashboard

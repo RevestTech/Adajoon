@@ -21,7 +21,11 @@ RUN pip install --no-cache-dir --no-index --find-links=/wheels -r requirements.t
 
 COPY . .
 
-RUN chmod +x start.sh
+RUN chmod +x start.sh && \
+    groupadd -r appuser && useradd -r -g appuser -d /app -s /usr/sbin/nologin appuser && \
+    chown -R appuser:appuser /app
+
+USER appuser
 
 EXPOSE 8000
 

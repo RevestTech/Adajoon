@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 
 import httpx
 
-from sqlalchemy import select, func, delete
+from sqlalchemy import select, func, delete, case
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
@@ -25,9 +25,11 @@ async def fetch_json(url: str) -> list[dict]:
 async def sync_categories(db: AsyncSession) -> int:
     data = await fetch_json(f"{API}/categories.json")
     for item in data:
-        stmt = pg_insert(Category).values(
-            id=item["id"], name=item["name"]
-        ).on_conflict_do_update(index_elements=["id"], set_={"name": item["name"]})
+        stmt = (
+            pg_insert(Category)
+            .values(id=item["id"], name=item["name"])
+            .on_conflict_do_update(index_elements=["id"], set_={"name": item["name"]})
+        )
         await db.execute(stmt)
     await db.commit()
     logger.info("Synced %d categories", len(data))
@@ -37,11 +39,13 @@ async def sync_categories(db: AsyncSession) -> int:
 async def sync_countries(db: AsyncSession) -> int:
     data = await fetch_json(f"{API}/countries.json")
     for item in data:
-        stmt = pg_insert(Country).values(
-            code=item["code"], name=item["name"], flag=item.get("flag", "")
-        ).on_conflict_do_update(
-            index_elements=["code"],
-            set_={"name": item["name"], "flag": item.get("flag", "")},
+        stmt = (
+            pg_insert(Country)
+            .values(code=item["code"], name=item["name"], flag=item.get("flag", ""))
+            .on_conflict_do_update(
+                index_elements=["code"],
+                set_={"name": item["name"], "flag": item.get("flag", "")},
+            )
         )
         await db.execute(stmt)
     await db.commit()
@@ -52,9 +56,11 @@ async def sync_countries(db: AsyncSession) -> int:
 async def sync_languages(db: AsyncSession) -> int:
     data = await fetch_json(f"{API}/languages.json")
     for item in data:
-        stmt = pg_insert(Language).values(
-            code=item["code"], name=item["name"]
-        ).on_conflict_do_update(index_elements=["code"], set_={"name": item["name"]})
+        stmt = (
+            pg_insert(Language)
+            .values(code=item["code"], name=item["name"])
+            .on_conflict_do_update(index_elements=["code"], set_={"name": item["name"]})
+        )
         await db.execute(stmt)
     await db.commit()
     logger.info("Synced %d languages", len(data))
@@ -65,7 +71,7 @@ async def sync_channels(db: AsyncSession) -> int:
     data = await fetch_json(f"{API}/channels.json")
     now = datetime.now(timezone.utc)
     insert_batch_size = 500
-    
+
     # Prepare all values first
     values_batch = []
     for item in data:
@@ -73,33 +79,35 @@ async def sync_channels(db: AsyncSession) -> int:
         cat_id = cats[0] if cats else None
         langs = item.get("languages", [])
 
-        values_batch.append({
-            "id": item["id"],
-            "name": item["name"],
-            "alt_names": ";".join(item.get("alt_names", [])),
-            "network": item.get("network", "") or "",
-            "country_code": item.get("country", "") or "",
-            "subdivision": item.get("subdivision", "") or "",
-            "city": item.get("city", "") or "",
-            "categories": ";".join(cats),
-            "category_id": cat_id,
-            "is_nsfw": item.get("is_nsfw", False),
-            "launched": item.get("launched", "") or "",
-            "closed": item.get("closed", "") or "",
-            "website": item.get("website", "") or "",
-            "logo": item.get("logo", "") or "",
-            "languages": ";".join(langs),
-            "is_active": not bool(item.get("closed")),
-            "updated_at": now,
-        })
-    
+        values_batch.append(
+            {
+                "id": item["id"],
+                "name": item["name"],
+                "alt_names": ";".join(item.get("alt_names", [])),
+                "network": item.get("network", "") or "",
+                "country_code": item.get("country", "") or "",
+                "subdivision": item.get("subdivision", "") or "",
+                "city": item.get("city", "") or "",
+                "categories": ";".join(cats),
+                "category_id": cat_id,
+                "is_nsfw": item.get("is_nsfw", False),
+                "launched": item.get("launched", "") or "",
+                "closed": item.get("closed", "") or "",
+                "website": item.get("website", "") or "",
+                "logo": item.get("logo", "") or "",
+                "languages": ";".join(langs),
+                "is_active": not bool(item.get("closed")),
+                "updated_at": now,
+            }
+        )
+
     # Process in chunks
     count = 0
     for i in range(0, len(values_batch), insert_batch_size):
-        chunk = values_batch[i:i + insert_batch_size]
+        chunk = values_batch[i : i + insert_batch_size]
         if not chunk:
             continue
-            
+
         stmt = pg_insert(Channel).values(chunk)
         stmt = stmt.on_conflict_do_update(
             index_elements=["id"],
@@ -128,39 +136,56 @@ async def sync_channels(db: AsyncSession) -> int:
 
 async def sync_streams(db: AsyncSession) -> int:
     data = await fetch_json(f"{API}/streams.json")
-    count = 0
+    insert_batch_size = 500
+    now = datetime.now(timezone.utc)
 
     known_ids_result = await db.execute(select(Channel.id))
     known_ids = {row[0] for row in known_ids_result}
 
     await db.execute(delete(Stream))
 
+    # First stream URL seen per channel (in feed order) backfills an empty
+    # Channel.stream_url - preserved from the old row-by-row behavior.
+    values_batch = []
+    first_url_by_channel: dict[str, str] = {}
     for item in data:
         channel_id = item.get("channel")
         if not channel_id or channel_id not in known_ids:
             continue
 
-        stream_stmt = pg_insert(Stream).values(
-            channel_id=channel_id,
-            url=item["url"],
-            http_referrer=item.get("http_referrer", "") or "",
-            user_agent=item.get("user_agent", "") or "",
-            status=item.get("status", "unknown") or "unknown",
-            added_at=datetime.now(timezone.utc),
+        values_batch.append(
+            {
+                "channel_id": channel_id,
+                "url": item["url"],
+                "http_referrer": item.get("http_referrer", "") or "",
+                "user_agent": item.get("user_agent", "") or "",
+                "status": item.get("status", "unknown") or "unknown",
+                "added_at": now,
+            }
         )
-        await db.execute(stream_stmt)
+        first_url_by_channel.setdefault(channel_id, item["url"])
 
-        update_stmt = (
+    count = 0
+    for i in range(0, len(values_batch), insert_batch_size):
+        chunk = values_batch[i : i + insert_batch_size]
+        if not chunk:
+            continue
+        await db.execute(pg_insert(Stream).values(chunk))
+        count += len(chunk)
+
+    channel_url_items = list(first_url_by_channel.items())
+    for i in range(0, len(channel_url_items), insert_batch_size):
+        chunk_items = channel_url_items[i : i + insert_batch_size]
+        chunk_ids = [cid for cid, _ in chunk_items]
+        url_case = case(*[(Channel.id == cid, url) for cid, url in chunk_items])
+        await db.execute(
             Channel.__table__.update()
-            .where(Channel.id == channel_id)
-            .where(Channel.stream_url == "")
-            .values(stream_url=item["url"])
+            .where(Channel.id.in_(chunk_ids), Channel.stream_url == "")
+            .values(stream_url=url_case)
         )
-        await db.execute(update_stmt)
-        count += 1
 
     await db.commit()
-    logger.info("Synced %d streams", count)
+    logger.info("Synced %d streams in batches of %d", count, insert_batch_size)
     return count
 
 

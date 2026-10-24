@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.models import RadioStation, UserVote
+from app.services.status_filters import apply_status_filters
 from app.schemas import (
     RadioSearchParams,
     MapStationPin,
@@ -60,7 +61,9 @@ def _station_values_from_item(item: dict) -> dict | None:
 
 
 async def fetch_radio_json(path: str, params: dict | None = None) -> list[dict]:
-    async with httpx.AsyncClient(timeout=60, headers={"User-Agent": "Adajoon/1.0"}) as client:
+    async with httpx.AsyncClient(
+        timeout=60, headers={"User-Agent": "Adajoon/1.0"}
+    ) as client:
         resp = await client.get(f"{RADIO_API}{path}", params=params)
         resp.raise_for_status()
         return resp.json()
@@ -76,13 +79,16 @@ async def sync_radio_stations(db: AsyncSession) -> int:
     insert_batch_size = 500
 
     while offset < max_stations:
-        data = await fetch_radio_json("/json/stations/search", {
-            "limit": batch_size,
-            "offset": offset,
-            "order": "votes",
-            "reverse": "true",
-            "hidebroken": "true",
-        })
+        data = await fetch_radio_json(
+            "/json/stations/search",
+            {
+                "limit": batch_size,
+                "offset": offset,
+                "order": "votes",
+                "reverse": "true",
+                "hidebroken": "true",
+            },
+        )
 
         if not data:
             break
@@ -95,10 +101,10 @@ async def sync_radio_stations(db: AsyncSession) -> int:
             values_batch.append(values)
 
         for i in range(0, len(values_batch), insert_batch_size):
-            chunk = values_batch[i:i + insert_batch_size]
+            chunk = values_batch[i : i + insert_batch_size]
             if not chunk:
                 continue
-                
+
             stmt = pg_insert(RadioStation).values(chunk)
             stmt = stmt.on_conflict_do_update(
                 index_elements=["id"],
@@ -125,7 +131,9 @@ async def sync_radio_stations(db: AsyncSession) -> int:
             count += len(chunk)
 
         await db.commit()
-        logger.info("Synced radio batch: offset=%d, got=%d, total=%d", offset, len(data), count)
+        logger.info(
+            "Synced radio batch: offset=%d, got=%d, total=%d", offset, len(data), count
+        )
         offset += batch_size
 
         if len(data) < batch_size:
@@ -168,7 +176,9 @@ async def search_radio(db: AsyncSession, params: RadioSearchParams):
 
     if params.language:
         query = query.where(RadioStation.language.ilike(f"%{params.language}%"))
-        count_query = count_query.where(RadioStation.language.ilike(f"%{params.language}%"))
+        count_query = count_query.where(
+            RadioStation.language.ilike(f"%{params.language}%")
+        )
 
     if params.working_only:
         query = query.where(RadioStation.last_check_ok == True)
@@ -176,42 +186,25 @@ async def search_radio(db: AsyncSession, params: RadioSearchParams):
 
     statuses = [s.strip() for s in (params.status or "").split(",") if s.strip()]
     if statuses:
-        health_includes = []
-        for s in statuses:
-            if s == "has_stream":
-                query = query.where(RadioStation.last_check_ok == True)
-                count_query = count_query.where(RadioStation.last_check_ok == True)
-            elif s == "verified":
-                health_includes.append(RadioStation.health_status == "verified")
-            elif s == "live":
-                health_includes.append(
-                    RadioStation.health_status.in_(("verified", "online")) | (RadioStation.last_check_ok == True)
-                )
-            elif s == "hide_offline":
-                cond = ~RadioStation.health_status.in_(("offline", "error", "timeout", "geo_blocked"))
-                query = query.where(cond)
-                count_query = count_query.where(cond)
-            elif s == "highly_rated":
-                subq = (
-                    select(UserVote.item_id)
-                    .where(
-                        UserVote.item_type == "radio",
-                        UserVote.vote_type.in_(("works", "like"))
-                    )
-                    .group_by(UserVote.item_id)
-                    .having(func.count(UserVote.id) >= 3)
-                )
-                query = query.where(RadioStation.id.in_(subq))
-                count_query = count_query.where(RadioStation.id.in_(subq))
-        if health_includes:
-            combined = health_includes[0] if len(health_includes) == 1 else or_(*health_includes)
-            query = query.where(combined)
-            count_query = count_query.where(combined)
+        query, count_query = apply_status_filters(
+            query,
+            count_query,
+            model=RadioStation,
+            item_type="radio",
+            statuses=statuses,
+            has_stream_cond=(RadioStation.last_check_ok == True),
+            live_cond=(
+                RadioStation.health_status.in_(("verified", "online"))
+                | (RadioStation.last_check_ok == True)
+            ),
+        )
 
     total = (await db.execute(count_query)).scalar() or 0
 
     offset = (params.page - 1) * params.per_page
-    query = query.order_by(RadioStation.votes.desc()).offset(offset).limit(params.per_page)
+    query = (
+        query.order_by(RadioStation.votes.desc()).offset(offset).limit(params.per_page)
+    )
 
     result = await db.execute(query)
     stations = result.scalars().all()
@@ -220,7 +213,7 @@ async def search_radio(db: AsyncSession, params: RadioSearchParams):
 
 def get_radio_tags(limit: int = 60):
     """Get popular radio tags.
-    
+
     Returns common genre/category tags used across radio stations.
     Static list for performance - tags are computed by background job.
     """
@@ -277,9 +270,13 @@ async def get_radio_countries(db: AsyncSession):
 
 async def get_radio_stats(db: AsyncSession):
     total = (await db.execute(select(func.count(RadioStation.id)))).scalar() or 0
-    working = (await db.execute(
-        select(func.count(RadioStation.id)).where(RadioStation.last_check_ok == True)
-    )).scalar() or 0
+    working = (
+        await db.execute(
+            select(func.count(RadioStation.id)).where(
+                RadioStation.last_check_ok == True
+            )
+        )
+    ).scalar() or 0
     return {"total": total, "working": working}
 
 
@@ -308,7 +305,7 @@ def parse_bbox(bbox: str) -> tuple[float, float, float, float]:
 def grid_cell_degrees(zoom: int) -> float:
     """Lat/lng grid cell size for clustering (degrees). Larger at low zoom."""
     z = max(0, int(zoom))
-    return max(0.25, 40.0 / (2 ** z))
+    return max(0.25, 40.0 / (2**z))
 
 
 def should_return_clusters(zoom: int) -> bool:
@@ -463,10 +460,5 @@ async def get_ride_station(
             return None
         return random.choice(candidates)
 
-    stmt = (
-        select(RadioStation)
-        .where(and_(*filters))
-        .order_by(func.random())
-        .limit(1)
-    )
+    stmt = select(RadioStation).where(and_(*filters)).order_by(func.random()).limit(1)
     return (await db.execute(stmt)).scalar_one_or_none()

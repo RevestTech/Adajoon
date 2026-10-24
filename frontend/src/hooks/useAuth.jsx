@@ -3,7 +3,6 @@ import { startRegistration, startAuthentication } from "@simplewebauthn/browser"
 import { authenticatedFetch, getCsrfToken } from "../utils/csrf";
 import { analytics } from "../analytics";
 
-const TOKEN_KEY = "adajoon_token";
 const USER_KEY = "adajoon_user";
 const API_BASE = "/api/auth";
 
@@ -20,17 +19,7 @@ export function AuthProvider({ children }) {
   });
   const [loading, setLoading] = useState(false);
 
-  const authHeaders = useCallback(() => {
-    const t = localStorage.getItem(TOKEN_KEY);
-    return t ? { Authorization: `Bearer ${t}` } : {};
-  }, []);
-
   const _saveSession = useCallback((data) => {
-    if (data?.token) {
-      localStorage.setItem(TOKEN_KEY, data.token);
-    } else {
-      localStorage.removeItem(TOKEN_KEY);
-    }
     localStorage.setItem(USER_KEY, JSON.stringify(data.user));
     setUser(data.user);
     return data.user;
@@ -147,7 +136,6 @@ export function AuthProvider({ children }) {
   }, [_saveSession]);
 
   const logout = useCallback(() => {
-    localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
     setUser(null);
     analytics.reset();
@@ -236,8 +224,7 @@ export function AuthProvider({ children }) {
     addFavorite,
     removeFavorite,
     syncFavorites,
-    authHeaders,
-  }), [user, loading, loginWithGoogle, loginWithApple, loginWithPasskey, registerPasskey, logout, fetchFavorites, addFavorite, removeFavorite, syncFavorites, authHeaders]);
+  }), [user, loading, loginWithGoogle, loginWithApple, loginWithPasskey, registerPasskey, logout, fetchFavorites, addFavorite, removeFavorite, syncFavorites]);
 
   return (
     <AuthContext.Provider value={value}>

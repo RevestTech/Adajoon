@@ -5,7 +5,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Header, Request, status
 from slowapi import Limiter
 from slowapi.util import get_remote_address
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
 
@@ -183,19 +183,21 @@ async def get_tenant_stats(
     db: AsyncSession = Depends(get_db),
 ):
     """Get usage statistics for tenant."""
-    # Count available channels
-    channel_count_result = await db.execute(
-        select(Channel).where(Channel.health_status.in_(["verified", "online"]))
-    )
-    channel_count = len(channel_count_result.scalars().all())
-
-    # Count available radio stations
-    radio_count_result = await db.execute(
-        select(RadioStation).where(
-            RadioStation.health_status.in_(["verified", "online"])
+    channel_count = (
+        await db.execute(
+            select(func.count(Channel.id)).where(
+                Channel.health_status.in_(["verified", "online"])
+            )
         )
-    )
-    radio_count = len(radio_count_result.scalars().all())
+    ).scalar() or 0
+
+    radio_count = (
+        await db.execute(
+            select(func.count(RadioStation.id)).where(
+                RadioStation.health_status.in_(["verified", "online"])
+            )
+        )
+    ).scalar() or 0
 
     return {
         "tenant": tenant.slug,
