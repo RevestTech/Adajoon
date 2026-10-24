@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.6.2] - 2026-10-24
+
+### Fixed
+- **Guest mode didn't persist**: added a cookie-backed fallback alongside localStorage for the guest-skip flag (Safari ITP purges script-writable storage after ~7 days); guest state now fails open instead of closed on a storage read error
+- **Silent playback failures**: TV and radio players now show a loading spinner while connecting, a visible error with Retry on failure, auto-fallback across untried stream URLs, and a 15s stall timeout for streams that hang with no error event
+- **"AI Search" wasn't surfaced as non-AI**: a notice now shows when the backend falls back to basic keyword search
+- **Mobile header overflow**: TV/Radio/Map and Sign In labels collapse to icon-only at ≤640px instead of overflowing the viewport
+- **Channel/radio deep links didn't open the player**: `/tv/channel/:id` and `/radio/station/:id` URLs were parsed on load but never consumed; added the missing `GET /api/radio/stations/{id}` endpoint and wired both up to open the player on mount
+- **No 404 page**: unknown routes now show a proper not-found view instead of silently falling back to the default grid
+- **Duplicate Google Sign-In button**: render is now idempotent per mount, closing a race between the initial render call and its polling retry
+- **Map country filter flashed stale results**: list/count now shows a loading state immediately when a country filter is applied, instead of briefly showing the previous unfiltered data
+- Deep-link lookups no longer race a user's own, faster selection, and now show 404 (not a silent fallback) when the linked channel/station no longer exists
+- VideoPlayer: fixed stale stream lists leaking across channel switches, a failure declared too early when alternates were still loading, and Retry not restarting a single-stream channel
+- RadioPlayer: cleared a stale error message left behind after a late recovery
+- Backend: fixed a `logger` used-before-assignment bug in `main.py`, plus a full flake8/black/isort cleanup
+
 ## [2.6.1] - 2026-10-24
 
 ### Fixed

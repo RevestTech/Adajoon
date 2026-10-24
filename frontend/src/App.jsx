@@ -1055,7 +1055,7 @@ export default function App() {
       <TVDebugInfo />
       <footer className="app-footer">
         <span>&copy; {new Date().getFullYear()} Revest Technology. All rights reserved.</span>
-        <span className="footer-version">v2.6.0</span>
+        <span className="footer-version">v{__APP_VERSION__}</span>
       </footer>
     </>
   );
