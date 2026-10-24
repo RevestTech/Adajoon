@@ -694,7 +694,7 @@ body {
 
 .search-input {
   width: 100%;
-  padding: 8px 14px 8px 36px;
+  padding: 8px 34px 8px 36px;
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 10px;
@@ -1141,6 +1141,22 @@ body {
   color: #e9b8ff;
   transform: scale(1.08);
   box-shadow: 0 0 12px rgba(147, 51, 234, 0.3);
+}
+
+/* Lives inside .header-search itself, as a trailing icon in the same
+   input group, so the basic and AI search entry points read as one
+   search box with an AI toggle rather than two separate controls. */
+.ai-search-btn--inline {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 26px;
+  height: 26px;
+}
+
+.ai-search-btn--inline:hover {
+  transform: translateY(-50%) scale(1.08);
 }
 
 /* ── AI Search Modal Overlay ── */
