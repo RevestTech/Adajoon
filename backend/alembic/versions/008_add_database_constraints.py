@@ -8,8 +8,9 @@ Create Date: 2026-04-03 15:00:00.000000
 
 from typing import Sequence, Union
 
-from alembic import op
 import sqlalchemy as sa
+
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "008"
@@ -38,17 +39,19 @@ def upgrade() -> None:
     # But we validate in the API layer before hashing
 
     # Add CHECK constraint for health_status values on channels
+    # (includes manifest_only and geo_blocked - validator_service.py writes
+    # both of these, so the original 6-value list rejected real rows)
     op.execute("""
         ALTER TABLE channels
-        ADD CONSTRAINT check_health_status 
-        CHECK (health_status IN ('unknown', 'verified', 'online', 'offline', 'timeout', 'error'));
+        ADD CONSTRAINT check_health_status
+        CHECK (health_status IN ('unknown', 'verified', 'online', 'offline', 'timeout', 'error', 'manifest_only', 'geo_blocked'));
     """)
 
     # Add CHECK constraint for health_status values on radio_stations
     op.execute("""
         ALTER TABLE radio_stations
-        ADD CONSTRAINT check_radio_health_status 
-        CHECK (health_status IN ('unknown', 'verified', 'online', 'offline', 'timeout', 'error'));
+        ADD CONSTRAINT check_radio_health_status
+        CHECK (health_status IN ('unknown', 'verified', 'online', 'offline', 'timeout', 'error', 'manifest_only', 'geo_blocked'));
     """)
 
     # Add CHECK constraint for item_type in user_favorites
