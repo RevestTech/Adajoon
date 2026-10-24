@@ -28,6 +28,11 @@ def upgrade() -> None:
     # than 3 digits (e.g. microsecond-precision ISO strings), overflowing
     # the millisecond field - a plain ::timestamptz cast handles any
     # fractional digit count via Postgres's native ISO-8601 parser instead.
+    #
+    # Each column's existing string DEFAULT (e.g. '') must be dropped before
+    # the type change - Postgres tries to cast the default expression too,
+    # and '' can't be cast to timestamptz any more than a real row value can.
+    op.execute("ALTER TABLE channels ALTER COLUMN updated_at DROP DEFAULT;")
     op.execute("""
         ALTER TABLE channels
         ALTER COLUMN updated_at TYPE TIMESTAMPTZ
@@ -37,6 +42,7 @@ def upgrade() -> None:
         END;
     """)
 
+    op.execute("ALTER TABLE channels ALTER COLUMN health_checked_at DROP DEFAULT;")
     op.execute("""
         ALTER TABLE channels
         ALTER COLUMN health_checked_at TYPE TIMESTAMPTZ
@@ -46,6 +52,7 @@ def upgrade() -> None:
         END;
     """)
 
+    op.execute("ALTER TABLE channels ALTER COLUMN last_validated_at DROP DEFAULT;")
     op.execute("""
         ALTER TABLE channels
         ALTER COLUMN last_validated_at TYPE TIMESTAMPTZ
@@ -56,6 +63,9 @@ def upgrade() -> None:
     """)
 
     # Convert RadioStation timestamp fields
+    op.execute(
+        "ALTER TABLE radio_stations ALTER COLUMN health_checked_at DROP DEFAULT;"
+    )
     op.execute("""
         ALTER TABLE radio_stations
         ALTER COLUMN health_checked_at TYPE TIMESTAMPTZ
@@ -66,6 +76,7 @@ def upgrade() -> None:
     """)
 
     # Convert Stream timestamp fields
+    op.execute("ALTER TABLE streams ALTER COLUMN added_at DROP DEFAULT;")
     op.execute("""
         ALTER TABLE streams
         ALTER COLUMN added_at TYPE TIMESTAMPTZ
