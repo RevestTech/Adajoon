@@ -3,28 +3,11 @@ import ViewToggle from "./ViewToggle";
 import VoteIndicator from "./VoteIndicator";
 import QuickFilters from "./QuickFilters";
 import { fetchEpgNowBatch } from "../api/epg";
+import { formatTimeLeft, epgProgressPercent } from "../utils/epgTime";
+import EpgGridView from "./EpgGridView";
+import { handleCardKey } from "../utils/keyboardNav";
 
 const GUEST_LIMIT = 20;
-
-/** "16m left" / "1h 20m left" from a programme's stop time. */
-function formatTimeLeft(stopAt) {
-  const msLeft = new Date(stopAt).getTime() - Date.now();
-  if (!Number.isFinite(msLeft) || msLeft <= 0) return null;
-  const totalMin = Math.round(msLeft / 60000);
-  const h = Math.floor(totalMin / 60);
-  const m = totalMin % 60;
-  if (h > 0) return `${h}h ${m}m left`;
-  return `${m}m left`;
-}
-
-/** 0-100 progress through a programme's start/stop window. */
-function epgProgressPercent(startAt, stopAt) {
-  const start = new Date(startAt).getTime();
-  const stop = new Date(stopAt).getTime();
-  if (!Number.isFinite(start) || !Number.isFinite(stop) || stop <= start) return 0;
-  const pct = ((Date.now() - start) / (stop - start)) * 100;
-  return Math.min(100, Math.max(0, pct));
-}
 
 /** Compact one-line version for list rows and thumbnails, no progress bar. */
 function EpgInlineText({ programme }) {
@@ -197,6 +180,7 @@ export default function ChannelGrid({
 
   const visibleChannels = isGuest ? channels.slice(0, GUEST_LIMIT) : channels;
   const [epgNow, setEpgNow] = useState({});
+  const [showEpgGrid, setShowEpgGrid] = useState(false);
   const visibleIdsKey = visibleChannels.map((ch) => ch.id).join(",");
   useEffect(() => {
     let cancelled = false;
@@ -345,9 +329,28 @@ export default function ChannelGrid({
               );
             })}
           </div>
+          <button
+            type="button"
+            className="tv-guide-btn"
+            onClick={() => setShowEpgGrid(true)}
+            disabled={visibleChannels.length === 0}
+          >
+            TV Guide
+          </button>
           <ViewToggle viewMode={viewMode} onViewToggle={onViewToggle} />
         </div>
       </div>
+
+      {showEpgGrid && (
+        <EpgGridView
+          channels={visibleChannels}
+          onClose={() => setShowEpgGrid(false)}
+          onSelectChannel={(ch) => {
+            setShowEpgGrid(false);
+            onSelect(ch);
+          }}
+        />
+      )}
 
 
       <div className={`content-body${loading ? " content-loading" : ""}`}>
@@ -524,7 +527,14 @@ function ChannelCard({ channel, onClick, favorited, onToggleFavorite, isGuest, v
   const streamStatus = channel.stream_url ? getTvStreamStatus(channel.health_status) : null;
 
   return (
-    <div className="channel-card" onClick={onClick}>
+    <div
+      className="channel-card"
+      onClick={onClick}
+      role="button"
+      tabIndex={0}
+      aria-label={channel.name}
+      onKeyDown={handleCardKey(onClick)}
+    >
       {isGuest ? (
         <button
           type="button"
@@ -596,7 +606,14 @@ function ChannelRow({ channel, onClick, favorited, onToggleFavorite, isGuest, vo
   const streamStatus = channel.stream_url ? getTvStreamStatus(channel.health_status) : null;
 
   return (
-    <div className="list-row" onClick={onClick}>
+    <div
+      className="list-row"
+      onClick={onClick}
+      role="button"
+      tabIndex={0}
+      aria-label={channel.name}
+      onKeyDown={handleCardKey(onClick)}
+    >
       <div className="list-row-logo">
         {channel.logo ? (
           <img
@@ -673,7 +690,14 @@ function ChannelThumb({ channel, onClick, favorited, onToggleFavorite, isGuest, 
   const streamStatus = channel.stream_url ? getTvStreamStatus(channel.health_status) : null;
 
   return (
-    <div className="thumb-card" onClick={onClick}>
+    <div
+      className="thumb-card"
+      onClick={onClick}
+      role="button"
+      tabIndex={0}
+      aria-label={channel.name}
+      onKeyDown={handleCardKey(onClick)}
+    >
       <div className="thumb-image">
         {channel.logo ? (
           <img
