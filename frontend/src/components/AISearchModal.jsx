@@ -20,6 +20,14 @@ const EXAMPLE_QUERIES = {
   ],
 };
 
+// Matches .ai-search-modal's entrance animation (ai-slide-up, 0.25s) plus a
+// small buffer. While the modal is still animating in, a click meant for it
+// (e.g. an example chip) can land early enough to be misread as a backdrop
+// click; ignoring backdrop clicks for this long after mount closes that
+// window without touching pointer-events (which just redirects early clicks
+// to the backdrop instead of preventing them).
+const ENTRANCE_GUARD_MS = 300;
+
 export default function AISearchModal({ mode, onSelect, onClose }) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState(null);
@@ -28,6 +36,7 @@ export default function AISearchModal({ mode, onSelect, onClose }) {
   const [explanation, setExplanation] = useState("");
   const [resultSource, setResultSource] = useState("");
   const inputRef = useRef(null);
+  const openedAtRef = useRef(Date.now());
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -83,7 +92,14 @@ export default function AISearchModal({ mode, onSelect, onClose }) {
   const examples = EXAMPLE_QUERIES[mode] || EXAMPLE_QUERIES.tv;
 
   return (
-    <div className="ai-search-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+    <div
+      className="ai-search-overlay"
+      onClick={(e) => {
+        if (e.target !== e.currentTarget) return;
+        if (Date.now() - openedAtRef.current < ENTRANCE_GUARD_MS) return;
+        onClose();
+      }}
+    >
       <div className="ai-search-modal">
         <div className="ai-search-header">
           <div className="ai-search-title">

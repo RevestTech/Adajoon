@@ -1177,14 +1177,8 @@ body {
 }
 
 @keyframes ai-slide-up {
-  /* pointer-events is discrete, not interpolated: it takes the value of the
-     keyframe at or before the current percentage. With only from/to it would
-     switch at 50% progress, not when the animation actually finishes - so an
-     explicit near-100% keyframe holds "none" until the very end, closing the
-     mis-click-through-to-the-backdrop window for the whole animation. */
-  from { opacity: 0; transform: translateY(20px); pointer-events: none; }
-  99.9% { opacity: 1; transform: translateY(0); pointer-events: none; }
-  to { opacity: 1; transform: translateY(0); pointer-events: auto; }
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .ai-search-header {
