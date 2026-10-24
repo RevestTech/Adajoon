@@ -6382,3 +6382,90 @@ button:focus-visible {
   white-space: nowrap;
   max-width: 100%;
 }
+
+/* ── Similar Items Rail (player "You might also like") ── */
+.similar-rail {
+  padding: 14px 0 4px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  margin-top: 8px;
+}
+
+.similar-rail-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.7);
+  margin-bottom: 10px;
+}
+
+.similar-rail-track {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scrollbar-width: thin;
+}
+
+.similar-rail-card {
+  flex-shrink: 0;
+  width: 84px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 8px 6px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.similar-rail-card:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.similar-rail-card--skeleton {
+  height: 76px;
+  position: relative;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.04);
+  cursor: default;
+}
+
+.similar-rail-card--skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(105deg, transparent 40%, rgba(255, 255, 255, 0.08) 50%, transparent 60%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.45s ease-in-out infinite;
+}
+
+.similar-rail-card-logo {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.similar-rail-card-logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.similar-rail-card-name {
+  font-size: 11px;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.8);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}

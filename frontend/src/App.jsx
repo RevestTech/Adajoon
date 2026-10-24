@@ -986,6 +986,7 @@ export default function App() {
           myVotes={votes.getMyVotesFor("tv", selectedChannel.id)}
           voteSummary={votes.getSummaryFor("tv", selectedChannel.id)}
           onVote={votes.submitVote}
+          onSelectSimilar={openTvPlayer}
         />
       )}
       {selectedChannel && floatingTv && (
@@ -1015,6 +1016,7 @@ export default function App() {
           myVotes={votes.getMyVotesFor("radio", selectedStation.id)}
           voteSummary={votes.getSummaryFor("radio", selectedStation.id)}
           onVote={votes.submitVote}
+          onSelectSimilar={handleSelectStation}
         />
       )}
       {selectedStation && floatingRadio && (
