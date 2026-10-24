@@ -1,19 +1,19 @@
 """Watch history endpoints."""
 
 import logging
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
-from sqlalchemy import select, delete, desc, func
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import delete, desc, func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.csrf import verify_csrf_token
 from app.database import get_db
 from app.models import User, WatchHistory
 from app.routers.auth import require_user
-from app.csrf import verify_csrf_token
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/history", tags=["history"])

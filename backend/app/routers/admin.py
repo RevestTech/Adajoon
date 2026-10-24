@@ -4,24 +4,25 @@ Admin-only API endpoints for statistics and management.
 
 import logging
 from datetime import datetime, timedelta
+
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import select, func, text, Integer
+from sqlalchemy import Integer, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.csrf import verify_csrf_token
 from app.database import get_db
+from app.middleware.admin_required import require_admin
 from app.models import (
+    AnalyticsEvent,
+    Channel,
+    Playlist,
+    RadioStation,
     User,
     UserFavorite,
     UserVote,
     WatchHistory,
-    Playlist,
-    Channel,
-    RadioStation,
-    AnalyticsEvent,
 )
-from app.middleware.admin_required import require_admin
 from app.redis_client import health_check as redis_health_check
-from app.csrf import verify_csrf_token
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 logger = logging.getLogger(__name__)

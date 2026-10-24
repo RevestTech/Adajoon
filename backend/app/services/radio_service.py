@@ -4,18 +4,13 @@ import random
 from typing import Any
 
 import httpx
-from sqlalchemy import select, func, or_, and_, cast, Float
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import Float, and_, cast, func, or_, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import RadioStation, UserVote
+from app.schemas import MapBboxResponse, MapCluster, MapStationPin, RadioSearchParams
 from app.services.status_filters import apply_status_filters
-from app.schemas import (
-    RadioSearchParams,
-    MapStationPin,
-    MapCluster,
-    MapBboxResponse,
-)
 
 logger = logging.getLogger(__name__)
 

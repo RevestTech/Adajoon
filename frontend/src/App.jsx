@@ -116,7 +116,7 @@ export default function App() {
   // Set once on load: an unrecognized path (e.g. a stale/mistyped link)
   // shows a "page not found" message instead of silently falling back to
   // the default channel grid with no indication the link was broken.
-  const [notFound] = useState(() => {
+  const [notFound, setNotFound] = useState(() => {
     try {
       return !isKnownPath(window.location.pathname);
     } catch {
@@ -180,6 +180,9 @@ export default function App() {
   const [floatingRadio, setFloatingRadio] = useState(false);
   const radioAudioRef = useRef(null);
   const videoRef = useRef(null);
+  // Set by any explicit channel/station selection so a slow initial deep-link
+  // lookup can't clobber a selection the user already made before it resolved.
+  const deepLinkSupersededRef = useRef(false);
   const [showRadioFavorites, setShowRadioFavorites] = useState(IU.showRadioFavorites);
 
   const nowPlaying =
@@ -520,6 +523,7 @@ export default function App() {
 
   const openTvPlayer = useCallback((ch) => {
     if (!ch) return;
+    deepLinkSupersededRef.current = true;
     pushPlayerState("tv", ch.id);
     setSelectedStation(null);
     setSelectedChannel(ch);
@@ -584,6 +588,7 @@ export default function App() {
 
   const handleSelectStation = useCallback((station) => {
     if (!station) return;
+    deepLinkSupersededRef.current = true;
     pushPlayerState("radio", station.id);
     setSelectedChannel(null);
     setSelectedStation(station);
@@ -599,22 +604,30 @@ export default function App() {
     if (IU.initialChannel) {
       fetchChannel(IU.initialChannel)
         .then((ch) => {
-          if (!cancelled && ch) {
+          if (!cancelled && !deepLinkSupersededRef.current && ch) {
             setSelectedStation(null);
             setSelectedChannel(ch);
           }
         })
-        .catch(() => {});
+        .catch((err) => {
+          if (!cancelled && !deepLinkSupersededRef.current && err?.status === 404) {
+            setNotFound(true);
+          }
+        });
     } else if (IU.initialStation) {
       fetchStation(IU.initialStation)
         .then((st) => {
-          if (!cancelled && st) {
+          if (!cancelled && !deepLinkSupersededRef.current && st) {
             setSelectedChannel(null);
             setSelectedStation(st);
             setRadioModalOpen(true);
           }
         })
-        .catch(() => {});
+        .catch((err) => {
+          if (!cancelled && !deepLinkSupersededRef.current && err?.status === 404) {
+            setNotFound(true);
+          }
+        });
     }
     return () => {
       cancelled = true;
@@ -637,6 +650,7 @@ export default function App() {
   });
 
   const handleModeSwitch = (newMode) => {
+    setNotFound(false);
     if (selectedChannel || selectedStation) {
       setSelectedChannel(null);
       setSelectedStation(null);

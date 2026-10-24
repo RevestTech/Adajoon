@@ -7,8 +7,8 @@ from contextvars import ContextVar
 from typing import Any
 from uuid import uuid4
 
-from pythonjsonlogger import jsonlogger
 from fastapi import Request
+from pythonjsonlogger import jsonlogger
 from starlette.middleware.base import BaseHTTPMiddleware
 
 # Context variable for request ID (thread-safe)

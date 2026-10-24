@@ -1,7 +1,7 @@
 from sqlalchemy import case, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Channel, Category, Country, Stream, RadioStation, UserVote
+from app.models import Category, Channel, Country, RadioStation, Stream, UserVote
 from app.schemas import ChannelSearchParams
 from app.services.status_filters import apply_status_filters
 

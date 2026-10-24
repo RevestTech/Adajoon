@@ -2,8 +2,8 @@
 
 from fastapi import APIRouter, Request, Response
 
-from app.csrf import generate_csrf_token
 from app.config import settings
+from app.csrf import generate_csrf_token
 
 router = APIRouter(prefix="/api/csrf", tags=["csrf"])
 

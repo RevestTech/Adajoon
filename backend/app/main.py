@@ -3,42 +3,42 @@ import logging
 import os
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Depends, HTTPException, status, Header, Request
+import httpx
+from fastapi import Depends, FastAPI, Header, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
-from starlette.middleware.gzip import GZipMiddleware
 from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
-import httpx
+from starlette.middleware.gzip import GZipMiddleware
 
-from app.database import engine, Base, async_session, get_db
 from app.config import settings
-from app.logging_config import setup_logging, RequestLoggingMiddleware
+from app.database import Base, async_session, engine, get_db
+from app.logging_config import RequestLoggingMiddleware, setup_logging
 from app.middleware.security_headers import SecurityHeadersMiddleware
 from app.middleware.www_redirect import WWWRedirectMiddleware
+from app.routers import auth  # whitelabel
 from app.routers import (
-    channels,
+    admin,
+    ai_search,
+    analytics,
     categories,
+    channels,
+    csrf,
+    epg,
     healthcheck,
-    radio,
-    auth,
-    sitemap,
     history,
     languages,
-    csrf,
-    recommendations,
-    playlists,
     parental,
-    subscriptions,
+    playlists,
+    radio,
+    recommendations,
     redis_health,
-    ai_search,
-    admin,
-    analytics,
-    epg,
-)  # whitelabel
+    sitemap,
+    subscriptions,
+)
 from app.services.iptv_service import full_sync
 from app.services.radio_service import sync_radio_stations
 
@@ -190,6 +190,7 @@ async def health_ready(db: AsyncSession = Depends(get_db)):
     """
     import time
     from datetime import datetime
+
     from app.redis_client import health_check as redis_health_check
     from app.services.channel_service import get_categories_with_counts
 

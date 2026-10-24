@@ -6,9 +6,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.schemas import ChannelOut, ChannelSearchParams, PaginatedChannels, StreamOut
 from app.services.channel_service import (
-    search_channels,
     get_channel_by_id,
     get_channel_streams,
+    search_channels,
 )
 
 router = APIRouter(prefix="/api/channels", tags=["channels"])

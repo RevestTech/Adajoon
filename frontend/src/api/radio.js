@@ -39,11 +39,15 @@ const FALLBACK_TAGS = [
   { name: "variety", station_count: 600 },
 ];
 
-export async function fetchStation(stationId) {
+export const fetchStation = async (stationId) => {
   const res = await fetch(`${BASE}/stations/${stationId}`);
-  if (!res.ok) throw new Error("Failed to fetch station");
+  if (!res.ok) {
+    const err = new Error("Failed to fetch station");
+    err.status = res.status;
+    throw err;
+  }
   return res.json();
-}
+};
 
 export async function fetchRadioTags() {
   try {

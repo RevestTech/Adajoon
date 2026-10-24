@@ -106,27 +106,55 @@ export default function VideoPlayer({
   const [triedUrls, setTriedUrls] = useState(() =>
     channel.stream_url ? [channel.stream_url] : []
   );
+  const [retryNonce, setRetryNonce] = useState(0);
   const [healthResult, setHealthResult] = useState(null);
   const [checking, setChecking] = useState(false);
   const [shareToast, setShareToast] = useState("");
   const [epgNow, setEpgNow] = useState(null);
   const [epgNext, setEpgNext] = useState(null);
   const { shareTvChannel } = useShare();
+  // True once fetchStreams has settled (success or failure) for the current
+  // channel, so a stream failure that lands before alternates arrive can
+  // wait for them instead of declaring final failure prematurely.
+  const streamsSettledRef = useRef(false);
+  const pendingFailureRef = useRef(null);
+  const latestChannelIdRef = useRef(channel.id);
+  latestChannelIdRef.current = channel.id;
 
   useEffect(() => {
-    fetchStreams(channel.id)
+    const channelId = channel.id;
+    streamsSettledRef.current = false;
+    pendingFailureRef.current = null;
+    fetchStreams(channelId)
       .then((result) => {
+        if (channelId !== latestChannelIdRef.current) return; // stale response for a channel we've left
+        streamsSettledRef.current = true;
         setStreams(result);
         // No primary stream_url, but the channel has alternates - use the
         // first one instead of showing "No stream available" forever.
         setActiveUrl((current) => current || result?.[0]?.url || current);
+        if (pendingFailureRef.current) {
+          const message = pendingFailureRef.current;
+          pendingFailureRef.current = null;
+          handleStreamFailure(message, result);
+        }
       })
-      .catch(() => {});
+      .catch(() => {
+        if (channelId !== latestChannelIdRef.current) return;
+        streamsSettledRef.current = true;
+        if (pendingFailureRef.current) {
+          const message = pendingFailureRef.current;
+          pendingFailureRef.current = null;
+          handleStreamFailure(message, []);
+        }
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [channel.id]);
 
   // Reset playback state when switching to a different channel without
   // closing the player (e.g. picking a new card while minimized).
   useEffect(() => {
+    setStreams([]);
     setActiveUrl(channel.stream_url || "");
     setTriedUrls(channel.stream_url ? [channel.stream_url] : []);
     setErrorMsg("");
@@ -167,13 +195,20 @@ export default function VideoPlayer({
 
   // On failure, auto-advance to the next untried stream source instead of
   // just sitting frozen; only show a final error once every source failed.
-  const handleStreamFailure = (finalMessage) => {
-    const candidates = [channel.stream_url, ...streamsRef.current.map((s) => s.url)].filter(
-      Boolean
-    );
+  // `streamsOverride`, when passed, is the just-resolved streams list (state
+  // hasn't committed yet when this is called from the fetchStreams handler).
+  const handleStreamFailure = (finalMessage, streamsOverride) => {
+    const source = streamsOverride ?? streamsRef.current;
+    const candidates = [channel.stream_url, ...source.map((s) => s.url)].filter(Boolean);
     const next = candidates.find((u) => !triedUrlsRef.current.includes(u));
     if (next) {
       setActiveUrl(next);
+      return;
+    }
+    if (!streamsSettledRef.current) {
+      // Alternates may still be on the way - wait for them instead of
+      // declaring final failure; fetchStreams resolving will retry this.
+      pendingFailureRef.current = finalMessage;
       return;
     }
     setIsLoading(false);
@@ -265,7 +300,11 @@ export default function VideoPlayer({
         hlsRef.current = null;
       }
     };
-  }, [activeUrl]);
+    // retryNonce has no effect on playback logic itself - it only forces
+    // this effect to rerun when Retry picks the same URL (e.g. the channel
+    // has just one source), which activeUrl alone wouldn't trigger.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeUrl, retryNonce]);
 
   useEffect(() => {
     const handleKey = (e) => { if (e.key === "Escape") onClose(); };
@@ -467,6 +506,7 @@ export default function VideoPlayer({
                         setTriedUrls([]);
                         setErrorMsg("");
                         setActiveUrl(channel.stream_url || streams[0]?.url || "");
+                        setRetryNonce((n) => n + 1);
                       }}
                     >
                       Retry

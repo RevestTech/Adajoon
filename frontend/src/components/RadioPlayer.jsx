@@ -46,6 +46,7 @@ export default function RadioPlayer({
     };
     const handlePlaying = () => {
       clearStallTimeout();
+      setErrorMsg("");
     };
 
     audio.addEventListener("error", handleError);

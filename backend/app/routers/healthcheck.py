@@ -1,8 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException, Body
+from fastapi import APIRouter, Body, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.schemas import HealthCheckResult, ValidatorStatusOut, ValidatorStatusBuckets
+from app.schemas import HealthCheckResult, ValidatorStatusBuckets, ValidatorStatusOut
 from app.services.healthcheck_service import check_channel, check_channels_batch
 from app.services.validator_service import get_validator_status
 

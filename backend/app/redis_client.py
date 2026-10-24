@@ -13,7 +13,9 @@ Performance: ~2ms per operation vs ~200ms for PostgreSQL queries
 import json
 import logging
 from typing import Any, Optional
+
 import redis.asyncio as redis
+
 from app.config import settings
 
 logger = logging.getLogger(__name__)
