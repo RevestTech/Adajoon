@@ -1,4 +1,5 @@
 """Test channel endpoints."""
+
 import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -31,7 +32,7 @@ async def test_get_channels_with_data(client: AsyncClient, test_db: AsyncSession
     )
     test_db.add(channel)
     await test_db.commit()
-    
+
     response = await client.get("/api/channels")
     assert response.status_code == 200
     data = response.json()
@@ -47,7 +48,7 @@ async def test_get_categories(client: AsyncClient, test_db: AsyncSession):
     category = Category(id="news", name="News", channel_count=5)
     test_db.add(category)
     await test_db.commit()
-    
+
     response = await client.get("/api/categories")
     assert response.status_code == 200
     data = response.json()
@@ -60,21 +61,39 @@ async def test_search_channels(client: AsyncClient, test_db: AsyncSession):
     """Test channel search functionality."""
     # Create sample channels
     channels = [
-        Channel(id="cnn", name="CNN International", country="US", categories="News", health_status="verified"),
-        Channel(id="bbc", name="BBC World News", country="GB", categories="News", health_status="verified"),
-        Channel(id="espn", name="ESPN", country="US", categories="Sports", health_status="online"),
+        Channel(
+            id="cnn",
+            name="CNN International",
+            country="US",
+            categories="News",
+            health_status="verified",
+        ),
+        Channel(
+            id="bbc",
+            name="BBC World News",
+            country="GB",
+            categories="News",
+            health_status="verified",
+        ),
+        Channel(
+            id="espn",
+            name="ESPN",
+            country="US",
+            categories="Sports",
+            health_status="online",
+        ),
     ]
     for ch in channels:
         test_db.add(ch)
     await test_db.commit()
-    
+
     # Search by query
     response = await client.get("/api/channels?q=CNN")
     assert response.status_code == 200
     data = response.json()
     assert len(data) >= 1
     assert any(ch["name"] == "CNN International" for ch in data)
-    
+
     # Filter by category
     response = await client.get("/api/channels?category=Sports")
     assert response.status_code == 200

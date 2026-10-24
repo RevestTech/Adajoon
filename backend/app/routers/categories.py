@@ -1,15 +1,16 @@
 import logging
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.redis_client import cache_get, cache_set
 from app.schemas import CategoryOut, CountryOut, StatsOut
 from app.services.channel_service import (
     get_categories_with_counts,
     get_countries_with_counts,
     get_stats,
 )
-from app.redis_client import cache_get, cache_set
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["metadata"])

@@ -2,11 +2,10 @@
 
 import logging
 from datetime import datetime, timezone
-from typing import Optional
 from urllib.parse import urlparse
 
 import stripe
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, field_validator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession

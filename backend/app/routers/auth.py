@@ -1,43 +1,43 @@
 import asyncio
-import json
 import base64
+import json
 import logging
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status, Cookie
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+import httpx
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
 from fastapi.responses import HTMLResponse
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from google.auth.transport import requests as google_requests
+from google.oauth2 import id_token
+from jose import JWTError, jwt
+from pydantic import BaseModel, Field
 from slowapi import Limiter
 from slowapi.util import get_remote_address
-from sqlalchemy import select, delete, exists, func, case
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import delete, exists, func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
-from jose import jwt, JWTError
-from google.oauth2 import id_token
-from google.auth.transport import requests as google_requests
-from pydantic import BaseModel, Field
-import httpx
-
+from sqlalchemy.ext.asyncio import AsyncSession
 from webauthn import (
-    generate_registration_options,
-    verify_registration_response,
     generate_authentication_options,
-    verify_authentication_response,
+    generate_registration_options,
     options_to_json,
+    verify_authentication_response,
+    verify_registration_response,
 )
+from webauthn.helpers import base64url_to_bytes, bytes_to_base64url
 from webauthn.helpers.structs import (
     AuthenticatorSelectionCriteria,
+    AuthenticatorTransport,
+    PublicKeyCredentialDescriptor,
     ResidentKeyRequirement,
     UserVerificationRequirement,
-    PublicKeyCredentialDescriptor,
-    AuthenticatorTransport,
 )
-from webauthn.helpers import bytes_to_base64url, base64url_to_bytes
 
-from app.database import get_db
 from app.config import settings
-from app.models import User, UserFavorite, UserVote, Passkey
 from app.csrf import generate_csrf_token, verify_csrf_token
+from app.database import get_db
+from app.models import Passkey, User, UserFavorite, UserVote
+from app.redis_client import cache_get, cache_set
 from app.services.analytics_service import log_auth_event
 
 logger = logging.getLogger(__name__)
@@ -282,8 +282,6 @@ async def google_login(
     )
     return _user_response(user)
 
-
-from app.redis_client import cache_get, cache_set
 
 APPLE_KEYS_TTL = 3600  # 1 hour
 

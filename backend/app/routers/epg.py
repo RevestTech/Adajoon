@@ -36,7 +36,9 @@ def _programme_out(row) -> EpgProgrammeOut:
 @channels_epg_router.get("/{channel_id}/epg", response_model=EpgScheduleResponse)
 async def channel_epg_schedule(
     channel_id: str,
-    from_: datetime | None = Query(None, alias="from", description="Window start (ISO)"),
+    from_: datetime | None = Query(
+        None, alias="from", description="Window start (ISO)"
+    ),
     to: datetime | None = Query(None, description="Window end (ISO)"),
     db: AsyncSession = Depends(get_db),
 ) -> EpgScheduleResponse:
@@ -44,7 +46,9 @@ async def channel_epg_schedule(
     try:
         window_from, window_to = resolve_schedule_window(from_, to)
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
+        ) from e
 
     rows = await get_channel_schedule(db, channel_id, window_from, window_to)
     return EpgScheduleResponse(
@@ -81,7 +85,9 @@ async def epg_now(
     try:
         rows = await search_on_now(db, q=q, category=category, limit=limit)
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
+        ) from e
 
     return EpgOnNowResponse(
         items=[

@@ -4,24 +4,25 @@ Admin-only API endpoints for statistics and management.
 
 import logging
 from datetime import datetime, timedelta
+
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import select, func, text, Integer
+from sqlalchemy import Integer, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.csrf import verify_csrf_token
 from app.database import get_db
+from app.middleware.admin_required import require_admin
 from app.models import (
+    AnalyticsEvent,
+    Channel,
+    Playlist,
+    RadioStation,
     User,
     UserFavorite,
     UserVote,
     WatchHistory,
-    Playlist,
-    Channel,
-    RadioStation,
-    AnalyticsEvent,
 )
-from app.middleware.admin_required import require_admin
 from app.redis_client import health_check as redis_health_check
-from app.csrf import verify_csrf_token
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 logger = logging.getLogger(__name__)
@@ -58,7 +59,7 @@ async def get_stats_overview(
 
     # Admin count
     admin_count_query = await db.execute(
-        select(func.count(User.id)).where(User.is_admin == True)
+        select(func.count(User.id)).where(User.is_admin.is_(True))
     )
     admin_count = admin_count_query.scalar() or 0
 
@@ -214,7 +215,7 @@ async def get_content_stats(
 
     # Most favorited TV channels
     top_tv = await db.execute(text("""
-            SELECT 
+            SELECT
                 uf.item_id,
                 COUNT(*) as favorites_count,
                 MAX(uf.item_data::json->>'name') as name,
@@ -237,7 +238,7 @@ async def get_content_stats(
 
     # Most favorited radio stations
     top_radio = await db.execute(text("""
-            SELECT 
+            SELECT
                 uf.item_id,
                 COUNT(*) as favorites_count,
                 MAX(uf.item_data::json->>'name') as name,

@@ -2,13 +2,12 @@ import logging
 from datetime import datetime, timezone
 
 import httpx
-
-from sqlalchemy import select, func, delete, case
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import case, delete, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.models import Channel, Category, Country, Language, Stream
+from app.models import Category, Channel, Country, Language, Stream
 
 logger = logging.getLogger(__name__)
 

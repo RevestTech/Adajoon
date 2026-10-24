@@ -11,6 +11,7 @@ export default function LandingPage({
   onSkip,
 }) {
   const googleBtnRef = useRef(null);
+  const renderedRef = useRef(false);
   const callbackRef = useRef(onGoogleLogin);
   callbackRef.current = onGoogleLogin;
   const [passkeyError, setPasskeyError] = useState("");
@@ -34,14 +35,22 @@ export default function LandingPage({
       });
       gsiInitialized = true;
     }
-    googleBtnRef.current.innerHTML = "";
-    window.google.accounts.id.renderButton(googleBtnRef.current, {
-      theme: "filled_black",
-      size: "large",
-      width: 320,
-      text: "signin_with",
-      shape: "pill",
-    });
+    // Render the button at most once per mount - renderButton() is called
+    // from both the initial check and a polling retry below, and Google's
+    // own render can land asynchronously, so without this guard a race
+    // between those calls can inject a second button into the same
+    // container.
+    if (!renderedRef.current) {
+      googleBtnRef.current.innerHTML = "";
+      window.google.accounts.id.renderButton(googleBtnRef.current, {
+        theme: "filled_black",
+        size: "large",
+        width: 320,
+        text: "signin_with",
+        shape: "pill",
+      });
+      renderedRef.current = true;
+    }
     return true;
   }, [googleClientId]);
 

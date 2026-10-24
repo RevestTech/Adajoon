@@ -232,7 +232,7 @@ async def _prepend_epg_on_now_channels(
     result = await db.execute(
         select(Channel)
         .where(Channel.id.in_(ordered_ids))
-        .where(Channel.is_nsfw == False)
+        .where(Channel.is_nsfw.is_(False))
         .where(
             Channel.health_status.in_(
                 ("verified", "online", "manifest_only", "unknown")
@@ -277,7 +277,7 @@ async def _get_channel_summaries(db: AsyncSession) -> list[dict]:
             Channel.languages,
             Channel.network,
         )
-        .where(Channel.is_nsfw == False)
+        .where(Channel.is_nsfw.is_(False))
         .where(
             Channel.health_status.in_(
                 ("verified", "online", "manifest_only", "unknown")
@@ -316,7 +316,7 @@ async def _get_radio_summaries(db: AsyncSession) -> list[dict]:
             RadioStation.country_code,
             RadioStation.language,
         )
-        .where(RadioStation.last_check_ok == True)
+        .where(RadioStation.last_check_ok.is_(True))
         .order_by(RadioStation.votes.desc())
         .limit(MAX_CONTEXT_CHANNELS)
     )
@@ -571,7 +571,7 @@ async def _fallback_search(
         ]
         result = await db.execute(
             select(Channel)
-            .where(Channel.is_nsfw == False)
+            .where(Channel.is_nsfw.is_(False))
             .where(
                 Channel.health_status.in_(
                     ("verified", "online", "manifest_only", "unknown")
@@ -625,7 +625,7 @@ async def _fallback_search(
     ]
     result = await db.execute(
         select(RadioStation)
-        .where(RadioStation.last_check_ok == True)
+        .where(RadioStation.last_check_ok.is_(True))
         .where(or_(*term_filters))
         .order_by(RadioStation.votes.desc())
         .limit(FALLBACK_CANDIDATE_LIMIT)

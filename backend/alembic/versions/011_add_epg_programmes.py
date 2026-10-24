@@ -5,8 +5,8 @@ Revises: 010
 Create Date: 2026-07-20
 
 """
-from alembic import op
 
+from alembic import op
 
 revision = "011"
 down_revision = "010"

@@ -1,4 +1,5 @@
 """Unit tests for channel and radio station schema coercion."""
+
 from datetime import datetime, timezone
 
 import pytest

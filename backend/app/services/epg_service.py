@@ -178,12 +178,12 @@ async def upsert_programmes(db: AsyncSession, programmes: list[dict[str, Any]]) 
     return count
 
 
-async def prune_old_programmes(db: AsyncSession, older_than_days: int | None = None) -> int:
+async def prune_old_programmes(
+    db: AsyncSession, older_than_days: int | None = None
+) -> int:
     days = older_than_days if older_than_days is not None else get_prune_days()
     cutoff = datetime.now(timezone.utc) - timedelta(days=days)
-    result = await db.execute(
-        delete(EpgProgramme).where(EpgProgramme.stop_at < cutoff)
-    )
+    result = await db.execute(delete(EpgProgramme).where(EpgProgramme.stop_at < cutoff))
     await db.commit()
     return int(result.rowcount or 0)
 

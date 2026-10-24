@@ -1,19 +1,19 @@
 """Watch history endpoints."""
 
 import logging
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
-from sqlalchemy import select, delete, desc, func
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import delete, desc, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.csrf import verify_csrf_token
 from app.database import get_db
 from app.models import User, WatchHistory
 from app.routers.auth import require_user
-from app.csrf import verify_csrf_token
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/history", tags=["history"])
@@ -46,9 +46,9 @@ async def record_watch_history(
 ):
     """Record or update a watch history entry."""
     try:
-        # Upsert: if same user + item exists in last 1 hour, update it; otherwise insert
-        one_hour_ago = datetime.now(timezone.utc) - timedelta(hours=1)
-
+        # Upsert: if same user + item exists in last 1 hour, update it; otherwise
+        # insert. The "last 1 hour" window is enforced by the partial unique
+        # index ix_watch_history_user_item_recent, not by a query filter here.
         stmt = pg_insert(WatchHistory).values(
             user_id=user.id,
             item_type=item.item_type,

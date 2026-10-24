@@ -1,12 +1,13 @@
 """Recommendation endpoints."""
 
 from typing import Literal
+
 from fastapi import APIRouter, Depends, Request
+from pydantic import BaseModel
 from slowapi import Limiter
 from slowapi.util import get_remote_address
-from sqlalchemy import select, func, Integer
+from sqlalchemy import Integer, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from pydantic import BaseModel
 
 from app.database import get_db
 from app.models import Channel, RadioStation, UserVote

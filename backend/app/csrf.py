@@ -2,7 +2,6 @@
 
 import hmac
 import secrets
-from typing import Optional
 
 from fastapi import HTTPException, Request, status
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer

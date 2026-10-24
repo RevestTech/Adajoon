@@ -2,15 +2,16 @@
 
 import json
 from typing import Literal, Optional
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select, delete, func, case
-from sqlalchemy.ext.asyncio import AsyncSession
-from pydantic import BaseModel
 
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+from sqlalchemy import case, delete, func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.csrf import verify_csrf_token
 from app.database import get_db
 from app.models import Playlist, PlaylistItem, User
 from app.routers.auth import require_user
-from app.csrf import verify_csrf_token
 
 router = APIRouter(prefix="/api/playlists", tags=["playlists"])
 

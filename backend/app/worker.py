@@ -1,7 +1,6 @@
 import asyncio
 import logging
 import time
-from textwrap import dedent
 
 from sqlalchemy import text
 

@@ -1,10 +1,11 @@
 """Redis health check and cache management endpoints."""
 
 from fastapi import APIRouter, Depends
-from app.redis_client import health_check, cache_delete
-from app.middleware.admin_required import require_admin
+
 from app.csrf import verify_csrf_token
+from app.middleware.admin_required import require_admin
 from app.models import User
+from app.redis_client import cache_delete, health_check
 
 router = APIRouter(prefix="/api/redis", tags=["redis"])
 

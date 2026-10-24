@@ -98,7 +98,9 @@ async def test_prune_old_programmes_deletes_before_cutoff() -> None:
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_sync_epg_isolates_country_http_failure(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_sync_epg_isolates_country_http_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setenv("EPG_COUNTRY_CODES", "us,uk")
 
     call_count = {"n": 0}
