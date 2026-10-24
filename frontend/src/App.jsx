@@ -535,6 +535,20 @@ export default function App() {
     setSelectedChannel(ch);
   }, []);
 
+  const handleChannelStep = useCallback((direction) => {
+    setSelectedChannel((current) => {
+      if (!current) return current;
+      const list = channels;
+      const index = list.findIndex((ch) => ch.id === current.id);
+      if (index === -1 || list.length < 2) return current;
+      const nextIndex = (index + direction + list.length) % list.length;
+      const next = list[nextIndex];
+      deepLinkSupersededRef.current = true;
+      pushPlayerState("tv", next.id);
+      return next;
+    });
+  }, [channels]);
+
   const closeTvPlayer = useCallback(() => {
     setSelectedChannel(null);
     setFloatingTv(false);
@@ -992,6 +1006,7 @@ export default function App() {
           voteSummary={votes.getSummaryFor("tv", selectedChannel.id)}
           onVote={votes.submitVote}
           onSelectSimilar={openTvPlayer}
+          onChannelStep={handleChannelStep}
         />
       )}
       {selectedChannel && floatingTv && (
