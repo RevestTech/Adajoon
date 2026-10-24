@@ -6321,3 +6321,64 @@ button:focus-visible {
   line-height: 1.5;
   color: rgba(255, 255, 255, 0.85);
 }
+
+/* ── EPG Now/Next Tile Badge ── */
+.epg-tile-badge {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 2px 0 6px;
+}
+
+.epg-tile-badge__text {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  font-size: 11.5px;
+  overflow: hidden;
+}
+
+.epg-tile-badge__now {
+  flex-shrink: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 700;
+  color: #e94560;
+  font-size: 10px;
+}
+
+.epg-tile-badge__title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.epg-tile-badge__time {
+  flex-shrink: 0;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.epg-tile-badge__bar {
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+
+.epg-tile-badge__bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #e94560, #c084fc);
+  border-radius: 2px;
+}
+
+.epg-inline-text {
+  font-size: 11.5px;
+  color: rgba(255, 255, 255, 0.55);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}

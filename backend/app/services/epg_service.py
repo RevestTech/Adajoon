@@ -389,6 +389,41 @@ async def get_now_next(
     return current, nxt
 
 
+MAX_NOW_BATCH_CHANNELS = 200
+
+
+async def get_now_batch(
+    db: AsyncSession,
+    channel_ids: list[str],
+    *,
+    at: datetime | None = None,
+) -> dict[str, EpgProgramme]:
+    """Current programme per channel, for a page of grid tiles. One query
+    for the whole batch instead of one per tile. Channels with nothing
+    airing now are omitted from the result."""
+    if not channel_ids:
+        return {}
+
+    current_time = at or datetime.now(timezone.utc)
+    if current_time.tzinfo is None:
+        current_time = current_time.replace(tzinfo=timezone.utc)
+
+    stmt = select(EpgProgramme).where(
+        EpgProgramme.channel_id.in_(channel_ids[:MAX_NOW_BATCH_CHANNELS]),
+        EpgProgramme.start_at <= current_time,
+        EpgProgramme.stop_at > current_time,
+    )
+    result = await db.execute(stmt)
+    by_channel: dict[str, EpgProgramme] = {}
+    for row in result.scalars().all():
+        # A channel should never have two overlapping programmes, but keep
+        # the most recently-started one if the source data ever does.
+        existing = by_channel.get(row.channel_id)
+        if existing is None or row.start_at > existing.start_at:
+            by_channel[row.channel_id] = row
+    return by_channel
+
+
 async def search_on_now(
     db: AsyncSession,
     *,
