@@ -139,10 +139,7 @@ export default function RadioPlayer({
               <button
                 type="button"
                 className="favorite-btn favorite-btn--guest"
-                onClick={() => {
-                  onGuestNotice?.("Sign in to save favorites.");
-                  onLogin?.();
-                }}
+                onClick={() => onGuestNotice?.("Sign in to save favorites.")}
                 title="Sign in to save favorites"
                 aria-label="Sign in to save favorites"
                 style={{ position: "static" }}

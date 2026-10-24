@@ -385,7 +385,6 @@ export default function ChannelGrid({
                     ? (e) => {
                         e.stopPropagation();
                         onGuestNotice?.("Sign in to save favorites.");
-                        onLogin();
                       }
                     : (e) => { e.stopPropagation(); onToggleFavorite(ch); },
                   isGuest,
