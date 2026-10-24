@@ -126,9 +126,12 @@ async def get_for_you_channels(
         if not props or props.get("item_type") != "tv":
             continue
         item_id = props.get("item_id")
-        if item_id:
+        if isinstance(item_id, str) and item_id:
             played_ids.add(item_id)
-        for cat in re.split(r"[;,]", props.get("item_category") or ""):
+        item_category = props.get("item_category")
+        if not isinstance(item_category, str):
+            continue
+        for cat in re.split(r"[;,]", item_category):
             cat = cat.strip()
             if cat:
                 category_counts[cat] = category_counts.get(cat, 0) + 1
