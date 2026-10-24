@@ -63,7 +63,27 @@ async def search_channels(db: AsyncSession, params: ChannelSearchParams):
     total = (await db.execute(count_query)).scalar() or 0
 
     offset = (params.page - 1) * params.per_page
-    query = query.order_by(Channel.name).offset(offset).limit(params.per_page)
+    if params.query:
+        # Rank by match quality so an exact/prefix name match (e.g. "BBC")
+        # outranks a channel that only matches via a substring in its name,
+        # alt_names, or network. Verified/online channels break ties, as a
+        # cheap popularity proxy since there's no per-channel vote count to
+        # join against without a much heavier query.
+        q = params.query
+        match_rank = case(
+            (Channel.name.ilike(q), 0),
+            (Channel.name.ilike(f"{q}%"), 1),
+            (Channel.name.ilike(f"%{q}%"), 2),
+            else_=3,
+        )
+        verified_rank = case(
+            (Channel.health_status.in_(("verified", "online", "manifest_only")), 0),
+            else_=1,
+        )
+        query = query.order_by(match_rank, verified_rank, Channel.name)
+    else:
+        query = query.order_by(Channel.name)
+    query = query.offset(offset).limit(params.per_page)
 
     result = await db.execute(query)
     channels = result.scalars().all()
