@@ -98,3 +98,18 @@ export async function fetchRadioMapRide({ lat, lng, workingOnly = true, signal }
   if (!res.ok) throw new Error("Failed to take a ride");
   return res.json();
 }
+
+/**
+ * Current track title for a page of visible station cards, fetched live
+ * from each station's ICY in-band metadata. Stations without it are simply
+ * absent from the result.
+ * @param {string[]} stationIds
+ * @returns {Promise<Record<string, string>>}
+ */
+export async function fetchNowPlayingBatch(stationIds) {
+  if (!stationIds?.length) return {};
+  const params = new URLSearchParams({ station_ids: stationIds.join(",") });
+  const res = await fetch(`${BASE}/now-playing-batch?${params}`);
+  if (!res.ok) throw new Error("Failed to fetch now-playing batch");
+  return res.json();
+}
