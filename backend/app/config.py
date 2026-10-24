@@ -31,6 +31,10 @@ def _get_vault_client():
 # Initialize vault client once
 _vault = _get_vault_client()
 
+# Placeholder secret used only when no vault/env value is configured -
+# never valid in production, checked explicitly in validate_config().
+DEV_JWT_SECRET_DEFAULT = "dev-jwt-secret-change-in-production-min-32-chars"
+
 
 def get_vault():
     """The shared vault client, or None if VAULT_ADDR/VAULT_ROLE_ID/
@@ -38,11 +42,6 @@ def get_vault():
     the admin Secrets UI to write/clear keys - reads already go through
     `_get_secret` at startup."""
     return _vault
-
-
-# Placeholder secret used only when no vault/env value is configured -
-# never valid in production, checked explicitly in validate_config().
-DEV_JWT_SECRET_DEFAULT = "dev-jwt-secret-change-in-production-min-32-chars"
 
 
 def _get_secret(key: str, default: str = "") -> str:
