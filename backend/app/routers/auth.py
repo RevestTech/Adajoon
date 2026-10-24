@@ -14,7 +14,7 @@ from jose import JWTError, jwt
 from pydantic import BaseModel, Field
 from slowapi import Limiter
 from slowapi.util import get_remote_address
-from sqlalchemy import delete, exists, func, select
+from sqlalchemy import case, delete, exists, func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from webauthn import (
@@ -36,7 +36,7 @@ from webauthn.helpers.structs import (
 from app.config import settings
 from app.csrf import generate_csrf_token, verify_csrf_token
 from app.database import get_db
-from app.models import Passkey, User, UserFavorite, UserVote
+from app.models import Channel, Passkey, RadioStation, User, UserFavorite, UserVote
 from app.redis_client import cache_get, cache_set
 from app.services.analytics_service import log_auth_event
 
@@ -849,3 +849,48 @@ async def get_vote_summary(
     for item_id, vote_type, cnt in result:
         summary.setdefault(item_id, {})[vote_type] = cnt
     return summary
+
+
+TRENDING_LIMIT = 10
+POSITIVE_VOTE_TYPES = {"like", "works"}
+NEGATIVE_VOTE_TYPES = {"dislike", "broken"}
+
+
+@router.get("/votes/trending")
+async def get_trending(
+    item_type: str, limit: int = TRENDING_LIMIT, db: AsyncSession = Depends(get_db)
+):
+    """Top items by net vote score (like + works - dislike - broken), for
+    the search box's trending/default-state suggestions. Public endpoint."""
+    if item_type not in ("tv", "radio"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="item_type must be 'tv' or 'radio'",
+        )
+    limit = max(1, min(limit, 20))
+
+    score = func.sum(
+        case(
+            (UserVote.vote_type.in_(POSITIVE_VOTE_TYPES), 1),
+            (UserVote.vote_type.in_(NEGATIVE_VOTE_TYPES), -1),
+            else_=0,
+        )
+    ).label("score")
+    ranked = (
+        select(UserVote.item_id, score)
+        .where(UserVote.item_type == item_type)
+        .group_by(UserVote.item_id)
+        .having(score > 0)
+        .order_by(score.desc())
+        .limit(limit)
+    ).subquery()
+
+    model = Channel if item_type == "tv" else RadioStation
+    logo_col = model.logo if item_type == "tv" else model.favicon
+    stmt = (
+        select(model.id, model.name, logo_col.label("logo"), ranked.c.score)
+        .join(ranked, model.id == ranked.c.item_id)
+        .order_by(ranked.c.score.desc())
+    )
+    result = await db.execute(stmt)
+    return [{"id": row.id, "name": row.name, "logo": row.logo or ""} for row in result]

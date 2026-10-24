@@ -166,6 +166,11 @@ class PaginatedChannels(BaseModel):
     total_pages: int
 
 
+class ForYouResponse(BaseModel):
+    channels: list[ChannelOut]
+    category: str | None = None
+
+
 class RadioStationOut(BaseModel):
     id: str
     name: str
