@@ -13,6 +13,7 @@ import GuestNoticeToast from "./components/GuestNoticeToast";
 import FavoritesView from "./components/FavoritesView";
 import RecentlyPlayed from "./components/RecentlyPlayed";
 import BackToTop from "./components/BackToTop";
+import InstallPrompt from "./components/InstallPrompt";
 import AISearchModal from "./components/AISearchModal";
 import WhatsNewModal from "./components/WhatsNewModal";
 import WorldMap from "./components/WorldMap";
@@ -1111,6 +1112,7 @@ export default function App() {
         </ErrorBoundary>
       )}
       <BackToTop />
+      <InstallPrompt />
       <TVDebugInfo />
       <footer className="app-footer">
         <span>&copy; {new Date().getFullYear()} Revest Technology. All rights reserved.</span>
