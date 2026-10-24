@@ -40,6 +40,22 @@ export async function fetchEpgNowBatch(channelIds) {
 }
 
 /**
+ * Channel x time schedule for a page of channels, for the EPG grid view.
+ * @param {string[]} channelIds
+ * @param {{ from?: string, to?: string }} [opts]
+ * @returns {Promise<{ from_at: string, to_at: string, items: Record<string, object[]> }>}
+ */
+export async function fetchEpgScheduleBatch(channelIds, { from, to } = {}) {
+  if (!channelIds?.length) return { items: {} };
+  const params = new URLSearchParams({ channel_ids: channelIds.join(",") });
+  if (from) params.set("from", from);
+  if (to) params.set("to", to);
+  const res = await fetch(`${BASE}/epg/schedule-batch?${params}`);
+  if (!res.ok) throw new Error("Failed to fetch EPG schedule batch");
+  return res.json();
+}
+
+/**
  * Schedule window for a channel (default server window: now → +24h).
  * @param {string} channelId
  * @param {{ from?: string, to?: string }} [opts]

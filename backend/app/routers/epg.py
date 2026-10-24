@@ -15,12 +15,14 @@ from app.schemas import (
     EpgOnNowItem,
     EpgOnNowResponse,
     EpgProgrammeOut,
+    EpgScheduleBatchResponse,
     EpgScheduleResponse,
 )
 from app.services.epg_service import (
     get_channel_schedule,
     get_now_batch,
     get_now_next,
+    get_schedule_batch,
     resolve_schedule_window,
     search_on_now,
 )
@@ -73,6 +75,40 @@ async def epg_now_batch(
     by_channel = await get_now_batch(db, ids)
     return EpgNowBatchResponse(
         items={cid: _programme_out(p) for cid, p in by_channel.items()}
+    )
+
+
+@router.get("/schedule-batch", response_model=EpgScheduleBatchResponse)
+async def epg_schedule_batch(
+    channel_ids: str = Query(..., description="Comma-separated channel ids"),
+    from_: datetime | None = Query(
+        None, alias="from", description="Window start (ISO)"
+    ),
+    to: datetime | None = Query(None, description="Window end (ISO)"),
+    db: AsyncSession = Depends(get_db),
+) -> EpgScheduleBatchResponse:
+    """Channel x time schedule for a page of channels, for the EPG grid view."""
+    ids = [c.strip() for c in channel_ids.split(",") if c.strip()]
+    if not ids:
+        return EpgScheduleBatchResponse(
+            from_at=datetime.now(), to_at=datetime.now(), items={}
+        )
+
+    try:
+        window_from, window_to = resolve_schedule_window(from_, to)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
+        ) from e
+
+    by_channel = await get_schedule_batch(db, ids, window_from, window_to)
+    return EpgScheduleBatchResponse(
+        from_at=window_from,
+        to_at=window_to,
+        items={
+            cid: [_programme_out(p) for p in programmes]
+            for cid, programmes in by_channel.items()
+        },
     )
 
 

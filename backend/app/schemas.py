@@ -343,3 +343,12 @@ class EpgNowBatchResponse(BaseModel):
     with something airing now are included."""
 
     items: dict[str, EpgProgrammeOut]
+
+
+class EpgScheduleBatchResponse(BaseModel):
+    """Full channel x time schedule for a page of channels - the EPG grid
+    view. Channels with nothing airing in the window are omitted."""
+
+    from_at: datetime
+    to_at: datetime
+    items: dict[str, list[EpgProgrammeOut]]

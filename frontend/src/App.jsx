@@ -12,6 +12,7 @@ import GuestNoticeToast from "./components/GuestNoticeToast";
 import FavoritesView from "./components/FavoritesView";
 import RecentlyPlayed from "./components/RecentlyPlayed";
 import BackToTop from "./components/BackToTop";
+import InstallPrompt from "./components/InstallPrompt";
 import AISearchModal from "./components/AISearchModal";
 import WhatsNewModal from "./components/WhatsNewModal";
 import WorldMap from "./components/WorldMap";
@@ -25,6 +26,7 @@ import { useDevice } from "./hooks/useDevice";
 import { useTVNavigation } from "./hooks/useTVNavigation";
 import { useSessionTracking } from "./hooks/useSessionTracking";
 import { useNavigationTracking } from "./hooks/useNavigationTracking";
+import useTheme from "./hooks/useTheme";
 import {
   readUrlParams,
   writeUrlParams,
@@ -138,6 +140,7 @@ export default function App() {
 
   const auth = useAuth();
   const isGuest = !auth.user;
+  const { theme, toggleTheme } = useTheme();
 
   useSessionTracking();
 
@@ -532,6 +535,20 @@ export default function App() {
     setSelectedChannel(ch);
   }, []);
 
+  const handleChannelStep = useCallback((direction) => {
+    setSelectedChannel((current) => {
+      if (!current) return current;
+      const list = channels;
+      const index = list.findIndex((ch) => ch.id === current.id);
+      if (index === -1 || list.length < 2) return current;
+      const nextIndex = (index + direction + list.length) % list.length;
+      const next = list[nextIndex];
+      deepLinkSupersededRef.current = true;
+      pushPlayerState("tv", next.id);
+      return next;
+    });
+  }, [channels]);
+
   const closeTvPlayer = useCallback(() => {
     setSelectedChannel(null);
     setFloatingTv(false);
@@ -798,6 +815,8 @@ export default function App() {
         onOpenAdmin={() => setShowAdminDashboard(true)}
         onOpenWhatsNew={() => setShowWhatsNew(true)}
         hasUnseenWhatsNew={unseenWhatsNew}
+        theme={theme}
+        onToggleTheme={toggleTheme}
       />
       {sidebarOpen && <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} />}
       <div className="layout">
@@ -991,6 +1010,7 @@ export default function App() {
           voteSummary={votes.getSummaryFor("tv", selectedChannel.id)}
           onVote={votes.submitVote}
           onSelectSimilar={openTvPlayer}
+          onChannelStep={handleChannelStep}
         />
       )}
       {selectedChannel && floatingTv && (
@@ -1078,6 +1098,7 @@ export default function App() {
         </ErrorBoundary>
       )}
       <BackToTop />
+      <InstallPrompt />
       <TVDebugInfo />
       <footer className="app-footer">
         <span>&copy; {new Date().getFullYear()} Revest Technology. All rights reserved.</span>

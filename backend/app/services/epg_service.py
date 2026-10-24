@@ -390,6 +390,8 @@ async def get_now_next(
 
 
 MAX_NOW_BATCH_CHANNELS = 200
+MAX_SCHEDULE_BATCH_CHANNELS = 60
+MAX_SCHEDULE_BATCH_HOURS = 12
 
 
 async def get_now_batch(
@@ -421,6 +423,36 @@ async def get_now_batch(
         existing = by_channel.get(row.channel_id)
         if existing is None or row.start_at > existing.start_at:
             by_channel[row.channel_id] = row
+    return by_channel
+
+
+async def get_schedule_batch(
+    db: AsyncSession,
+    channel_ids: list[str],
+    from_dt: datetime,
+    to_dt: datetime,
+) -> dict[str, list[EpgProgramme]]:
+    """Programmes per channel overlapping [from_dt, to_dt), for a grid view.
+    One query for the whole page of channels instead of one per row. The
+    window is capped so a grid request can't pull an unbounded amount of
+    EPG data."""
+    if not channel_ids:
+        return {}
+
+    capped_to = min(to_dt, from_dt + timedelta(hours=MAX_SCHEDULE_BATCH_HOURS))
+    stmt = (
+        select(EpgProgramme)
+        .where(
+            EpgProgramme.channel_id.in_(channel_ids[:MAX_SCHEDULE_BATCH_CHANNELS]),
+            EpgProgramme.start_at < capped_to,
+            EpgProgramme.stop_at > from_dt,
+        )
+        .order_by(EpgProgramme.channel_id, EpgProgramme.start_at)
+    )
+    result = await db.execute(stmt)
+    by_channel: dict[str, list[EpgProgramme]] = {}
+    for row in result.scalars().all():
+        by_channel.setdefault(row.channel_id, []).append(row)
     return by_channel
 
 

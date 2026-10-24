@@ -10,6 +10,7 @@ export default function Header({
   onOpenAISearch,
   onOpenAdmin,
   onOpenWhatsNew, hasUnseenWhatsNew,
+  theme, onToggleTheme,
 }) {
   const [localSearch, setLocalSearch] = useState(search);
   const debounceRef = useRef(null);
@@ -117,17 +118,18 @@ export default function Header({
             onChange={handleChange}
             aria-label={mode === "tv" ? "Search channels" : "Search stations"}
           />
+          <button
+            type="button"
+            className="ai-search-btn ai-search-btn--inline"
+            onClick={onOpenAISearch}
+            aria-label="Search with AI instead"
+            title="Search with AI instead"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+              <path d="M12 2L14.09 8.26L20 9.27L15.55 13.97L16.91 20L12 16.9L7.09 20L8.45 13.97L4 9.27L9.91 8.26L12 2Z" fill="currentColor" />
+            </svg>
+          </button>
         </div>
-        <button
-          className="ai-search-btn"
-          onClick={onOpenAISearch}
-          aria-label="AI Search"
-          title="Search with AI"
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-            <path d="M12 2L14.09 8.26L20 9.27L15.55 13.97L16.91 20L12 16.9L7.09 20L8.45 13.97L4 9.27L9.91 8.26L12 2Z" fill="currentColor" />
-          </svg>
-        </button>
         <button
           className="whats-new-btn"
           onClick={onOpenWhatsNew}
@@ -139,6 +141,30 @@ export default function Header({
             <circle cx="7" cy="7" r="1" fill="currentColor" stroke="none" />
           </svg>
           {hasUnseenWhatsNew && <span className="whats-new-dot" aria-hidden="true" />}
+        </button>
+        <button
+          className="theme-toggle-btn"
+          onClick={onToggleTheme}
+          aria-label={theme === "light" ? "Switch to dark theme" : "Switch to light theme"}
+          title={theme === "light" ? "Switch to dark theme" : "Switch to light theme"}
+        >
+          {theme === "light" ? (
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z" />
+            </svg>
+          ) : (
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="5" />
+              <line x1="12" y1="1" x2="12" y2="3" />
+              <line x1="12" y1="21" x2="12" y2="23" />
+              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+              <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+              <line x1="1" y1="12" x2="3" y2="12" />
+              <line x1="21" y1="12" x2="23" y2="12" />
+              <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+              <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+            </svg>
+          )}
         </button>
       </div>
       <div className="header-user">
