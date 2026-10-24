@@ -5,6 +5,7 @@ import QuickFilters from "./QuickFilters";
 import { fetchEpgNowBatch } from "../api/epg";
 import { formatTimeLeft, epgProgressPercent } from "../utils/epgTime";
 import EpgGridView from "./EpgGridView";
+import { handleCardKey } from "../utils/keyboardNav";
 
 const GUEST_LIMIT = 20;
 
@@ -526,7 +527,14 @@ function ChannelCard({ channel, onClick, favorited, onToggleFavorite, isGuest, v
   const streamStatus = channel.stream_url ? getTvStreamStatus(channel.health_status) : null;
 
   return (
-    <div className="channel-card" onClick={onClick}>
+    <div
+      className="channel-card"
+      onClick={onClick}
+      role="button"
+      tabIndex={0}
+      aria-label={channel.name}
+      onKeyDown={handleCardKey(onClick)}
+    >
       {isGuest ? (
         <button
           type="button"
@@ -598,7 +606,14 @@ function ChannelRow({ channel, onClick, favorited, onToggleFavorite, isGuest, vo
   const streamStatus = channel.stream_url ? getTvStreamStatus(channel.health_status) : null;
 
   return (
-    <div className="list-row" onClick={onClick}>
+    <div
+      className="list-row"
+      onClick={onClick}
+      role="button"
+      tabIndex={0}
+      aria-label={channel.name}
+      onKeyDown={handleCardKey(onClick)}
+    >
       <div className="list-row-logo">
         {channel.logo ? (
           <img
@@ -675,7 +690,14 @@ function ChannelThumb({ channel, onClick, favorited, onToggleFavorite, isGuest, 
   const streamStatus = channel.stream_url ? getTvStreamStatus(channel.health_status) : null;
 
   return (
-    <div className="thumb-card" onClick={onClick}>
+    <div
+      className="thumb-card"
+      onClick={onClick}
+      role="button"
+      tabIndex={0}
+      aria-label={channel.name}
+      onKeyDown={handleCardKey(onClick)}
+    >
       <div className="thumb-image">
         {channel.logo ? (
           <img
