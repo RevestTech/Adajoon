@@ -8,7 +8,7 @@ from sqlalchemy import Float, and_, cast, func, or_, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import RadioStation, UserVote
+from app.models import RadioStation
 from app.schemas import MapBboxResponse, MapCluster, MapStationPin, RadioSearchParams
 from app.services.status_filters import apply_status_filters
 
@@ -176,8 +176,8 @@ async def search_radio(db: AsyncSession, params: RadioSearchParams):
         )
 
     if params.working_only:
-        query = query.where(RadioStation.last_check_ok == True)
-        count_query = count_query.where(RadioStation.last_check_ok == True)
+        query = query.where(RadioStation.last_check_ok.is_(True))
+        count_query = count_query.where(RadioStation.last_check_ok.is_(True))
 
     statuses = [s.strip() for s in (params.status or "").split(",") if s.strip()]
     if statuses:
@@ -187,10 +187,10 @@ async def search_radio(db: AsyncSession, params: RadioSearchParams):
             model=RadioStation,
             item_type="radio",
             statuses=statuses,
-            has_stream_cond=(RadioStation.last_check_ok == True),
+            has_stream_cond=(RadioStation.last_check_ok.is_(True)),
             live_cond=(
                 RadioStation.health_status.in_(("verified", "online"))
-                | (RadioStation.last_check_ok == True)
+                | (RadioStation.last_check_ok.is_(True))
             ),
         )
 
@@ -273,7 +273,7 @@ async def get_radio_stats(db: AsyncSession):
     working = (
         await db.execute(
             select(func.count(RadioStation.id)).where(
-                RadioStation.last_check_ok == True
+                RadioStation.last_check_ok.is_(True)
             )
         )
     ).scalar() or 0
@@ -379,7 +379,7 @@ async def get_map_bbox(
 
     filters = [_has_geo_filter(), _bbox_filter(west, south, east, north)]
     if working_only:
-        filters.append(RadioStation.last_check_ok == True)
+        filters.append(RadioStation.last_check_ok.is_(True))
 
     if should_return_clusters(zoom):
         cell = grid_cell_degrees(zoom)
@@ -443,7 +443,7 @@ async def get_ride_station(
     """Pick a random playable geo station; optionally biased near lat/lng."""
     filters = [_has_geo_filter()]
     if working_only:
-        filters.append(RadioStation.last_check_ok == True)
+        filters.append(RadioStation.last_check_ok.is_(True))
 
     if lat is not None and lng is not None:
         lat_f = _geo_lat_expr()

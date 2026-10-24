@@ -12,7 +12,6 @@ from app.schemas import (
     RadioCountryOut,
     RadioSearchParams,
     RadioStationOut,
-    RadioTagOut,
 )
 from app.services.radio_service import (
     MAP_DEFAULT_LIMIT,
