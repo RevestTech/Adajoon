@@ -30,6 +30,10 @@ def _get_vault_client():
 # Initialize vault client once
 _vault = _get_vault_client()
 
+# Placeholder secret used only when no vault/env value is configured -
+# never valid in production, checked explicitly in validate_config().
+DEV_JWT_SECRET_DEFAULT = "dev-jwt-secret-change-in-production-min-32-chars"
+
 
 def _get_secret(key: str, default: str = "") -> str:
     """Get secret from vault, fallback to env var, then default."""
@@ -67,7 +71,7 @@ class Settings(BaseSettings):
         return url
 
     # JWT (from vault)
-    jwt_secret: str = _get_secret("jwt_secret", "dev-jwt-secret-change-in-production-min-32-chars")
+    jwt_secret: str = _get_secret("jwt_secret", DEV_JWT_SECRET_DEFAULT)
     jwt_algorithm: str = "HS256"
     jwt_expiry_days: int = 30
 
@@ -130,6 +134,8 @@ class Settings(BaseSettings):
             errors.append("JWT_SECRET must be at least 32 characters long")
         elif self.jwt_secret == "change-me-in-production":
             errors.append("JWT_SECRET must not be the default value 'change-me-in-production'")
+        elif self.jwt_secret == DEV_JWT_SECRET_DEFAULT and self.env == "production":
+            errors.append("JWT_SECRET must not be the built-in development default in production")
 
         if self.env == "production":
             if "localhost" in self.database_url:

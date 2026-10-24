@@ -14,6 +14,7 @@ from app.models import (
 )
 from app.middleware.admin_required import require_admin
 from app.redis_client import health_check as redis_health_check
+from app.csrf import verify_csrf_token
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 logger = logging.getLogger(__name__)
@@ -379,7 +380,8 @@ async def get_activity_stats(
 async def make_user_admin(
     user_id: int,
     admin_user: User = Depends(require_admin),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    _csrf: None = Depends(verify_csrf_token)
 ):
     """
     Grant admin privileges to a user.
@@ -412,7 +414,8 @@ async def make_user_admin(
 async def revoke_user_admin(
     user_id: int,
     admin_user: User = Depends(require_admin),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    _csrf: None = Depends(verify_csrf_token)
 ):
     """
     Revoke admin privileges from a user.

@@ -5,7 +5,8 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
+from urllib.parse import urlparse
 import stripe
 
 from app.database import get_db
@@ -13,6 +14,18 @@ from app.config import settings
 from app.models import User
 from app.routers.auth import require_user
 from app.csrf import verify_csrf_token
+
+
+def _is_allowed_redirect_url(url: str) -> bool:
+    """Only allow redirect URLs that point back at our own frontend origins."""
+    try:
+        parsed = urlparse(url)
+    except ValueError:
+        return False
+    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+        return False
+    origin = f"{parsed.scheme}://{parsed.netloc}"
+    return origin in settings.cors_origins
 
 logger = logging.getLogger(__name__)
 
@@ -63,9 +76,23 @@ class CheckoutRequest(BaseModel):
     success_url: str
     cancel_url: str
 
+    @field_validator("success_url", "cancel_url")
+    @classmethod
+    def _validate_redirect_url(cls, v: str) -> str:
+        if not _is_allowed_redirect_url(v):
+            raise ValueError("URL must point to an allowed app origin")
+        return v
+
 
 class PortalRequest(BaseModel):
     return_url: str
+
+    @field_validator("return_url")
+    @classmethod
+    def _validate_redirect_url(cls, v: str) -> str:
+        if not _is_allowed_redirect_url(v):
+            raise ValueError("URL must point to an allowed app origin")
+        return v
 
 
 # ---------------------------------------------------------------------------

@@ -1,7 +1,9 @@
 """Parental controls endpoints."""
 import bcrypt
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
@@ -12,6 +14,7 @@ from app.routers.auth import require_user
 from app.csrf import verify_csrf_token
 
 router = APIRouter(prefix="/api/parental", tags=["parental"])
+limiter = Limiter(key_func=get_remote_address)
 
 
 # ---------------------------------------------------------------------------
@@ -72,7 +75,9 @@ async def set_parental_pin(
 
 
 @router.post("/verify-pin")
+@limiter.limit("10/minute")
 async def verify_parental_pin(
+    http_request: Request,
     request: VerifyPinRequest,
     user: User = Depends(require_user),
     db: AsyncSession = Depends(get_db),
@@ -120,14 +125,37 @@ async def toggle_kids_mode(
 
 
 @router.delete("/pin")
+@limiter.limit("10/minute")
 async def remove_parental_pin(
+    http_request: Request,
+    request: VerifyPinRequest,
     user: User = Depends(require_user),
     db: AsyncSession = Depends(get_db),
     _csrf: None = Depends(verify_csrf_token),
 ):
-    """Remove parental control PIN."""
+    """Remove parental control PIN. Requires the current PIN."""
+    if not user.parental_pin_hash:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No PIN set"
+        )
+
+    try:
+        valid = bcrypt.checkpw(
+            request.pin.encode('utf-8'),
+            user.parental_pin_hash.encode('utf-8')
+        )
+    except Exception:
+        valid = False
+
+    if not valid:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid PIN"
+        )
+
     user.parental_pin_hash = ""
     user.kids_mode_enabled = False
     await db.commit()
-    
+
     return {"status": "pin_removed"}

@@ -214,6 +214,13 @@ async def google_login(request: Request, response: Response, body: GoogleTokenRe
         )
         raise HTTPException(status_code=400, detail="Invalid Google token")
 
+    if not idinfo.get("email_verified"):
+        await log_auth_event(
+            db, "Auth Login Failed",
+            properties={"method": "google", "error": "email_not_verified"},
+        )
+        raise HTTPException(status_code=400, detail="Google account email is not verified")
+
     email = idinfo.get("email", "")
     name = idinfo.get("name", "")
     picture = idinfo.get("picture", "")
@@ -390,7 +397,8 @@ async def apple_login(request: Request, response: Response, body: AppleTokenRequ
 @router.post("/passkey/register-options")
 @limiter.limit("10/minute")
 async def passkey_register_options(
-    request: Request,user: User = Depends(require_user), db: AsyncSession = Depends(get_db)):
+    request: Request, user: User = Depends(require_user), db: AsyncSession = Depends(get_db),
+    _csrf: None = Depends(verify_csrf_token)):
     result = await db.execute(select(Passkey).where(Passkey.user_id == user.id))
     existing = result.scalars().all()
 
@@ -423,7 +431,8 @@ async def passkey_register_options(
 
 
 @router.post("/passkey/register")
-async def passkey_register(body: PasskeyRegisterBody, user: User = Depends(require_user), db: AsyncSession = Depends(get_db)):
+async def passkey_register(body: PasskeyRegisterBody, user: User = Depends(require_user), db: AsyncSession = Depends(get_db),
+                            _csrf: None = Depends(verify_csrf_token)):
     try:
         expected_challenge = decode_challenge_token(body.challenge_token)
     except Exception:
