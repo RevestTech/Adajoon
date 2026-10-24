@@ -29,10 +29,16 @@ import {
   writeUrlParams,
   pushPlayerState,
   popPlayerState,
+  isKnownPath,
 } from "./hooks/useUrlState";
-import { fetchChannels, fetchCategories, fetchCountries, fetchStats } from "./api/channels";
-import { fetchRadioStations, fetchRadioTags, fetchRadioCountries } from "./api/radio";
+import { fetchChannels, fetchChannel, fetchCategories, fetchCountries, fetchStats } from "./api/channels";
+import { fetchRadioStations, fetchStation, fetchRadioTags, fetchRadioCountries } from "./api/radio";
 import { openRadioPopoutWindow } from "./utils/radioPopout";
+import {
+  hasSkippedGuestLogin,
+  setSkippedGuestLogin,
+  clearSkippedGuestLogin,
+} from "./utils/guestSession";
 
 const LandingPage = lazy(() => import("./components/LandingPage"));
 const RadioGardenMap = lazy(() => import("./components/RadioGardenMap"));
@@ -107,8 +113,24 @@ export default function App() {
     }
   }, [sidebarRailCollapsed]);
 
+  // Set once on load: an unrecognized path (e.g. a stale/mistyped link)
+  // shows a "page not found" message instead of silently falling back to
+  // the default channel grid with no indication the link was broken.
+  const [notFound] = useState(() => {
+    try {
+      return !isKnownPath(window.location.pathname);
+    } catch {
+      return false;
+    }
+  });
+
   const [showLogin, setShowLogin] = useState(() => {
-    try { return !localStorage.getItem("adajoon_user") && !localStorage.getItem("adajoon_guest_skip"); } catch { return true; }
+    // Default to NOT gating on a storage-read failure - a returning guest
+    // should never be blocked by an error we can't diagnose; worst case
+    // they see the normal browse screen instead of a login wall.
+    let hasUser = false;
+    try { hasUser = Boolean(localStorage.getItem("adajoon_user")); } catch { /* ignore */ }
+    return !hasUser && !hasSkippedGuestLogin();
   });
 
   const auth = useAuth();
@@ -296,7 +318,7 @@ export default function App() {
 
   const handleLogout = useCallback(() => {
     auth.logout();
-    localStorage.removeItem("adajoon_guest_skip");
+    clearSkippedGuestLogin();
     setShowLogin(true);
   }, [auth]);
 
@@ -325,7 +347,11 @@ export default function App() {
   // TV: load channels
   const loadChannels = useCallback(async () => {
     if (showFavorites) return;
-    if (channels.length === 0) setLoading(true);
+    // Always show the loading state while a fetch is in flight, even when
+    // channels are already populated - otherwise a filter change (e.g.
+    // selecting a country on the map) renders the stale, now-mismatched
+    // list/count for a frame before the new data arrives.
+    setLoading(true);
     setError(null);
     try {
       const data = await fetchChannels({
@@ -359,7 +385,7 @@ export default function App() {
   // Radio: load stations
   const loadRadio = useCallback(async () => {
     if (showRadioFavorites) return;
-    if (radioStations.length === 0) setRadioLoading(true);
+    setRadioLoading(true);
     setRadioError(null);
     try {
       const data = await fetchRadioStations({
@@ -564,6 +590,37 @@ export default function App() {
     setRadioModalOpen(true);
   }, []);
 
+  // Open the player directly for a shared/deep-link URL (e.g. /tv/channel/xyz
+  // or a bookmark/refresh), instead of just updating the URL and leaving the
+  // grid on screen. Runs once on mount; doesn't push a new history entry
+  // since we're already on this URL.
+  useEffect(() => {
+    let cancelled = false;
+    if (IU.initialChannel) {
+      fetchChannel(IU.initialChannel)
+        .then((ch) => {
+          if (!cancelled && ch) {
+            setSelectedStation(null);
+            setSelectedChannel(ch);
+          }
+        })
+        .catch(() => {});
+    } else if (IU.initialStation) {
+      fetchStation(IU.initialStation)
+        .then((st) => {
+          if (!cancelled && st) {
+            setSelectedChannel(null);
+            setSelectedStation(st);
+            setRadioModalOpen(true);
+          }
+        })
+        .catch(() => {});
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   useTVNavigation({
     enabled: device.isTV,
     onBack: useCallback(() => {
@@ -760,7 +817,22 @@ export default function App() {
           {showRecentRow && (
             <RecentlyPlayed recentItems={recentItems} onSelect={handleRecentSelect} />
           )}
-          {showFavorites ? (
+          {notFound ? (
+            <div className="not-found-view">
+              <div className="not-found-view__art" aria-hidden>404</div>
+              <p className="not-found-view__title">Page not found</p>
+              <p className="not-found-view__hint">
+                That link doesn't match anything here. It may be mistyped or out of date.
+              </p>
+              <button
+                type="button"
+                className="not-found-view__home-btn"
+                onClick={() => { window.location.href = "/"; }}
+              >
+                Go to Adajoon home
+              </button>
+            </div>
+          ) : showFavorites ? (
             <FavoritesView
               tvFavorites={favoritesList}
               radioFavorites={radioFavoritesList}
@@ -947,7 +1019,7 @@ export default function App() {
             onPasskeyLogin={handlePasskeyLogin}
             googleClientId={GOOGLE_CLIENT_ID}
             appleClientId={APPLE_CLIENT_ID}
-            onSkip={() => { localStorage.setItem("adajoon_guest_skip", "1"); setShowLogin(false); }}
+            onSkip={() => { setSkippedGuestLogin(); setShowLogin(false); }}
           />
         </Suspense>
       )}

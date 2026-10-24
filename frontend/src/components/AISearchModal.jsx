@@ -26,6 +26,7 @@ export default function AISearchModal({ mode, onSelect, onClose }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [explanation, setExplanation] = useState("");
+  const [resultSource, setResultSource] = useState("");
   const inputRef = useRef(null);
 
   useEffect(() => {
@@ -49,12 +50,14 @@ export default function AISearchModal({ mode, onSelect, onClose }) {
     setError("");
     setResults(null);
     setExplanation("");
+    setResultSource("");
 
     try {
       const data = await aiSearch(q, mode);
       const items = mode === "tv" ? data.channels : data.stations;
       setResults(items || []);
       setExplanation(data.explanation || "");
+      setResultSource(data.source || "");
     } catch (err) {
       setError(err.message || "Search failed. Please try again.");
     } finally {
@@ -163,6 +166,11 @@ export default function AISearchModal({ mode, onSelect, onClose }) {
 
         {results && !loading && (
           <div className="ai-search-results">
+            {resultSource?.startsWith("fallback") && (
+              <div className="ai-search-fallback-notice">
+                Using basic keyword search — AI search is temporarily unavailable, so results may be less relevant.
+              </div>
+            )}
             {explanation && (
               <p className="ai-search-explanation">{explanation}</p>
             )}

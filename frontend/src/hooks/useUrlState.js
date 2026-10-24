@@ -6,6 +6,17 @@ function splitList(value) {
 }
 
 /**
+ * Check whether a pathname matches a route the app actually handles.
+ * Everything else should show a "page not found" state rather than
+ * silently falling back to the default channel grid.
+ */
+export function isKnownPath(pathname) {
+  if (pathname === "/" || pathname === "") return true;
+  if (/^\/(tv\/channel|radio\/station)\/[^/]+\/?$/.test(pathname)) return true;
+  return false;
+}
+
+/**
  * Read and decode listing-related params from the current location.
  * Also reads channel/station from URL path for shareable links.
  * @returns {{

@@ -35,6 +35,12 @@ export async function fetchStats() {
   return res.json();
 }
 
+export async function fetchChannel(channelId) {
+  const res = await fetch(`${BASE}/channels/${channelId}`);
+  if (!res.ok) throw new Error("Failed to fetch channel");
+  return res.json();
+}
+
 export async function fetchStreams(channelId) {
   const res = await fetch(`${BASE}/channels/${channelId}/streams`);
   if (!res.ok) throw new Error("Failed to fetch streams");

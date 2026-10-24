@@ -6,13 +6,22 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.schemas import (
-    RadioStationOut, RadioSearchParams, PaginatedRadio,
-    RadioTagOut, RadioCountryOut, MapBboxResponse,
+    RadioStationOut,
+    RadioSearchParams,
+    PaginatedRadio,
+    RadioTagOut,
+    RadioCountryOut,
+    MapBboxResponse,
 )
 from app.services.radio_service import (
-    search_radio, get_radio_countries,
-    parse_bbox, get_map_bbox, get_ride_station,
-    MAP_DEFAULT_LIMIT, MAP_MAX_LIMIT,
+    search_radio,
+    get_radio_countries,
+    get_station_by_id,
+    parse_bbox,
+    get_map_bbox,
+    get_ride_station,
+    MAP_DEFAULT_LIMIT,
+    MAP_MAX_LIMIT,
 )
 from app.redis_client import cache_get, cache_set
 
@@ -30,15 +39,22 @@ async def list_radio_stations(
     country: str | None = Query(None),
     language: str | None = Query(None),
     working_only: bool = Query(False),
-    status: str | None = Query(None, description="Filter by health status: verified, live, or hide_offline"),
+    status: str | None = Query(
+        None, description="Filter by health status: verified, live, or hide_offline"
+    ),
     page: int = Query(1, ge=1),
     per_page: int = Query(40, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
 ):
     params = RadioSearchParams(
-        query=query, tag=tag, country=country,
-        language=language, working_only=working_only,
-        status=status, page=page, per_page=per_page,
+        query=query,
+        tag=tag,
+        country=country,
+        language=language,
+        working_only=working_only,
+        status=status,
+        page=page,
+        per_page=per_page,
     )
     stations, total = await search_radio(db, params)
     return PaginatedRadio(
@@ -48,6 +64,14 @@ async def list_radio_stations(
         per_page=per_page,
         total_pages=math.ceil(total / per_page) if total else 0,
     )
+
+
+@router.get("/stations/{station_id}", response_model=RadioStationOut)
+async def get_radio_station(station_id: str, db: AsyncSession = Depends(get_db)):
+    station = await get_station_by_id(db, station_id)
+    if not station:
+        raise HTTPException(status_code=404, detail="Station not found")
+    return RadioStationOut.model_validate(station)
 
 
 STATIC_TAGS = [
@@ -73,6 +97,7 @@ STATIC_TAGS = [
     {"name": "variety", "station_count": 600},
 ]
 
+
 @router.get("/tags-test")
 async def tags_test():
     """Test endpoint to verify Railway deployment."""
@@ -96,7 +121,11 @@ async def list_radio_countries(db: AsyncSession = Depends(get_db)):
             return cached
         rows = await get_radio_countries(db)
         data = [
-            RadioCountryOut(country=r.country, country_code=r.country_code, station_count=r.station_count)
+            RadioCountryOut(
+                country=r.country,
+                country_code=r.country_code,
+                station_count=r.station_count,
+            )
             for r in rows
         ]
         # Convert Pydantic models to dicts for caching
@@ -104,7 +133,9 @@ async def list_radio_countries(db: AsyncSession = Depends(get_db)):
         return data
     except Exception as e:
         logger.error(f"Error in list_radio_countries: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to fetch radio countries: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to fetch radio countries: {str(e)}"
+        )
 
 
 @router.get("/map/ride", response_model=RadioStationOut)
@@ -121,7 +152,10 @@ async def radio_map_ride(
             detail="lat and lng must be provided together",
         )
     station = await get_ride_station(
-        db, lat=lat, lng=lng, working_only=working_only,
+        db,
+        lat=lat,
+        lng=lng,
+        working_only=working_only,
     )
     if station is None:
         raise HTTPException(

@@ -98,9 +98,14 @@ export default function VideoPlayer({
   const internalVideoRef = useRef(null);
   const videoRef = externalVideoRef || internalVideoRef;
   const hlsRef = useRef(null);
+  const stallTimeoutRef = useRef(null);
   const [streams, setStreams] = useState([]);
   const [activeUrl, setActiveUrl] = useState(channel.stream_url || "");
+  const [isLoading, setIsLoading] = useState(Boolean(channel.stream_url));
   const [errorMsg, setErrorMsg] = useState("");
+  const [triedUrls, setTriedUrls] = useState(() =>
+    channel.stream_url ? [channel.stream_url] : []
+  );
   const [healthResult, setHealthResult] = useState(null);
   const [checking, setChecking] = useState(false);
   const [shareToast, setShareToast] = useState("");
@@ -109,8 +114,30 @@ export default function VideoPlayer({
   const { shareTvChannel } = useShare();
 
   useEffect(() => {
-    fetchStreams(channel.id).then(setStreams).catch(() => {});
+    fetchStreams(channel.id)
+      .then((result) => {
+        setStreams(result);
+        // No primary stream_url, but the channel has alternates - use the
+        // first one instead of showing "No stream available" forever.
+        setActiveUrl((current) => current || result?.[0]?.url || current);
+      })
+      .catch(() => {});
   }, [channel.id]);
+
+  // Reset playback state when switching to a different channel without
+  // closing the player (e.g. picking a new card while minimized).
+  useEffect(() => {
+    setActiveUrl(channel.stream_url || "");
+    setTriedUrls(channel.stream_url ? [channel.stream_url] : []);
+    setErrorMsg("");
+    setIsLoading(Boolean(channel.stream_url));
+  }, [channel.id]);
+
+  // Record every URL we've attempted so auto-fallback never retries one.
+  useEffect(() => {
+    if (!activeUrl) return;
+    setTriedUrls((prev) => (prev.includes(activeUrl) ? prev : [...prev, activeUrl]));
+  }, [activeUrl]);
 
   useEffect(() => {
     let cancelled = false;
@@ -133,40 +160,106 @@ export default function VideoPlayer({
     };
   }, [channel.id]);
 
+  const streamsRef = useRef(streams);
+  useEffect(() => { streamsRef.current = streams; }, [streams]);
+  const triedUrlsRef = useRef(triedUrls);
+  useEffect(() => { triedUrlsRef.current = triedUrls; }, [triedUrls]);
+
+  // On failure, auto-advance to the next untried stream source instead of
+  // just sitting frozen; only show a final error once every source failed.
+  const handleStreamFailure = (finalMessage) => {
+    const candidates = [channel.stream_url, ...streamsRef.current.map((s) => s.url)].filter(
+      Boolean
+    );
+    const next = candidates.find((u) => !triedUrlsRef.current.includes(u));
+    if (next) {
+      setActiveUrl(next);
+      return;
+    }
+    setIsLoading(false);
+    setErrorMsg(finalMessage);
+  };
+
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !activeUrl) return;
 
+    let cancelled = false;
     setErrorMsg("");
+    setIsLoading(true);
 
     if (hlsRef.current) {
       hlsRef.current.destroy();
       hlsRef.current = null;
     }
+    if (stallTimeoutRef.current) {
+      clearTimeout(stallTimeoutRef.current);
+      stallTimeoutRef.current = null;
+    }
+
+    const clearStallTimeout = () => {
+      if (stallTimeoutRef.current) {
+        clearTimeout(stallTimeoutRef.current);
+        stallTimeoutRef.current = null;
+      }
+    };
+    const markPlaying = () => {
+      clearStallTimeout();
+      setIsLoading(false);
+    };
+    const handleNativeError = () => {
+      clearStallTimeout();
+      handleStreamFailure("Stream could not be loaded. It may be offline.");
+    };
+
+    video.addEventListener("playing", markPlaying);
+    video.addEventListener("error", handleNativeError);
+
+    // If nothing starts playing within 15s, treat it as a failed source
+    // rather than leaving the player frozen with no feedback.
+    stallTimeoutRef.current = setTimeout(() => {
+      handleStreamFailure("Stream timed out. It may be offline.");
+    }, 15000);
 
     if (activeUrl.includes(".m3u8") && !video.canPlayType("application/vnd.apple.mpegurl")) {
-      let cancelled = false;
       import("hls.js").then(({ default: Hls }) => {
-        if (cancelled || !Hls.isSupported()) return;
+        if (cancelled) return;
+        if (!Hls.isSupported()) {
+          clearStallTimeout();
+          handleStreamFailure("This stream format is not supported in your browser.");
+          return;
+        }
         const hls = new Hls({ enableWorker: true, lowLatencyMode: true });
         hls.loadSource(activeUrl);
         hls.attachMedia(video);
         hls.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(() => {}));
         hls.on(Hls.Events.ERROR, (_, data) => {
-          if (data.fatal) setErrorMsg("Stream could not be loaded. It may be offline.");
+          if (data.fatal) {
+            clearStallTimeout();
+            handleStreamFailure("Stream could not be loaded. It may be offline.");
+          }
         });
         hlsRef.current = hls;
       });
-      return () => { cancelled = true; if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null; } };
     } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
       video.src = activeUrl;
-      video.play().catch(() => {});
+      video.play().catch(() => {
+        clearStallTimeout();
+        handleStreamFailure("Stream could not be loaded. It may be offline.");
+      });
     } else {
       video.src = activeUrl;
-      video.play().catch(() => setErrorMsg("This stream format is not supported in your browser."));
+      video.play().catch(() => {
+        clearStallTimeout();
+        handleStreamFailure("This stream format is not supported in your browser.");
+      });
     }
 
     return () => {
+      cancelled = true;
+      video.removeEventListener("playing", markPlaying);
+      video.removeEventListener("error", handleNativeError);
+      clearStallTimeout();
       if (hlsRef.current) {
         hlsRef.current.destroy();
         hlsRef.current = null;
@@ -365,9 +458,30 @@ export default function VideoPlayer({
             {activeUrl ? (
               <div className="video-container">
                 {errorMsg ? (
-                  <div className="no-stream channel-modal-no-stream channel-modal-no-stream--error">{errorMsg}</div>
+                  <div className="no-stream channel-modal-no-stream channel-modal-no-stream--error">
+                    <p>{errorMsg}</p>
+                    <button
+                      type="button"
+                      className="channel-modal-retry-btn"
+                      onClick={() => {
+                        setTriedUrls([]);
+                        setErrorMsg("");
+                        setActiveUrl(channel.stream_url || streams[0]?.url || "");
+                      }}
+                    >
+                      Retry
+                    </button>
+                  </div>
                 ) : (
-                  <video ref={videoRef} controls autoPlay playsInline />
+                  <>
+                    {isLoading && (
+                      <div className="video-loading-overlay" aria-live="polite">
+                        <span className="video-loading-spinner" />
+                        <span>Connecting to stream…</span>
+                      </div>
+                    )}
+                    <video ref={videoRef} controls autoPlay playsInline />
+                  </>
                 )}
               </div>
             ) : (

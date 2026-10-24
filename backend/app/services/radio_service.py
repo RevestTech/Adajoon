@@ -253,6 +253,11 @@ def get_radio_tags(limit: int = 60):
     return common_tags[:limit]
 
 
+async def get_station_by_id(db: AsyncSession, station_id: str):
+    result = await db.execute(select(RadioStation).where(RadioStation.id == station_id))
+    return result.scalar_one_or_none()
+
+
 async def get_radio_countries(db: AsyncSession):
     result = await db.execute(
         select(
