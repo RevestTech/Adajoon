@@ -326,7 +326,6 @@ export default function RadioGrid({
                     ? (e) => {
                         e.stopPropagation();
                         onGuestNotice?.("Sign in to save favorites.");
-                        onLogin();
                       }
                     : (e) => { e.stopPropagation(); onToggleFavorite(st); },
                   isGuest,

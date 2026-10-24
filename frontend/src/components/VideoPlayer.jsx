@@ -409,10 +409,7 @@ export default function VideoPlayer({
               <button
                 type="button"
                 className="modal-favorite-btn modal-favorite-btn--guest"
-                onClick={() => {
-                  onGuestNotice?.("Sign in to save favorites.");
-                  onLogin?.();
-                }}
+                onClick={() => onGuestNotice?.("Sign in to save favorites.")}
                 title="Sign in to save favorites"
                 aria-label="Sign in to save favorites"
               >

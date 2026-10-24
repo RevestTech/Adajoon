@@ -83,10 +83,7 @@ export default function Header({
           <button
             type="button"
             className="header-fav-btn header-fav-btn--guest"
-            onClick={() => {
-              onGuestNotice?.("Sign in to view and save favorites.");
-              onLogin();
-            }}
+            onClick={() => onGuestNotice?.("Sign in to view and save favorites.")}
             aria-label="Favorites — sign in required"
             title="Sign in to use favorites"
           >
