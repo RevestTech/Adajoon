@@ -1,7 +1,10 @@
 """White-label B2B API endpoints."""
+
 import logging
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, Header, status
+from fastapi import APIRouter, Depends, HTTPException, Header, Request, status
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
@@ -12,11 +15,13 @@ from app.models import Tenant, Channel, RadioStation
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/whitelabel", tags=["whitelabel"])
+limiter = Limiter(key_func=get_remote_address)
 
 
 # ---------------------------------------------------------------------------
 # Tenant Authentication
 # ---------------------------------------------------------------------------
+
 
 async def get_tenant(
     x_api_key: Optional[str] = Header(None, alias="X-API-Key"),
@@ -25,28 +30,26 @@ async def get_tenant(
     """Verify tenant API key and return tenant."""
     if not x_api_key:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Missing API key"
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing API key"
         )
-    
+
     result = await db.execute(
-        select(Tenant)
-        .where(Tenant.api_key == x_api_key, Tenant.is_active == True)
+        select(Tenant).where(Tenant.api_key == x_api_key, Tenant.is_active == True)
     )
     tenant = result.scalar_one_or_none()
-    
+
     if not tenant:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid API key"
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid API key"
         )
-    
+
     return tenant
 
 
 # ---------------------------------------------------------------------------
 # Response Models
 # ---------------------------------------------------------------------------
+
 
 class BrandingResponse(BaseModel):
     slug: str
@@ -60,8 +63,11 @@ class BrandingResponse(BaseModel):
 # Endpoints
 # ---------------------------------------------------------------------------
 
+
 @router.get("/branding")
+@limiter.limit("30/minute")
 async def get_branding(
+    request: Request,
     tenant: Tenant = Depends(get_tenant),
 ):
     """Get branding configuration for tenant."""
@@ -75,7 +81,9 @@ async def get_branding(
 
 
 @router.get("/channels")
+@limiter.limit("30/minute")
 async def get_tenant_channels(
+    request: Request,
     tenant: Tenant = Depends(get_tenant),
     db: AsyncSession = Depends(get_db),
     limit: int = 100,
@@ -85,21 +93,21 @@ async def get_tenant_channels(
 ):
     """Get channels for tenant (respects tenant limits)."""
     query = select(Channel).where(Channel.health_status.in_(["verified", "online"]))
-    
+
     # Apply filters
     if category:
         query = query.where(Channel.categories.ilike(f"%{category}%"))
     if country:
-        query = query.where(Channel.country == country)
-    
+        query = query.where(Channel.country_code == country)
+
     # Apply tenant channel limit
     limit = min(limit, tenant.max_channels)
-    
+
     query = query.offset(offset).limit(limit)
-    
+
     result = await db.execute(query)
     channels = result.scalars().all()
-    
+
     return {
         "tenant": tenant.slug,
         "limit": limit,
@@ -109,7 +117,7 @@ async def get_tenant_channels(
                 "id": ch.id,
                 "name": ch.name,
                 "logo": ch.logo,
-                "country": ch.country,
+                "country": ch.country_code,
                 "categories": ch.categories,
                 "stream_url": ch.stream_url,
             }
@@ -119,7 +127,9 @@ async def get_tenant_channels(
 
 
 @router.get("/radio")
+@limiter.limit("30/minute")
 async def get_tenant_radio(
+    request: Request,
     tenant: Tenant = Depends(get_tenant),
     db: AsyncSession = Depends(get_db),
     limit: int = 100,
@@ -128,22 +138,24 @@ async def get_tenant_radio(
     tag: Optional[str] = None,
 ):
     """Get radio stations for tenant (respects tenant limits)."""
-    query = select(RadioStation).where(RadioStation.health_status.in_(["verified", "online"]))
-    
+    query = select(RadioStation).where(
+        RadioStation.health_status.in_(["verified", "online"])
+    )
+
     # Apply filters
     if country:
         query = query.where(RadioStation.country_code == country)
     if tag:
         query = query.where(RadioStation.tags.ilike(f"%{tag}%"))
-    
+
     # Apply tenant channel limit
     limit = min(limit, tenant.max_channels)
-    
+
     query = query.offset(offset).limit(limit)
-    
+
     result = await db.execute(query)
     stations = result.scalars().all()
-    
+
     return {
         "tenant": tenant.slug,
         "limit": limit,
@@ -164,7 +176,9 @@ async def get_tenant_radio(
 
 
 @router.get("/stats")
+@limiter.limit("30/minute")
 async def get_tenant_stats(
+    request: Request,
     tenant: Tenant = Depends(get_tenant),
     db: AsyncSession = Depends(get_db),
 ):
@@ -174,13 +188,15 @@ async def get_tenant_stats(
         select(Channel).where(Channel.health_status.in_(["verified", "online"]))
     )
     channel_count = len(channel_count_result.scalars().all())
-    
+
     # Count available radio stations
     radio_count_result = await db.execute(
-        select(RadioStation).where(RadioStation.health_status.in_(["verified", "online"]))
+        select(RadioStation).where(
+            RadioStation.health_status.in_(["verified", "online"])
+        )
     )
     radio_count = len(radio_count_result.scalars().all())
-    
+
     return {
         "tenant": tenant.slug,
         "limits": {

@@ -19,13 +19,33 @@ from app.config import settings
 from app.logging_config import setup_logging, RequestLoggingMiddleware
 from app.middleware.security_headers import SecurityHeadersMiddleware
 from app.middleware.www_redirect import WWWRedirectMiddleware
-from app.routers import channels, categories, healthcheck, radio, auth, sitemap, history, languages, csrf, recommendations, playlists, parental, subscriptions, redis_health, ai_search, admin, analytics, epg  # whitelabel
+from app.routers import (
+    channels,
+    categories,
+    healthcheck,
+    radio,
+    auth,
+    sitemap,
+    history,
+    languages,
+    csrf,
+    recommendations,
+    playlists,
+    parental,
+    subscriptions,
+    redis_health,
+    ai_search,
+    admin,
+    analytics,
+    epg,
+)  # whitelabel
 from app.services.iptv_service import full_sync
 from app.services.radio_service import sync_radio_stations
 
 # Prometheus metrics
 try:
     from prometheus_fastapi_instrumentator import Instrumentator, metrics
+
     PROMETHEUS_AVAILABLE = True
 except ImportError:
     PROMETHEUS_AVAILABLE = False
@@ -42,7 +62,7 @@ logger = logging.getLogger(__name__)
 limiter = Limiter(
     key_func=get_remote_address,
     default_limits=["100/minute"],
-    storage_uri=settings.redis_url
+    storage_uri=settings.redis_url,
 )
 
 # All database migrations are managed by Alembic.
@@ -80,6 +100,7 @@ async def lifespan(app: FastAPI):
     sync_task = asyncio.create_task(initial_sync())
     yield
     sync_task.cancel()
+    await http_client.aclose()
     await engine.dispose()
 
 
@@ -147,10 +168,12 @@ if PROMETHEUS_AVAILABLE:
         inprogress_name="http_requests_inprogress",
         inprogress_labels=True,
     )
-    
+
     # Add default metrics
-    instrumentator.instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)
-    
+    instrumentator.instrument(app).expose(
+        app, endpoint="/metrics", include_in_schema=False
+    )
+
     logger.info("Prometheus metrics enabled at /metrics")
 
 
@@ -169,11 +192,11 @@ async def health_ready(db: AsyncSession = Depends(get_db)):
     from datetime import datetime
     from app.redis_client import health_check as redis_health_check
     from app.services.channel_service import get_categories_with_counts
-    
+
     checks = {}
     start = time.time()
     overall_status = "healthy"
-    
+
     # 1. Database connectivity
     try:
         await db.execute(text("SELECT 1"))
@@ -181,68 +204,83 @@ async def health_ready(db: AsyncSession = Depends(get_db)):
     except Exception as e:
         checks["database"] = {"status": "error", "message": str(e)}
         overall_status = "unhealthy"
-    
+
     # 2. Redis connectivity (optional - degraded if unavailable)
     try:
         redis_ok = await redis_health_check()
         checks["redis"] = {"status": "ok" if redis_ok else "degraded"}
         if not redis_ok:
-            overall_status = "degraded" if overall_status == "healthy" else overall_status
+            overall_status = (
+                "degraded" if overall_status == "healthy" else overall_status
+            )
     except Exception as e:
         checks["redis"] = {"status": "degraded", "message": str(e)}
         overall_status = "degraded" if overall_status == "healthy" else overall_status
-    
+
     # 3. Critical query test (categories - the one that failed previously)
     try:
         query_start = time.time()
         rows = await get_categories_with_counts(db)
         query_time_ms = (time.time() - query_start) * 1000
-        
+
         if query_time_ms > 5000:  # Warn if > 5 seconds
             checks["categories_query"] = {
                 "status": "slow",
                 "rows": len(rows),
-                "time_ms": round(query_time_ms, 2)
+                "time_ms": round(query_time_ms, 2),
             }
-            overall_status = "degraded" if overall_status == "healthy" else overall_status
+            overall_status = (
+                "degraded" if overall_status == "healthy" else overall_status
+            )
         else:
             checks["categories_query"] = {
                 "status": "ok",
                 "rows": len(rows),
-                "time_ms": round(query_time_ms, 2)
+                "time_ms": round(query_time_ms, 2),
             }
     except Exception as e:
         checks["categories_query"] = {"status": "error", "message": str(e)}
         overall_status = "unhealthy"
-    
+
     total_time_ms = (time.time() - start) * 1000
-    
+
     return {
         "status": overall_status,
         "checks": checks,
         "total_time_ms": round(total_time_ms, 2),
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": datetime.utcnow().isoformat(),
     }
 
 
 @app.post("/api/sync")
-async def trigger_sync(x_sync_key: str | None = Header(default=None, alias="X-Sync-Key")):
+async def trigger_sync(
+    x_sync_key: str | None = Header(default=None, alias="X-Sync-Key")
+):
     """Manually trigger a data sync (requires SYNC_API_KEY header)."""
     if not SYNC_API_KEY:
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Sync endpoint is disabled (SYNC_API_KEY not configured)")
-    
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Sync endpoint is disabled (SYNC_API_KEY not configured)",
+        )
+
     # Constant-time comparison to prevent timing attacks
     import secrets
+
     if not x_sync_key or not secrets.compare_digest(x_sync_key, SYNC_API_KEY):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid or missing X-Sync-Key header")
-    
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid or missing X-Sync-Key header",
+        )
+
     async with async_session() as db:
         results = await full_sync(db)
     return {"status": "complete", "results": results}
 
 
 # Frontend proxy configuration
-FRONTEND_URL = os.getenv("FRONTEND_URL", "https://frontend-production-d863.up.railway.app")
+FRONTEND_URL = os.getenv(
+    "FRONTEND_URL", "https://frontend-production-d863.up.railway.app"
+)
 http_client = httpx.AsyncClient(timeout=30.0, follow_redirects=True)
 
 
@@ -251,24 +289,34 @@ async def _proxy_to_frontend(request: Request, path: str = ""):
     url = f"{FRONTEND_URL}/{path}"
     if request.url.query:
         url = f"{url}?{request.url.query}"
-    
+
     try:
         response = await http_client.get(
             url,
-            headers={k: v for k, v in request.headers.items() if k.lower() not in ['host', 'connection']},
+            headers={
+                k: v
+                for k, v in request.headers.items()
+                if k.lower() not in ["host", "connection"]
+            },
         )
         return Response(
             content=response.content,
             status_code=response.status_code,
             headers={
-                k: v for k, v in response.headers.items() 
-                if k.lower() not in ['content-encoding', 'content-length', 'transfer-encoding', 'connection']
+                k: v
+                for k, v in response.headers.items()
+                if k.lower()
+                not in [
+                    "content-encoding",
+                    "content-length",
+                    "transfer-encoding",
+                    "connection",
+                ]
             },
         )
     except Exception as e:
         logger.error(f"Frontend proxy error: {e}")
         raise HTTPException(status_code=502, detail="Frontend service unavailable")
-
 
 
 # Specific frontend routes (not catch-all to avoid conflicts with API routes)
@@ -299,5 +347,5 @@ async def serve_page(request: Request, page: str):
     # Explicitly block API routes - must check for both /api and api/
     if page == "api" or page.startswith("api/"):
         raise HTTPException(status_code=404, detail="Not found")
-    
+
     return await _proxy_to_frontend(request, page)

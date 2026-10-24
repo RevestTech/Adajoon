@@ -18,11 +18,16 @@ async def healthcheck_channel(channel_id: str, db: AsyncSession = Depends(get_db
         if "error" in result:
             raise HTTPException(status_code=404, detail=result["error"])
         return result
+    except HTTPException:
+        raise
     except Exception as e:
         # Log the error for debugging
         import logging
-        logging.getLogger(__name__).error(f"Healthcheck failed for channel {channel_id}: {e}")
-        raise HTTPException(status_code=500, detail=f"Healthcheck failed: {str(e)}")
+
+        logging.getLogger(__name__).error(
+            f"Healthcheck failed for channel {channel_id}: {e}"
+        )
+        raise HTTPException(status_code=500, detail="Healthcheck failed")
 
 
 @router.post("/batch", response_model=list[HealthCheckResult])
