@@ -10,6 +10,7 @@
   --bg-elevated: rgba(255, 255, 255, 0.04);
   --accent: #e94560;
   --accent-hover: #ff6b81;
+  --accent-text: var(--accent);
   --text-primary: #eaeaea;
   --text-secondary: #a0a0b8;
   --text-muted: #8b8ba0;
@@ -37,6 +38,10 @@
   --border: #dde0e8;
   --border-color: rgba(15, 15, 26, 0.1);
   --shadow: 0 4px 24px rgba(15, 15, 26, 0.12);
+  /* #e94560 is ~3.8:1 on white — too low for small text (WCAG AA wants
+     4.5:1). Darker red for text only; --accent itself stays the same for
+     fills/buttons/borders. */
+  --accent-text: #c21e44;
 }
 
 @media (min-width: 1440px) {
@@ -246,7 +251,7 @@ body {
 
 .sidebar-item.active {
   background: rgba(233, 69, 96, 0.1);
-  color: var(--accent);
+  color: var(--accent-text);
   border-right: 3px solid var(--accent);
 }
 
@@ -281,7 +286,7 @@ body {
 
 .sidebar-tab-btn.active {
   background: linear-gradient(180deg, rgba(233, 69, 96, 0.22) 0%, rgba(233, 69, 96, 0.1) 100%);
-  color: var(--accent);
+  color: var(--accent-text);
   box-shadow: inset 0 0 0 1px rgba(233, 69, 96, 0.35);
 }
 
@@ -325,7 +330,7 @@ body {
 
 .sidebar-filter-list .sidebar-item.active {
   background: rgba(233, 69, 96, 0.09);
-  color: var(--accent);
+  color: var(--accent-text);
   font-weight: 600;
   border-right: none;
   box-shadow: inset 0 0 0 1px rgba(233, 69, 96, 0.2);
