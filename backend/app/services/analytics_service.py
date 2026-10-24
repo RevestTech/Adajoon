@@ -5,6 +5,7 @@ Used by routers (e.g. auth) that need to record events originating from the
 backend itself (as opposed to client-tracked events sent to /api/analytics).
 Failures here must never break the caller's primary flow.
 """
+
 import logging
 import uuid
 

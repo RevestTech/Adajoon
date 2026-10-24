@@ -5,7 +5,9 @@ from app.config import Settings
 
 def test_webauthn_origins_parses_comma_list() -> None:
     s = Settings()
-    s.webauthn_origin = "https://www.adajoon.com,https://adajoon-production.up.railway.app"
+    s.webauthn_origin = (
+        "https://www.adajoon.com,https://adajoon-production.up.railway.app"
+    )
     assert s.webauthn_origins == [
         "https://www.adajoon.com",
         "https://adajoon-production.up.railway.app",

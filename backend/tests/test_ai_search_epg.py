@@ -106,9 +106,7 @@ async def test_prepend_epg_empty_falls_back() -> None:
         "app.services.ai_search_service.search_on_now",
         new=AsyncMock(return_value=[]),
     ):
-        merged, used = await _prepend_epg_on_now_channels(
-            db, "soccer", [name_only]
-        )
+        merged, used = await _prepend_epg_on_now_channels(db, "soccer", [name_only])
 
     assert used is False
     assert merged == [name_only]
@@ -151,9 +149,7 @@ async def test_prepend_epg_failure_is_non_fatal() -> None:
 @pytest.mark.unit
 @pytest.mark.asyncio
 async def test_ai_search_channels_fallback_merges_epg(monkeypatch) -> None:
-    monkeypatch.setattr(
-        "app.services.ai_search_service.settings.anthropic_api_key", ""
-    )
+    monkeypatch.setattr("app.services.ai_search_service.settings.anthropic_api_key", "")
     monkeypatch.setattr(
         "app.services.ai_search_service.cache_get",
         AsyncMock(return_value=None),

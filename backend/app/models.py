@@ -1,4 +1,16 @@
-from sqlalchemy import Column, String, Text, Boolean, Integer, ForeignKey, Index, DateTime, func, JSON, UniqueConstraint
+from sqlalchemy import (
+    Column,
+    String,
+    Text,
+    Boolean,
+    Integer,
+    ForeignKey,
+    Index,
+    DateTime,
+    func,
+    JSON,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import relationship
 
 from app.database import Base
@@ -15,29 +27,37 @@ class User(Base):
     provider_id = Column(String(255), default="")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     last_login_at = Column(DateTime(timezone=True), default=None)
-    
+
     # Roles and permissions
     is_admin = Column(Boolean, default=False, index=True)
     role = Column(String(50), default="user", index=True)  # user, moderator, admin
-    
+
     # Parental controls
     kids_mode_enabled = Column(Boolean, default=False)
     parental_pin_hash = Column(String(255), default="")
-    
+
     # Subscription
     stripe_customer_id = Column(String(255), default="", index=True)
-    subscription_tier = Column(String(50), default="free", index=True)  # free, plus, pro, family
-    subscription_status = Column(String(50), default="")  # active, canceled, past_due, etc.
+    subscription_tier = Column(
+        String(50), default="free", index=True
+    )  # free, plus, pro, family
+    subscription_status = Column(
+        String(50), default=""
+    )  # active, canceled, past_due, etc.
     subscription_ends_at = Column(DateTime(timezone=True), default=None)
 
-    favorites = relationship("UserFavorite", back_populates="user", cascade="all, delete-orphan")
+    favorites = relationship(
+        "UserFavorite", back_populates="user", cascade="all, delete-orphan"
+    )
 
 
 class UserFavorite(Base):
     __tablename__ = "user_favorites"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     item_type = Column(String(10), nullable=False)
     item_id = Column(String(255), nullable=False)
     item_data = Column(Text, default="{}")
@@ -54,7 +74,9 @@ class UserVote(Base):
     __tablename__ = "user_votes"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     item_type = Column(String(10), nullable=False)
     item_id = Column(String(255), nullable=False)
     vote_type = Column(String(20), nullable=False)
@@ -63,7 +85,14 @@ class UserVote(Base):
     user = relationship("User")
 
     __table_args__ = (
-        Index("ix_user_vote_unique", "user_id", "item_type", "item_id", "vote_type", unique=True),
+        Index(
+            "ix_user_vote_unique",
+            "user_id",
+            "item_type",
+            "item_id",
+            "vote_type",
+            unique=True,
+        ),
         Index("ix_vote_item", "item_type", "item_id"),
     )
 
@@ -72,7 +101,9 @@ class WatchHistory(Base):
     __tablename__ = "watch_history"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     item_type = Column(String(10), nullable=False)
     item_id = Column(String(255), nullable=False)
     item_name = Column(String(512), nullable=False)
@@ -92,22 +123,33 @@ class Playlist(Base):
     __tablename__ = "playlists"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     name = Column(String(255), nullable=False)
     description = Column(Text, default="")
     is_public = Column(Boolean, default=False, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_at = Column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
     user = relationship("User")
-    items = relationship("PlaylistItem", back_populates="playlist", cascade="all, delete-orphan")
+    items = relationship(
+        "PlaylistItem", back_populates="playlist", cascade="all, delete-orphan"
+    )
 
 
 class PlaylistItem(Base):
     __tablename__ = "playlist_items"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    playlist_id = Column(Integer, ForeignKey("playlists.id", ondelete="CASCADE"), nullable=False, index=True)
+    playlist_id = Column(
+        Integer,
+        ForeignKey("playlists.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
     item_type = Column(String(10), nullable=False)  # 'tv' or 'radio'
     item_id = Column(String(255), nullable=False)
     item_data = Column(Text, default="{}")  # JSON: {name, logo, country, etc.}
@@ -126,7 +168,9 @@ class Passkey(Base):
     __tablename__ = "passkeys"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     credential_id = Column(Text, nullable=False, unique=True)
     public_key = Column(Text, nullable=False)
     sign_count = Column(Integer, default=0)
@@ -168,7 +212,9 @@ class Channel(Base):
     name = Column(String(500), nullable=False, index=True)
     alt_names = Column(Text, default="")
     network = Column(String(500), default="")
-    country_code = Column(String(10), ForeignKey("countries.code"), default="", index=True)
+    country_code = Column(
+        String(10), ForeignKey("countries.code"), default="", index=True
+    )
     subdivision = Column(String(100), default="")
     city = Column(String(255), default="")
     categories = Column(String(500), default="")
@@ -244,12 +290,14 @@ class AnalyticsEvent(Base):
     __tablename__ = "analytics_events"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     session_id = Column(String(255), nullable=False, index=True)
     event_name = Column(String(100), nullable=False, index=True)
     properties = Column(JSON, default={})
     created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
-    
+
     user = relationship("User")
 
     __table_args__ = (

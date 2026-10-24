@@ -1,4 +1,5 @@
 """CSRF token endpoints."""
+
 from fastapi import APIRouter, Request, Response
 
 from app.csrf import generate_csrf_token

@@ -24,7 +24,6 @@ from app.services.epg_service import (
     search_on_now,
 )
 
-
 FIXED_NOW = datetime(2026, 7, 20, 15, 0, tzinfo=timezone.utc)
 
 
@@ -46,14 +45,18 @@ def test_resolve_schedule_window_partial_from() -> None:
 @pytest.mark.unit
 def test_resolve_schedule_window_rejects_inverted() -> None:
     with pytest.raises(ValueError, match="to must be after from"):
-        resolve_schedule_window(FIXED_NOW, FIXED_NOW - timedelta(minutes=1), now=FIXED_NOW)
+        resolve_schedule_window(
+            FIXED_NOW, FIXED_NOW - timedelta(minutes=1), now=FIXED_NOW
+        )
 
 
 @pytest.mark.unit
 def test_overlaps_window() -> None:
     a = FIXED_NOW
     b = FIXED_NOW + timedelta(hours=1)
-    assert overlaps_window(a, b, FIXED_NOW - timedelta(minutes=30), FIXED_NOW + timedelta(minutes=30))
+    assert overlaps_window(
+        a, b, FIXED_NOW - timedelta(minutes=30), FIXED_NOW + timedelta(minutes=30)
+    )
     assert not overlaps_window(a, b, b, b + timedelta(hours=1))
     assert not overlaps_window(a, b, a - timedelta(hours=2), a)
 

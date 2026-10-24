@@ -1,4 +1,5 @@
 """Unit tests for AI search keyword fallback helpers."""
+
 import pytest
 
 from app.services.ai_search_service import (

@@ -1,4 +1,5 @@
 """AI-powered natural language search endpoints."""
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,8 +12,12 @@ router = APIRouter(prefix="/api/search", tags=["ai-search"])
 
 
 class AISearchRequest(BaseModel):
-    query: str = Field(..., min_length=2, max_length=500, description="Natural language search query")
-    mode: str = Field("tv", pattern="^(tv|radio)$", description="Search mode: tv or radio")
+    query: str = Field(
+        ..., min_length=2, max_length=500, description="Natural language search query"
+    )
+    mode: str = Field(
+        "tv", pattern="^(tv|radio)$", description="Search mode: tv or radio"
+    )
 
 
 @router.post("/ai")
