@@ -12,6 +12,21 @@
   padding: 20px;
 }
 
+.error-boundary--compact {
+  position: static;
+  inset: auto;
+  background: transparent;
+  z-index: auto;
+  flex-direction: column;
+  gap: 12px;
+  padding: 24px 16px;
+  min-height: 200px;
+}
+
+.error-boundary--compact .error-boundary__message {
+  color: #a0a0b8;
+}
+
 .error-boundary__content {
   background: white;
   border-radius: 16px;

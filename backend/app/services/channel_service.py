@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Channel, Category, Country, Stream, RadioStation, UserVote
 from app.schemas import ChannelSearchParams
+from app.services.status_filters import apply_status_filters
 
 
 async def search_channels(db: AsyncSession, params: ChannelSearchParams):
@@ -47,35 +48,17 @@ async def search_channels(db: AsyncSession, params: ChannelSearchParams):
 
     statuses = [s.strip() for s in (params.status or "").split(",") if s.strip()]
     if statuses:
-        health_includes = []
-        for s in statuses:
-            if s == "has_stream":
-                query = query.where(Channel.stream_url != "")
-                count_query = count_query.where(Channel.stream_url != "")
-            elif s == "verified":
-                health_includes.append(Channel.health_status == "verified")
-            elif s == "live":
-                health_includes.append(Channel.health_status.in_(("verified", "online", "manifest_only")))
-            elif s == "hide_offline":
-                cond = ~Channel.health_status.in_(("offline", "error", "timeout", "geo_blocked"))
-                query = query.where(cond)
-                count_query = count_query.where(cond)
-            elif s == "highly_rated":
-                subq = (
-                    select(UserVote.item_id)
-                    .where(
-                        UserVote.item_type == "tv",
-                        UserVote.vote_type.in_(("works", "like"))
-                    )
-                    .group_by(UserVote.item_id)
-                    .having(func.count(UserVote.id) >= 3)
-                )
-                query = query.where(Channel.id.in_(subq))
-                count_query = count_query.where(Channel.id.in_(subq))
-        if health_includes:
-            combined = health_includes[0] if len(health_includes) == 1 else or_(*health_includes)
-            query = query.where(combined)
-            count_query = count_query.where(combined)
+        query, count_query = apply_status_filters(
+            query,
+            count_query,
+            model=Channel,
+            item_type="tv",
+            statuses=statuses,
+            has_stream_cond=(Channel.stream_url != ""),
+            live_cond=Channel.health_status.in_(
+                ("verified", "online", "manifest_only")
+            ),
+        )
 
     total = (await db.execute(count_query)).scalar() or 0
 
@@ -117,7 +100,9 @@ async def get_categories_with_counts(db: AsyncSession):
             func.count(case((live_cond, Channel.id))).label("live_count"),
             func.count(case((verified_cond, Channel.id))).label("verified_count"),
         )
-        .outerjoin(Channel, (Channel.category_id == Category.id) & (Channel.is_nsfw == False))
+        .outerjoin(
+            Channel, (Channel.category_id == Category.id) & (Channel.is_nsfw == False)
+        )
         .where(~func.lower(Category.id).in_(_HIDDEN_CATEGORIES))
         .group_by(Category.id, Category.name)
         .order_by(Category.name)
@@ -137,7 +122,9 @@ async def get_countries_with_counts(db: AsyncSession):
             func.count(case((live_cond, Channel.id))).label("live_count"),
             func.count(case((verified_cond, Channel.id))).label("verified_count"),
         )
-        .outerjoin(Channel, (Channel.country_code == Country.code) & (Channel.is_nsfw == False))
+        .outerjoin(
+            Channel, (Channel.country_code == Country.code) & (Channel.is_nsfw == False)
+        )
         .group_by(Country.code, Country.name, Country.flag)
         .having(func.count(Channel.id) > 0)
         .order_by(func.count(Channel.id).desc())
@@ -147,6 +134,7 @@ async def get_countries_with_counts(db: AsyncSession):
 
 async def get_stats(db: AsyncSession):
     from sqlalchemy import text
+
     row = (await db.execute(text("""
         SELECT
             (SELECT count(*) FROM channels WHERE is_nsfw = false) AS ch,

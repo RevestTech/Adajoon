@@ -1,8 +1,10 @@
 """AI-powered natural language search for channels and radio stations."""
+
 import hashlib
 import json
 import logging
 import re
+from typing import Callable, TypeVar
 
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,11 +21,34 @@ MAX_CONTEXT_CHANNELS = 500  # Max channels to send as context to AI
 FALLBACK_CANDIDATE_LIMIT = 200
 FALLBACK_RESULT_LIMIT = 20
 
-_FALLBACK_STOPWORDS = frozenset({
-    "the", "a", "an", "for", "that", "show", "shows", "channels", "channel",
-    "me", "find", "looking", "want", "with", "and", "or", "in", "of", "to",
-    "from", "using", "keyword", "search", "right",
-})
+_FALLBACK_STOPWORDS = frozenset(
+    {
+        "the",
+        "a",
+        "an",
+        "for",
+        "that",
+        "show",
+        "shows",
+        "channels",
+        "channel",
+        "me",
+        "find",
+        "looking",
+        "want",
+        "with",
+        "and",
+        "or",
+        "in",
+        "of",
+        "to",
+        "from",
+        "using",
+        "keyword",
+        "search",
+        "right",
+    }
+)
 
 _INTENT_MAP: dict[str, list[str]] = {
     "soccer": ["sports", "football"],
@@ -65,7 +90,9 @@ _INTENT_MAP: dict[str, list[str]] = {
 _SPORTS_INTENT_TOKENS = frozenset(
     {k for k, v in _INTENT_MAP.items() if "sports" in v} | {"sports", "sport"}
 )
-_LIVE_NOW_TOKENS = frozenset({"live", "now", "airing", "currently", "playing", "tonight"})
+_LIVE_NOW_TOKENS = frozenset(
+    {"live", "now", "airing", "currently", "playing", "tonight"}
+)
 
 
 def _tokenize_fallback_query(query: str) -> list[str]:
@@ -87,6 +114,36 @@ def _score_searchable(searchable: str, terms: list[str]) -> int:
     return sum(1 for term in terms if term in haystack)
 
 
+T = TypeVar("T")
+
+
+def _rank_fallback_candidates(
+    candidates: list[T],
+    *,
+    searchable: Callable[[T], str],
+    name: Callable[[T], str],
+    score_terms: list[str],
+    filter_terms: list[str],
+    limit: int,
+) -> list[T]:
+    """Score and rank fallback-search candidates (shared by TV and radio modes).
+
+    Base score comes from how many score_terms appear anywhere in the
+    searchable text, plus bonuses when a literal query token (or an
+    intent-mapped keyword) appears in the item's name specifically.
+    """
+    scored: list[tuple[T, int]] = []
+    for item in candidates:
+        name_l = (name(item) or "").lower()
+        score = _score_searchable(searchable(item), score_terms)
+        score += sum(3 for t in filter_terms if t in name_l)
+        score += sum(2 for t in filter_terms if t in name_l and t in _INTENT_MAP)
+        if score > 0:
+            scored.append((item, score))
+    scored.sort(key=lambda x: x[1], reverse=True)
+    return [item for item, _ in scored[:limit]]
+
+
 def _is_sports_on_now_intent(tokens: list[str]) -> bool:
     """True for sports queries (soccer/fifa/…) and live/now sports phrasing."""
     if not tokens:
@@ -104,7 +161,9 @@ def _is_sports_on_now_intent(tokens: list[str]) -> bool:
 
 def _sports_epg_query_params(tokens: list[str]) -> tuple[str | None, str | None]:
     """Pick ``q`` and/or ``category`` for ``search_on_now`` (prefer specific sport)."""
-    specific = [t for t in tokens if t in _SPORTS_INTENT_TOKENS and t not in ("sports", "sport")]
+    specific = [
+        t for t in tokens if t in _SPORTS_INTENT_TOKENS and t not in ("sports", "sport")
+    ]
     if specific:
         return specific[0], None
     if "sports" in tokens or "sport" in tokens:
@@ -219,7 +278,11 @@ async def _get_channel_summaries(db: AsyncSession) -> list[dict]:
             Channel.network,
         )
         .where(Channel.is_nsfw == False)
-        .where(Channel.health_status.in_(("verified", "online", "manifest_only", "unknown")))
+        .where(
+            Channel.health_status.in_(
+                ("verified", "online", "manifest_only", "unknown")
+            )
+        )
         .order_by(Channel.name)
         .limit(MAX_CONTEXT_CHANNELS)
     )
@@ -272,9 +335,7 @@ async def _get_radio_summaries(db: AsyncSession) -> list[dict]:
     return summaries
 
 
-async def ai_search_channels(
-    db: AsyncSession, query: str
-) -> dict:
+async def ai_search_channels(db: AsyncSession, query: str) -> dict:
     """Use Claude to find channels matching a natural language query."""
     cache_key = _cache_key(query, "tv")
     cached = await cache_get(cache_key)
@@ -314,7 +375,7 @@ async def ai_search_channels(
                 {
                     "role": "user",
                     "content": (
-                        f"Find channels matching: \"{query}\"\n\n"
+                        f'Find channels matching: "{query}"\n\n'
                         f"Available channels:\n{channel_context}"
                     ),
                 }
@@ -370,9 +431,7 @@ async def ai_search_channels(
         return await _fallback_search(db, query, "tv", summaries)
 
 
-async def ai_search_radio(
-    db: AsyncSession, query: str
-) -> dict:
+async def ai_search_radio(db: AsyncSession, query: str) -> dict:
     """Use Claude to find radio stations matching a natural language query."""
     cache_key = _cache_key(query, "radio")
     cached = await cache_get(cache_key)
@@ -408,7 +467,7 @@ async def ai_search_radio(
                 {
                     "role": "user",
                     "content": (
-                        f"Find radio stations matching: \"{query}\"\n\n"
+                        f'Find radio stations matching: "{query}"\n\n'
                         f"Available stations:\n{station_context}"
                     ),
                 }
@@ -523,36 +582,30 @@ async def _fallback_search(
             .limit(FALLBACK_CANDIDATE_LIMIT)
         )
         candidates = result.scalars().all()
-        scored: list[tuple[Channel, int]] = []
-        for channel in candidates:
-            name_l = (channel.name or "").lower()
-            searchable = " ".join([
-                channel.name or "",
-                channel.categories or "",
-                channel.network or "",
-                channel.country_code or "",
-                channel.languages or "",
-            ])
-            score = _score_searchable(searchable, score_terms)
-            # Prefer channels whose name contains an original query token
-            score += sum(3 for t in filter_terms if t in name_l)
-            # Extra weight when an intent keyword (fifa, soccer, …) is in the name
-            score += sum(2 for t in filter_terms if t in name_l and t in _INTENT_MAP)
-            if score > 0:
-                scored.append((channel, score))
-        scored.sort(key=lambda x: x[1], reverse=True)
-        channels = [c for c, _ in scored[:FALLBACK_RESULT_LIMIT]]
+        channels = _rank_fallback_candidates(
+            candidates,
+            searchable=lambda c: " ".join(
+                [
+                    c.name or "",
+                    c.categories or "",
+                    c.network or "",
+                    c.country_code or "",
+                    c.languages or "",
+                ]
+            ),
+            name=lambda c: c.name,
+            score_terms=score_terms,
+            filter_terms=filter_terms,
+            limit=FALLBACK_RESULT_LIMIT,
+        )
         channel_dicts = [_channel_dict(c) for c in channels]
         channel_dicts, used_epg = await _prepend_epg_on_now_channels(
             db, query, channel_dicts
         )
-        explanation = (
-            f"Found {len(channel_dicts)} channels matching '{query}'"
-            + (
-                " (including programmes airing now)."
-                if used_epg
-                else " using keyword search."
-            )
+        explanation = f"Found {len(channel_dicts)} channels matching '{query}'" + (
+            " (including programmes airing now)."
+            if used_epg
+            else " using keyword search."
         )
         return {
             "channels": channel_dicts,
@@ -578,22 +631,21 @@ async def _fallback_search(
         .limit(FALLBACK_CANDIDATE_LIMIT)
     )
     candidates = result.scalars().all()
-    scored_stations: list[tuple[RadioStation, int]] = []
-    for station in candidates:
-        name_l = (station.name or "").lower()
-        searchable = " ".join([
-            station.name or "",
-            station.tags or "",
-            station.country_code or "",
-            station.language or "",
-        ])
-        score = _score_searchable(searchable, score_terms)
-        score += sum(3 for t in filter_terms if t in name_l)
-        score += sum(2 for t in filter_terms if t in name_l and t in _INTENT_MAP)
-        if score > 0:
-            scored_stations.append((station, score))
-    scored_stations.sort(key=lambda x: x[1], reverse=True)
-    stations = [s for s, _ in scored_stations[:FALLBACK_RESULT_LIMIT]]
+    stations = _rank_fallback_candidates(
+        candidates,
+        searchable=lambda s: " ".join(
+            [
+                s.name or "",
+                s.tags or "",
+                s.country_code or "",
+                s.language or "",
+            ]
+        ),
+        name=lambda s: s.name,
+        score_terms=score_terms,
+        filter_terms=filter_terms,
+        limit=FALLBACK_RESULT_LIMIT,
+    )
     return {
         "stations": [
             {

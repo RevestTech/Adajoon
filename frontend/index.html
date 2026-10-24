@@ -64,40 +64,10 @@
       <div id="loading-fallback" style="display:flex;align-items:center;justify-content:center;height:100vh;height:100dvh;color:#a0a0b8;font-family:Inter,system-ui,sans-serif;font-size:16px;">Loading Adajoon…</div>
     </div>
     <!-- Catch fatal JS errors and display them (diagnostic) -->
-    <script>
-      window.onerror = function(msg, url, line, col, err) {
-        var el = document.getElementById('loading-fallback');
-        if (el) {
-          el.style.flexDirection = 'column';
-          el.innerHTML = '<div style="color:#e94560;margin-bottom:8px;">Error loading app</div><div style="font-size:12px;max-width:90vw;word-break:break-all;color:#a0a0b8;">' + msg + ' (' + url + ':' + line + ')</div>';
-        }
-      };
-    </script>
+    <script src="/error-fallback.js"></script>
     <script type="module" src="/src/main.jsx"></script>
-    
+
     <!-- Service Worker Registration - DISABLED temporarily -->
-    <script>
-      // Service Worker temporarily disabled to fix caching issues
-      // Will re-enable after domain routing is stable
-      if ('serviceWorker' in navigator) {
-        // Unregister any existing service workers
-        navigator.serviceWorker.getRegistrations().then(function(registrations) {
-          for(let registration of registrations) {
-            registration.unregister();
-            console.log('[SW] Unregistered:', registration.scope);
-          }
-        });
-        
-        // Clear all caches
-        if ('caches' in window) {
-          caches.keys().then(function(names) {
-            for (let name of names) {
-              caches.delete(name);
-              console.log('[Cache] Deleted:', name);
-            }
-          });
-        }
-      }
-    </script>
+    <script src="/disable-service-worker.js"></script>
   </body>
 </html>

@@ -87,20 +87,24 @@ async def probe_stream(url: str) -> dict:
 
 async def check_channel(db: AsyncSession, channel_id: str) -> dict:
     """Check health of a specific channel's stream."""
-    ch = (await db.execute(select(Channel).where(Channel.id == channel_id))).scalar_one_or_none()
+    ch = (
+        await db.execute(select(Channel).where(Channel.id == channel_id))
+    ).scalar_one_or_none()
     if not ch:
         return {"error": "Channel not found"}
 
     url = ch.stream_url
     if not url:
-        streams = (await db.execute(
-            select(Stream).where(Stream.channel_id == channel_id).limit(1)
-        )).scalar_one_or_none()
+        streams = (
+            await db.execute(
+                select(Stream).where(Stream.channel_id == channel_id).limit(1)
+            )
+        ).scalar_one_or_none()
         if streams:
             url = streams.url
 
     if not url:
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(timezone.utc)
         await db.execute(
             update(Channel)
             .where(Channel.id == channel_id)
@@ -113,11 +117,11 @@ async def check_channel(db: AsyncSession, channel_id: str) -> dict:
             "status": "offline",
             "response_time_ms": 0,
             "detail": "No stream URL available",
-            "checked_at": now,
+            "checked_at": now.isoformat(),
         }
 
     result = await probe_stream(url)
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(timezone.utc)
 
     await db.execute(
         update(Channel)
@@ -132,11 +136,13 @@ async def check_channel(db: AsyncSession, channel_id: str) -> dict:
         "status": result["status"],
         "response_time_ms": result["response_time_ms"],
         "detail": result["detail"],
-        "checked_at": now,
+        "checked_at": now.isoformat(),
     }
 
 
-async def check_channels_batch(db: AsyncSession, channel_ids: list[str], concurrency: int = 10) -> list[dict]:
+async def check_channels_batch(
+    db: AsyncSession, channel_ids: list[str], concurrency: int = 10
+) -> list[dict]:
     """Check health of multiple channels concurrently with isolated sessions."""
     from app.database import async_session
 
