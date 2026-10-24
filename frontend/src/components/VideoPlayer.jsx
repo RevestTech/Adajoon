@@ -91,6 +91,7 @@ export default function VideoPlayer({
   voteSummary,
   onVote,
   onSelectSimilar,
+  onChannelStep,
 }) {
   const getCountryName = (code) => {
     if (!code) return null;
@@ -112,6 +113,8 @@ export default function VideoPlayer({
   const [healthResult, setHealthResult] = useState(null);
   const [checking, setChecking] = useState(false);
   const [shareToast, setShareToast] = useState("");
+  const [channelStepFlash, setChannelStepFlash] = useState(false);
+  const channelStepFlashTimeoutRef = useRef(null);
   const [epgNow, setEpgNow] = useState(null);
   const [epgNext, setEpgNext] = useState(null);
   const { shareTvChannel } = useShare();
@@ -309,10 +312,33 @@ export default function VideoPlayer({
   }, [activeUrl, retryNonce]);
 
   useEffect(() => {
-    const handleKey = (e) => { if (e.key === "Escape") onClose(); };
+    const handleKey = (e) => {
+      if (e.key === "Escape") {
+        onClose();
+        return;
+      }
+      if (minimized || !onChannelStep) return;
+      if (["INPUT", "TEXTAREA"].includes(document.activeElement?.tagName)) return;
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        onChannelStep(1);
+        setChannelStepFlash(true);
+      } else if (e.key === "ArrowDown") {
+        e.preventDefault();
+        onChannelStep(-1);
+        setChannelStepFlash(true);
+      }
+    };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [onClose]);
+  }, [onClose, onChannelStep, minimized]);
+
+  useEffect(() => {
+    if (!channelStepFlash) return undefined;
+    clearTimeout(channelStepFlashTimeoutRef.current);
+    channelStepFlashTimeoutRef.current = setTimeout(() => setChannelStepFlash(false), 1500);
+    return () => clearTimeout(channelStepFlashTimeoutRef.current);
+  }, [channelStepFlash, channel.id]);
 
   const handleSelectSimilar = (item) => {
     fetchChannel(item.id)
@@ -501,6 +527,16 @@ export default function VideoPlayer({
           <div className="channel-modal-stage">
             {activeUrl ? (
               <div className="video-container">
+                {channelStepFlash && (
+                  <div className="channel-step-flash" role="status">
+                    {channel.logo ? (
+                      <img src={channel.logo} alt="" className="channel-step-flash-logo" />
+                    ) : (
+                      <span className="channel-step-flash-logo channel-step-flash-logo--placeholder" />
+                    )}
+                    <span className="channel-step-flash-name">{channel.name}</span>
+                  </div>
+                )}
                 {errorMsg ? (
                   <div className="no-stream channel-modal-no-stream channel-modal-no-stream--error">
                     <p>{errorMsg}</p>

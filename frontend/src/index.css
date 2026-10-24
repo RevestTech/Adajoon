@@ -2690,6 +2690,47 @@ body {
   height: 100%;
 }
 
+.channel-step-flash {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  background: rgba(15, 15, 26, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(6px);
+  pointer-events: none;
+  animation: channel-step-flash-fade 1.5s ease forwards;
+}
+
+@keyframes channel-step-flash-fade {
+  0%, 70% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+.channel-step-flash-logo {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  object-fit: contain;
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.channel-step-flash-logo--placeholder {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.channel-step-flash-name {
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+}
+
 .video-loading-overlay {
   position: absolute;
   inset: 0;
