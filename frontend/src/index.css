@@ -7167,6 +7167,20 @@ button:focus-visible {
   }
 }
 
+.now-playing-text {
+  font-size: 11px;
+  color: var(--accent);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin: 2px 0 0;
+}
+
+.now-playing-text--inline {
+  display: block;
+  font-size: 12px;
+}
+
 .for-you-row {
   border-top: none;
   margin-bottom: 16px;
