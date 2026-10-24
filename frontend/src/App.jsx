@@ -964,6 +964,10 @@ export default function App() {
               onGuestNotice={onGuestNotice}
               getVoteSummary={(id) => votes.getSummaryFor("radio", id)}
               stats={stats}
+              onSelectCollection={(tags) => {
+                setActiveTags(tags);
+                setShowRadioFavorites(false);
+              }}
             />
           )}
         </main>

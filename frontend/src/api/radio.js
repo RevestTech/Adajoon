@@ -98,3 +98,15 @@ export async function fetchRadioMapRide({ lat, lng, workingOnly = true, signal }
   if (!res.ok) throw new Error("Failed to take a ride");
   return res.json();
 }
+
+export async function fetchRadioMapNearby({ lat, lng, limit = 6, workingOnly = true, signal } = {}) {
+  const params = new URLSearchParams();
+  params.set("lat", String(lat));
+  params.set("lng", String(lng));
+  params.set("limit", String(limit));
+  params.set("working_only", workingOnly ? "true" : "false");
+
+  const res = await fetch(`${BASE}/map/nearby?${params}`, { signal });
+  if (!res.ok) throw new Error("Failed to load nearby stations");
+  return res.json();
+}

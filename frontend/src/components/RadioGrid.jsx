@@ -1,5 +1,6 @@
 import ViewToggle from "./ViewToggle";
 import VoteIndicator from "./VoteIndicator";
+import { RADIO_COLLECTIONS } from "../data/radioCollections";
 
 const GUEST_LIMIT = 20;
 
@@ -107,6 +108,7 @@ export default function RadioGrid({
   onGuestNotice,
   getVoteSummary,
   stats,
+  onSelectCollection,
 }) {
   const hasFilters = activeTags.length > 0 || activeCountries.length > 0 || search || showFavorites || activeQualities.length > 0;
   const showSkeleton = loading && stations.length === 0;
@@ -244,6 +246,20 @@ export default function RadioGrid({
       </div>
 
       <div className={`content-body${loading ? " content-loading" : ""}`}>
+        {!hasFilters && onSelectCollection && (
+          <div className="radio-collections" role="group" aria-label="Radio collections">
+            {RADIO_COLLECTIONS.map((collection) => (
+              <button
+                key={collection.title}
+                type="button"
+                className="radio-collection-chip"
+                onClick={() => onSelectCollection(collection.tags)}
+              >
+                {collection.title}
+              </button>
+            ))}
+          </div>
+        )}
         {hasFilters && (
           <div className="active-filters">
             {showFavorites && (

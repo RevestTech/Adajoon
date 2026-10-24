@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { fetchRadioMap, fetchRadioMapRide, fetchRadioStations } from "../api/radio";
+import {
+  fetchRadioMap,
+  fetchRadioMapNearby,
+  fetchRadioMapRide,
+  fetchRadioStations,
+} from "../api/radio";
 import "./RadioGardenMap.css";
 
 const DEFAULT_STYLE =
@@ -110,6 +115,7 @@ export default function RadioGardenMap({ onSelect }) {
   const mapRef = useRef(null);
   const markersRef = useRef([]);
   const abortRef = useRef(null);
+  const nearbyAbortRef = useRef(null);
   const debounceRef = useRef(null);
   const onSelectRef = useRef(onSelect);
 
@@ -118,6 +124,7 @@ export default function RadioGardenMap({ onSelect }) {
   const [riding, setRiding] = useState(false);
   const [resolving, setResolving] = useState(false);
   const [mapLoading, setMapLoading] = useState(true);
+  const [nearbyPicks, setNearbyPicks] = useState([]);
 
   useEffect(() => {
     onSelectRef.current = onSelect;
@@ -144,6 +151,35 @@ export default function RadioGardenMap({ onSelect }) {
     }
   }, []);
 
+  const handlePickSelect = useCallback((station) => {
+    setError("");
+    onSelectRef.current?.(station);
+    setStatus(station.name);
+  }, []);
+
+  const fetchNearbyPicks = useCallback(async () => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    if (nearbyAbortRef.current) nearbyAbortRef.current.abort();
+    const controller = new AbortController();
+    nearbyAbortRef.current = controller;
+
+    const center = map.getCenter();
+    try {
+      const picks = await fetchRadioMapNearby({
+        lat: center.lat,
+        lng: center.lng,
+        signal: controller.signal,
+      });
+      if (controller.signal.aborted) return;
+      setNearbyPicks(picks || []);
+    } catch (err) {
+      if (err?.name === "AbortError") return;
+      setNearbyPicks([]);
+    }
+  }, []);
+
   const renderItems = useCallback(
     (payload) => {
       const map = mapRef.current;
@@ -153,6 +189,7 @@ export default function RadioGardenMap({ onSelect }) {
       const items = payload.items || [];
 
       if (payload.type === "clusters") {
+        setNearbyPicks([]);
         items.forEach((cluster) => {
           const el = document.createElement("button");
           el.type = "button";
@@ -192,9 +229,16 @@ export default function RadioGardenMap({ onSelect }) {
           .addTo(map);
         markersRef.current.push(marker);
       });
-      setStatus(items.length ? `${items.length} stations` : "No stations here — pan or zoom");
+
+      if (items.length) {
+        setNearbyPicks([]);
+        setStatus(`${items.length} stations`);
+      } else {
+        setStatus("No stations here — here's what's nearby");
+        fetchNearbyPicks();
+      }
     },
-    [clearMarkers, handleStationClick]
+    [clearMarkers, handleStationClick, fetchNearbyPicks]
   );
 
   const fetchViewport = useCallback(async () => {
@@ -267,6 +311,7 @@ export default function RadioGardenMap({ onSelect }) {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
       if (abortRef.current) abortRef.current.abort();
+      if (nearbyAbortRef.current) nearbyAbortRef.current.abort();
       clearMarkers();
       map.off("styleimagemissing", onMissingImage);
       map.off("load", onReady);
@@ -323,6 +368,20 @@ export default function RadioGardenMap({ onSelect }) {
           role={error ? "alert" : "status"}
         >
           {error || status}
+        </div>
+      )}
+      {nearbyPicks.length > 0 && (
+        <div className="radio-garden-map__nearby" role="group" aria-label="Nearby stations">
+          {nearbyPicks.map((station) => (
+            <button
+              key={station.id}
+              type="button"
+              className="radio-garden-map__nearby-pick"
+              onClick={() => handlePickSelect(station)}
+            >
+              {station.name}
+            </button>
+          ))}
         </div>
       )}
       <button

@@ -1814,6 +1814,31 @@ body {
   margin-bottom: 16px;
 }
 
+.radio-collections {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.radio-collection-chip {
+  padding: 6px 14px;
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.12));
+  border-radius: 16px;
+  background: var(--bg-elevated, rgba(255, 255, 255, 0.05));
+  color: var(--text-secondary, #b0b0c0);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.radio-collection-chip:hover {
+  background: rgba(46, 204, 113, 0.15);
+  border-color: rgba(46, 204, 113, 0.4);
+  color: #fff;
+}
+
 .filter-hint {
   flex: 1 1 100%;
   padding: 12px 16px;
