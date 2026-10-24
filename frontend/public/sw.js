@@ -1,5 +1,5 @@
 // Service Worker for Adajoon PWA
-const CACHE_NAME = 'adajoon-v2.4.0';
+const CACHE_NAME = 'adajoon-v2.6.2';
 const RUNTIME_CACHE = 'adajoon-runtime-v2';
 
 // Assets to cache on install
@@ -89,6 +89,25 @@ self.addEventListener('fetch', (event) => {
             );
           });
         })
+    );
+    return;
+  }
+
+  // Network-first for page navigations, so a stale cached index.html can't
+  // keep pointing at a previous deploy's (now-missing) hashed JS/CSS bundle.
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          if (response.ok) {
+            const responseClone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(request, responseClone);
+            });
+          }
+          return response;
+        })
+        .catch(() => caches.match(request).then((cached) => cached || caches.match('/index.html')))
     );
     return;
   }

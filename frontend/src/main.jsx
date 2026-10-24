@@ -8,10 +8,12 @@ import App from "./App";
 import RadioPopoutWindow from "./components/RadioPopoutWindow";
 import "./index.css";
 import { initializeExperiments } from "./experiments";
+import { registerServiceWorker } from "./registerServiceWorker";
 
 const BUILD_TIMESTAMP = "2026-04-06T07:53:00Z";
 
 initializeExperiments();
+registerServiceWorker();
 
 const isRadioPopout =
   typeof window !== "undefined" &&
