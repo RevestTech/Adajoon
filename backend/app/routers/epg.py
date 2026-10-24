@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.schemas import (
+    EpgNowBatchResponse,
     EpgNowResponse,
     EpgOnNowItem,
     EpgOnNowResponse,
@@ -18,6 +19,7 @@ from app.schemas import (
 )
 from app.services.epg_service import (
     get_channel_schedule,
+    get_now_batch,
     get_now_next,
     resolve_schedule_window,
     search_on_now,
@@ -56,6 +58,21 @@ async def channel_epg_schedule(
         from_at=window_from,
         to_at=window_to,
         programmes=[_programme_out(r) for r in rows],
+    )
+
+
+@router.get("/now-batch", response_model=EpgNowBatchResponse)
+async def epg_now_batch(
+    channel_ids: str = Query(..., description="Comma-separated channel ids"),
+    db: AsyncSession = Depends(get_db),
+) -> EpgNowBatchResponse:
+    """Current programme for each of a page of channel tiles, in one query."""
+    ids = [c.strip() for c in channel_ids.split(",") if c.strip()]
+    if not ids:
+        return EpgNowBatchResponse(items={})
+    by_channel = await get_now_batch(db, ids)
+    return EpgNowBatchResponse(
+        items={cid: _programme_out(p) for cid, p in by_channel.items()}
     )
 
 

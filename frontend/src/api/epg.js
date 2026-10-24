@@ -27,6 +27,19 @@ export async function fetchEpgOnNow({ q, category, limit = 50 } = {}) {
 }
 
 /**
+ * Current programme for a page of channel tiles, in one request.
+ * @param {string[]} channelIds
+ * @returns {Promise<{ items: Record<string, object> }>}
+ */
+export async function fetchEpgNowBatch(channelIds) {
+  if (!channelIds?.length) return { items: {} };
+  const params = new URLSearchParams({ channel_ids: channelIds.join(",") });
+  const res = await fetch(`${BASE}/epg/now-batch?${params}`);
+  if (!res.ok) throw new Error("Failed to fetch EPG now batch");
+  return res.json();
+}
+
+/**
  * Schedule window for a channel (default server window: now → +24h).
  * @param {string} channelId
  * @param {{ from?: string, to?: string }} [opts]

@@ -336,3 +336,10 @@ class EpgOnNowResponse(BaseModel):
     items: list[EpgOnNowItem]
     q: str | None = None
     category: str | None = None
+
+
+class EpgNowBatchResponse(BaseModel):
+    """Current programme per channel, for a grid of tiles - only channels
+    with something airing now are included."""
+
+    items: dict[str, EpgProgrammeOut]

@@ -1,8 +1,63 @@
+import { useState, useEffect } from "react";
 import ViewToggle from "./ViewToggle";
 import VoteIndicator from "./VoteIndicator";
 import QuickFilters from "./QuickFilters";
+import { fetchEpgNowBatch } from "../api/epg";
 
 const GUEST_LIMIT = 20;
+
+/** "16m left" / "1h 20m left" from a programme's stop time. */
+function formatTimeLeft(stopAt) {
+  const msLeft = new Date(stopAt).getTime() - Date.now();
+  if (!Number.isFinite(msLeft) || msLeft <= 0) return null;
+  const totalMin = Math.round(msLeft / 60000);
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  if (h > 0) return `${h}h ${m}m left`;
+  return `${m}m left`;
+}
+
+/** 0-100 progress through a programme's start/stop window. */
+function epgProgressPercent(startAt, stopAt) {
+  const start = new Date(startAt).getTime();
+  const stop = new Date(stopAt).getTime();
+  if (!Number.isFinite(start) || !Number.isFinite(stop) || stop <= start) return 0;
+  const pct = ((Date.now() - start) / (stop - start)) * 100;
+  return Math.min(100, Math.max(0, pct));
+}
+
+/** Compact one-line version for list rows and thumbnails, no progress bar. */
+function EpgInlineText({ programme }) {
+  if (!programme) return null;
+  const timeLeft = formatTimeLeft(programme.stop_at);
+  if (!timeLeft) return null;
+  return (
+    <span className="epg-inline-text" title={programme.title}>
+      Now: {programme.title || "Untitled"} · {timeLeft}
+    </span>
+  );
+}
+
+function EpgTileBadge({ programme }) {
+  if (!programme) return null;
+  const timeLeft = formatTimeLeft(programme.stop_at);
+  if (!timeLeft) return null;
+  return (
+    <div className="epg-tile-badge" title={programme.title}>
+      <div className="epg-tile-badge__text">
+        <span className="epg-tile-badge__now">Now</span>
+        <span className="epg-tile-badge__title">{programme.title || "Untitled"}</span>
+        <span className="epg-tile-badge__time">{timeLeft}</span>
+      </div>
+      <div className="epg-tile-badge__bar">
+        <div
+          className="epg-tile-badge__bar-fill"
+          style={{ width: `${epgProgressPercent(programme.start_at, programme.stop_at)}%` }}
+        />
+      </div>
+    </div>
+  );
+}
 
 /** Maps channel health_status to badge classes, dot class, label, and thumb overlay class. */
 function getTvStreamStatus(healthStatus) {
@@ -139,6 +194,28 @@ export default function ChannelGrid({
   const hasFilters = activeCategories.length > 0 || activeCountries.length > 0 || search || showFavorites || activeQualities.length > 0;
   const showSkeleton = loading && channels.length === 0;
   const showCountryInList = activeCountries.length === 0;
+
+  const visibleChannels = isGuest ? channels.slice(0, GUEST_LIMIT) : channels;
+  const [epgNow, setEpgNow] = useState({});
+  const visibleIdsKey = visibleChannels.map((ch) => ch.id).join(",");
+  useEffect(() => {
+    let cancelled = false;
+    const ids = visibleIdsKey ? visibleIdsKey.split(",") : [];
+    if (ids.length === 0) {
+      setEpgNow({});
+      return;
+    }
+    fetchEpgNowBatch(ids)
+      .then((data) => {
+        if (!cancelled) setEpgNow(data.items || {});
+      })
+      .catch(() => {
+        if (!cancelled) setEpgNow({});
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [visibleIdsKey]);
 
   if (showSkeleton) {
     const SkeletonEl = viewMode === "list" ? "skeleton-row" : viewMode === "thumb" ? "skeleton-thumb" : "skeleton-card";
@@ -372,10 +449,10 @@ export default function ChannelGrid({
         ) : (
           <>
             <div className={viewMode === "list" ? "channel-list" : viewMode === "thumb" ? "thumb-grid" : "channel-grid"}>
-              {(isGuest ? channels.slice(0, GUEST_LIMIT) : channels).map((ch) => {
+              {visibleChannels.map((ch) => {
                 const countryObj = countryList.find(c => c.code === ch.country_code);
                 const countryName = countryObj ? countryObj.name : ch.country_code;
-                
+
                 const props = {
                   key: ch.id,
                   channel: ch,
@@ -392,6 +469,7 @@ export default function ChannelGrid({
                   voteSummary: getVoteSummary ? getVoteSummary(ch.id) : {},
                   countryName,
                   showCountry: showCountryInList,
+                  nowProgramme: epgNow[ch.id],
                 };
                 if (viewMode === "list") return <ChannelRow {...props} />;
                 if (viewMode === "thumb") return <ChannelThumb {...props} />;
@@ -442,7 +520,7 @@ function GuestBanner({ onLogin, total, type }) {
   );
 }
 
-function ChannelCard({ channel, onClick, favorited, onToggleFavorite, isGuest, voteSummary, countryName }) {
+function ChannelCard({ channel, onClick, favorited, onToggleFavorite, isGuest, voteSummary, countryName, nowProgramme }) {
   const cats = channel.categories ? channel.categories.split(";").filter(Boolean) : [];
   const streamStatus = channel.stream_url ? getTvStreamStatus(channel.health_status) : null;
 
@@ -494,6 +572,7 @@ function ChannelCard({ channel, onClick, favorited, onToggleFavorite, isGuest, v
       <div className="channel-name" title={channel.name}>
         {channel.name}
       </div>
+      <EpgTileBadge programme={nowProgramme} />
       <div className="channel-meta">
         {countryName && (
           <span className="channel-tag" title={countryName}>{countryName}</span>
@@ -513,7 +592,7 @@ function ChannelCard({ channel, onClick, favorited, onToggleFavorite, isGuest, v
   );
 }
 
-function ChannelRow({ channel, onClick, favorited, onToggleFavorite, isGuest, voteSummary, countryName, showCountry }) {
+function ChannelRow({ channel, onClick, favorited, onToggleFavorite, isGuest, voteSummary, countryName, showCountry, nowProgramme }) {
   const cats = channel.categories ? channel.categories.split(";").filter(Boolean) : [];
   const streamStatus = channel.stream_url ? getTvStreamStatus(channel.health_status) : null;
 
@@ -547,6 +626,7 @@ function ChannelRow({ channel, onClick, favorited, onToggleFavorite, isGuest, vo
           {cats.slice(0, 2).map((c) => (
             <span key={c} className="list-meta-item">{c}</span>
           ))}
+          <EpgInlineText programme={nowProgramme} />
         </div>
       </div>
       <div className="list-row-status">
@@ -589,7 +669,7 @@ function ChannelRow({ channel, onClick, favorited, onToggleFavorite, isGuest, vo
   );
 }
 
-function ChannelThumb({ channel, onClick, favorited, onToggleFavorite, isGuest, voteSummary, countryName }) {
+function ChannelThumb({ channel, onClick, favorited, onToggleFavorite, isGuest, voteSummary, countryName, nowProgramme }) {
   const cats = channel.categories ? channel.categories.split(";").filter(Boolean) : [];
   const streamStatus = channel.stream_url ? getTvStreamStatus(channel.health_status) : null;
 
@@ -646,6 +726,7 @@ function ChannelThumb({ channel, onClick, favorited, onToggleFavorite, isGuest, 
       </div>
       <div className="thumb-info">
         <span className="thumb-name" title={channel.name}>{channel.name}</span>
+        <EpgInlineText programme={nowProgramme} />
         <div className="thumb-tags">
           {countryName && <span className="channel-tag" title={countryName}>{countryName}</span>}
           {cats.slice(0, 2).map((c) => (
