@@ -117,6 +117,7 @@ export default function RadioGardenMap({ onSelect }) {
   const [error, setError] = useState("");
   const [riding, setRiding] = useState(false);
   const [resolving, setResolving] = useState(false);
+  const [mapLoading, setMapLoading] = useState(true);
 
   useEffect(() => {
     onSelectRef.current = onSelect;
@@ -247,11 +248,19 @@ export default function RadioGardenMap({ onSelect }) {
 
     const onReady = () => {
       enhanceDarkBasemap(map);
+      setMapLoading(false);
       scheduleFetch();
+    };
+
+    const onMapError = () => {
+      // A tile/style load failure shouldn't leave the loading overlay up
+      // forever; the viewport fetch's own error state covers reporting it.
+      setMapLoading(false);
     };
 
     map.on("styleimagemissing", onMissingImage);
     map.on("load", onReady);
+    map.on("error", onMapError);
     map.on("moveend", scheduleFetch);
     map.on("zoomend", scheduleFetch);
 
@@ -261,6 +270,7 @@ export default function RadioGardenMap({ onSelect }) {
       clearMarkers();
       map.off("styleimagemissing", onMissingImage);
       map.off("load", onReady);
+      map.off("error", onMapError);
       map.off("moveend", scheduleFetch);
       map.off("zoomend", scheduleFetch);
       map.remove();
@@ -301,6 +311,12 @@ export default function RadioGardenMap({ onSelect }) {
   return (
     <div className="radio-garden-map" data-testid="radio-garden-map">
       <div ref={containerRef} className="radio-garden-map__canvas" />
+      {mapLoading && (
+        <div className="radio-garden-map__loading" role="status">
+          <span className="radio-garden-map__loading-spinner" />
+          <span>Loading globe…</span>
+        </div>
+      )}
       {(status || error) && (
         <div
           className={`radio-garden-map__status${error ? " radio-garden-map__status--error" : ""}`}
