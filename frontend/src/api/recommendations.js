@@ -2,7 +2,7 @@
  * Recommendations API client.
  */
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const BASE = "/api";
 
 /**
  * Fetch recommendations similar to a channel or station.
@@ -12,7 +12,7 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
  */
 export async function fetchRecommendations(itemType, itemId, limit = 10) {
   try {
-    const response = await fetch(`${API_URL}/api/recommendations/similar`, {
+    const response = await fetch(`${BASE}/recommendations/similar`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

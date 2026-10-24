@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import FeedbackBar from "./FeedbackBar";
+import SimilarItemsRail from "./SimilarItemsRail";
+import { fetchStation } from "../api/radio";
 import { useShare } from "../hooks/useShare";
 
 export default function RadioPlayer({
@@ -17,6 +19,7 @@ export default function RadioPlayer({
   myVotes,
   voteSummary,
   onVote,
+  onSelectSimilar,
 }) {
   const [playing, setPlaying] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
@@ -81,6 +84,12 @@ export default function RadioPlayer({
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
   }, [onClose]);
+
+  const handleSelectSimilar = (item) => {
+    fetchStation(item.id)
+      .then((full) => onSelectSimilar?.(full))
+      .catch(() => {});
+  };
 
   useEffect(() => {
     const audio = audioRef?.current;
@@ -272,6 +281,10 @@ export default function RadioPlayer({
                 <span key={t} className="channel-tag">{t}</span>
               ))}
             </div>
+          )}
+
+          {!minimized && (
+            <SimilarItemsRail itemType="radio" itemId={station.id} onSelect={handleSelectSimilar} />
           )}
 
           <FeedbackBar

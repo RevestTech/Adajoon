@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { fetchStreams, runHealthCheck } from "../api/channels";
+import { fetchChannel, fetchStreams, runHealthCheck } from "../api/channels";
 import { fetchEpgNow } from "../api/epg";
 import FeedbackBar from "./FeedbackBar";
 import MiniPlayer from "./MiniPlayer";
+import SimilarItemsRail from "./SimilarItemsRail";
 import { useShare } from "../hooks/useShare";
 
 function formatEpgTime(iso) {
@@ -89,6 +90,7 @@ export default function VideoPlayer({
   myVotes,
   voteSummary,
   onVote,
+  onSelectSimilar,
 }) {
   const getCountryName = (code) => {
     if (!code) return null;
@@ -311,6 +313,12 @@ export default function VideoPlayer({
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
   }, [onClose]);
+
+  const handleSelectSimilar = (item) => {
+    fetchChannel(item.id)
+      .then((full) => onSelectSimilar?.(full))
+      .catch(() => {});
+  };
 
   const handleHealthCheck = async () => {
     setChecking(true);
@@ -580,6 +588,10 @@ export default function VideoPlayer({
               </div>
             )}
           </div>
+
+          {!minimized && (
+            <SimilarItemsRail itemType="tv" itemId={channel.id} onSelect={handleSelectSimilar} />
+          )}
 
           <FeedbackBar
             variant="channel"
