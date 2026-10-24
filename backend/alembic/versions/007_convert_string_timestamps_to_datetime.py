@@ -8,8 +8,9 @@ Create Date: 2026-04-03 14:45:00.000000
 
 from typing import Sequence, Union
 
-from alembic import op
 import sqlalchemy as sa
+
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "007"
@@ -23,50 +24,54 @@ def upgrade() -> None:
     # Note: We use ALTER COLUMN with USING to convert existing data
     # Empty strings will be converted to NULL
 
+    # to_timestamp(..., 'MS') misparses a fractional-seconds part with more
+    # than 3 digits (e.g. microsecond-precision ISO strings), overflowing
+    # the millisecond field - a plain ::timestamptz cast handles any
+    # fractional digit count via Postgres's native ISO-8601 parser instead.
     op.execute("""
-        ALTER TABLE channels 
-        ALTER COLUMN updated_at TYPE TIMESTAMPTZ 
-        USING CASE 
-            WHEN updated_at = '' OR updated_at IS NULL THEN NULL 
-            ELSE to_timestamp(updated_at, 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
+        ALTER TABLE channels
+        ALTER COLUMN updated_at TYPE TIMESTAMPTZ
+        USING CASE
+            WHEN updated_at = '' OR updated_at IS NULL THEN NULL
+            ELSE updated_at::timestamptz
         END;
     """)
 
     op.execute("""
-        ALTER TABLE channels 
-        ALTER COLUMN health_checked_at TYPE TIMESTAMPTZ 
-        USING CASE 
-            WHEN health_checked_at = '' OR health_checked_at IS NULL THEN NULL 
-            ELSE to_timestamp(health_checked_at, 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
+        ALTER TABLE channels
+        ALTER COLUMN health_checked_at TYPE TIMESTAMPTZ
+        USING CASE
+            WHEN health_checked_at = '' OR health_checked_at IS NULL THEN NULL
+            ELSE health_checked_at::timestamptz
         END;
     """)
 
     op.execute("""
-        ALTER TABLE channels 
-        ALTER COLUMN last_validated_at TYPE TIMESTAMPTZ 
-        USING CASE 
-            WHEN last_validated_at = '' OR last_validated_at IS NULL THEN NULL 
-            ELSE to_timestamp(last_validated_at, 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
+        ALTER TABLE channels
+        ALTER COLUMN last_validated_at TYPE TIMESTAMPTZ
+        USING CASE
+            WHEN last_validated_at = '' OR last_validated_at IS NULL THEN NULL
+            ELSE last_validated_at::timestamptz
         END;
     """)
 
     # Convert RadioStation timestamp fields
     op.execute("""
-        ALTER TABLE radio_stations 
-        ALTER COLUMN health_checked_at TYPE TIMESTAMPTZ 
-        USING CASE 
-            WHEN health_checked_at = '' OR health_checked_at IS NULL THEN NULL 
-            ELSE to_timestamp(health_checked_at, 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
+        ALTER TABLE radio_stations
+        ALTER COLUMN health_checked_at TYPE TIMESTAMPTZ
+        USING CASE
+            WHEN health_checked_at = '' OR health_checked_at IS NULL THEN NULL
+            ELSE health_checked_at::timestamptz
         END;
     """)
 
     # Convert Stream timestamp fields
     op.execute("""
-        ALTER TABLE streams 
-        ALTER COLUMN added_at TYPE TIMESTAMPTZ 
-        USING CASE 
-            WHEN added_at = '' OR added_at IS NULL THEN NULL 
-            ELSE to_timestamp(added_at, 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
+        ALTER TABLE streams
+        ALTER COLUMN added_at TYPE TIMESTAMPTZ
+        USING CASE
+            WHEN added_at = '' OR added_at IS NULL THEN NULL
+            ELSE added_at::timestamptz
         END;
     """)
 
