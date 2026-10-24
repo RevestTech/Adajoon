@@ -1,5 +1,6 @@
 import ViewToggle from "./ViewToggle";
 import VoteIndicator from "./VoteIndicator";
+import { handleCardKey } from "../utils/keyboardNav";
 
 const GUEST_LIMIT = 20;
 
@@ -385,7 +386,14 @@ function RadioCard({ station, onClick, favorited, onToggleFavorite, isGuest, vot
   const streamStatus = getRadioStreamStatus(station);
 
   return (
-    <div className="channel-card radio-card" onClick={onClick}>
+    <div
+      className="channel-card radio-card"
+      onClick={onClick}
+      role="button"
+      tabIndex={0}
+      aria-label={station.name}
+      onKeyDown={handleCardKey(onClick)}
+    >
       {isGuest ? (
         <button
           type="button"
@@ -463,7 +471,14 @@ function RadioRow({ station, onClick, favorited, onToggleFavorite, isGuest, vote
   const streamStatus = getRadioStreamStatus(station);
 
   return (
-    <div className="list-row" onClick={onClick}>
+    <div
+      className="list-row"
+      onClick={onClick}
+      role="button"
+      tabIndex={0}
+      aria-label={station.name}
+      onKeyDown={handleCardKey(onClick)}
+    >
       <div className="list-row-logo">
         {station.favicon ? (
           <img
@@ -536,7 +551,14 @@ function RadioThumb({ station, onClick, favorited, onToggleFavorite, isGuest, vo
   const streamStatus = getRadioStreamStatus(station);
 
   return (
-    <div className="thumb-card" onClick={onClick}>
+    <div
+      className="thumb-card"
+      onClick={onClick}
+      role="button"
+      tabIndex={0}
+      aria-label={station.name}
+      onKeyDown={handleCardKey(onClick)}
+    >
       <div className="thumb-image">
         {station.favicon ? (
           <img
