@@ -82,8 +82,8 @@ async def set_parental_pin(
 @router.post("/verify-pin")
 @limiter.limit("10/minute")
 async def verify_parental_pin(
-    http_request: Request,
-    request: VerifyPinRequest,
+    request: Request,
+    pin_request: VerifyPinRequest,
     user: User = Depends(require_user),
     db: AsyncSession = Depends(get_db),
     _csrf: None = Depends(verify_csrf_token),
@@ -97,7 +97,7 @@ async def verify_parental_pin(
     # Verify PIN
     try:
         valid = bcrypt.checkpw(
-            request.pin.encode("utf-8"), user.parental_pin_hash.encode("utf-8")
+            pin_request.pin.encode("utf-8"), user.parental_pin_hash.encode("utf-8")
         )
     except Exception:
         valid = False
@@ -129,8 +129,8 @@ async def toggle_kids_mode(
 @router.delete("/pin")
 @limiter.limit("10/minute")
 async def remove_parental_pin(
-    http_request: Request,
-    request: VerifyPinRequest,
+    request: Request,
+    pin_request: VerifyPinRequest,
     user: User = Depends(require_user),
     db: AsyncSession = Depends(get_db),
     _csrf: None = Depends(verify_csrf_token),
@@ -143,7 +143,7 @@ async def remove_parental_pin(
 
     try:
         valid = bcrypt.checkpw(
-            request.pin.encode("utf-8"), user.parental_pin_hash.encode("utf-8")
+            pin_request.pin.encode("utf-8"), user.parental_pin_hash.encode("utf-8")
         )
     except Exception:
         valid = False

@@ -37,6 +37,12 @@ async def verify_csrf_token(request: Request) -> None:
     if request.method in ("GET", "HEAD", "OPTIONS"):
         return
 
+    # Bearer-authenticated requests aren't vulnerable to CSRF: a browser can't
+    # be made to attach an Authorization header to a cross-site request, so
+    # the double-submit cookie check below only applies to cookie auth.
+    if request.headers.get("Authorization"):
+        return
+
     # Get CSRF token from header
     csrf_token = request.headers.get("X-CSRF-Token")
     if not csrf_token:

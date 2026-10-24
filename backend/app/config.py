@@ -145,9 +145,12 @@ class Settings(BaseSettings):
             errors.append(
                 "JWT_SECRET must not be the default value 'change-me-in-production'"
             )
-        elif self.jwt_secret == DEV_JWT_SECRET_DEFAULT and self.env == "production":
+        elif self.jwt_secret == DEV_JWT_SECRET_DEFAULT and self.env not in (
+            "development",
+            "dev",
+        ):
             errors.append(
-                "JWT_SECRET must not be the built-in development default in production"
+                "JWT_SECRET must not be the built-in development default outside development"
             )
 
         if self.env == "production":
