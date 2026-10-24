@@ -1,5 +1,6 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import UserMenu from "./UserMenu";
+import { fetchTrending } from "../api/trending";
 
 export default function Header({
   mode, onModeSwitch,
@@ -13,8 +14,12 @@ export default function Header({
   theme, onToggleTheme,
 }) {
   const [localSearch, setLocalSearch] = useState(search);
+  const [showTrending, setShowTrending] = useState(false);
+  const [trending, setTrending] = useState([]);
   const debounceRef = useRef(null);
   const searchRef = useRef(null);
+  const trendingBlurTimeoutRef = useRef(null);
+  const searchItemType = mode === "radio" ? "radio" : "tv";
 
   useEffect(() => {
     setLocalSearch(search);
@@ -34,8 +39,29 @@ export default function Header({
   const handleChange = (e) => {
     const val = e.target.value;
     setLocalSearch(val);
+    if (val.trim()) setShowTrending(false);
     clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => onSearch(val), 350);
+  };
+
+  const handleFocus = useCallback(() => {
+    clearTimeout(trendingBlurTimeoutRef.current);
+    if (localSearch.trim()) return;
+    setShowTrending(true);
+    fetchTrending(searchItemType)
+      .then((items) => setTrending(items || []))
+      .catch(() => setTrending([]));
+  }, [localSearch, searchItemType]);
+
+  const handleBlur = () => {
+    trendingBlurTimeoutRef.current = setTimeout(() => setShowTrending(false), 150);
+  };
+
+  const handleTrendingPick = (item) => {
+    clearTimeout(trendingBlurTimeoutRef.current);
+    setLocalSearch(item.name);
+    onSearch(item.name);
+    setShowTrending(false);
   };
 
   return (
@@ -116,8 +142,31 @@ export default function Header({
             placeholder={mode === "tv" ? "Search channels..." : "Search stations..."}
             value={localSearch}
             onChange={handleChange}
+            onFocus={handleFocus}
+            onBlur={handleBlur}
             aria-label={mode === "tv" ? "Search channels" : "Search stations"}
           />
+          {showTrending && trending.length > 0 && (
+            <div className="trending-dropdown" role="listbox" aria-label="Trending">
+              <div className="trending-dropdown-label">Trending now</div>
+              {trending.map((item) => (
+                <button
+                  type="button"
+                  key={item.id}
+                  className="trending-dropdown-item"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => handleTrendingPick(item)}
+                >
+                  {item.logo ? (
+                    <img src={item.logo} alt="" className="trending-dropdown-logo" />
+                  ) : (
+                    <span className="trending-dropdown-logo trending-dropdown-logo--placeholder" />
+                  )}
+                  <span className="trending-dropdown-name">{item.name}</span>
+                </button>
+              ))}
+            </div>
+          )}
           <button
             type="button"
             className="ai-search-btn ai-search-btn--inline"
