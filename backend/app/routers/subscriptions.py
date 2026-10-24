@@ -15,6 +15,7 @@ from app.csrf import verify_csrf_token
 from app.database import get_db
 from app.models import User
 from app.routers.auth import require_user
+from app.services import pricing_service
 
 
 def _is_allowed_redirect_url(url: str) -> bool:
@@ -39,43 +40,6 @@ if hasattr(settings, "stripe_secret_key") and settings.stripe_secret_key:
 
 
 # ---------------------------------------------------------------------------
-# Subscription Tiers
-# ---------------------------------------------------------------------------
-
-TIERS = {
-    "free": {
-        "name": "Free",
-        "price": 0,
-        "features": ["Unlimited streaming", "Ads supported"],
-    },
-    "plus": {
-        "name": "Plus",
-        "price": 4.99,
-        "price_id": "price_plus_monthly",  # Replace with actual Stripe price ID
-        "features": ["No ads", "HD quality", "Unlimited streaming"],
-    },
-    "pro": {
-        "name": "Pro",
-        "price": 9.99,
-        "price_id": "price_pro_monthly",
-        "features": ["No ads", "4K quality", "Offline downloads", "5 devices"],
-    },
-    "family": {
-        "name": "Family",
-        "price": 14.99,
-        "price_id": "price_family_monthly",
-        "features": [
-            "No ads",
-            "4K quality",
-            "Offline downloads",
-            "10 devices",
-            "6 profiles",
-        ],
-    },
-}
-
-
-# ---------------------------------------------------------------------------
 # Request Models
 # ---------------------------------------------------------------------------
 
@@ -84,6 +48,7 @@ class CheckoutRequest(BaseModel):
     tier: str
     success_url: str
     cancel_url: str
+    promo_code: str | None = None
 
     @field_validator("success_url", "cancel_url")
     @classmethod
@@ -110,9 +75,22 @@ class PortalRequest(BaseModel):
 
 
 @router.get("/tiers")
-async def get_tiers():
-    """Get available subscription tiers."""
-    return {"tiers": TIERS}
+async def get_tiers(db: AsyncSession = Depends(get_db)):
+    """Get available subscription tiers, as set by an admin in the pricing manager."""
+    tiers = await pricing_service.list_tiers(db, active_only=True)
+    return {
+        "tiers": {
+            tier.key: {
+                "name": tier.name,
+                "price": tier.monthly_price_cents / 100,
+                "price_id": tier.stripe_price_id_monthly,
+                "features": [
+                    f.label for f in sorted(tier.features, key=lambda f: f.sort_order)
+                ],
+            }
+            for tier in tiers
+        }
+    }
 
 
 @router.get("/status")
@@ -142,10 +120,23 @@ async def create_checkout_session(
         raise HTTPException(status_code=501, detail="Stripe not configured")
 
     # Validate tier
-    if request.tier not in TIERS or request.tier == "free":
+    tier = await pricing_service.get_tier_by_key(db, request.tier)
+    if not tier or not tier.is_active or request.tier == "free":
         raise HTTPException(status_code=400, detail="Invalid tier")
+    if not tier.stripe_price_id_monthly:
+        raise HTTPException(
+            status_code=400, detail="This tier has no Stripe price configured"
+        )
 
-    tier_info = TIERS[request.tier]
+    discount_ids: list[dict] = []
+    if request.promo_code:
+        discount = await pricing_service.get_active_discount_by_code(
+            db, request.promo_code
+        )
+        if not discount or (discount.tier_id and discount.tier_id != tier.id):
+            raise HTTPException(status_code=400, detail="Invalid or expired promo code")
+        if discount.stripe_coupon_id:
+            discount_ids.append({"coupon": discount.stripe_coupon_id})
 
     try:
         # Create or retrieve Stripe customer
@@ -162,23 +153,29 @@ async def create_checkout_session(
             await db.commit()
 
         # Create checkout session
-        session = stripe.checkout.Session.create(
-            customer=customer_id,
-            payment_method_types=["card"],
-            line_items=[
+        session_kwargs = {
+            "customer": customer_id,
+            "payment_method_types": ["card"],
+            "line_items": [
                 {
-                    "price": tier_info["price_id"],
+                    "price": tier.stripe_price_id_monthly,
                     "quantity": 1,
                 }
             ],
-            mode="subscription",
-            success_url=request.success_url,
-            cancel_url=request.cancel_url,
-            metadata={
+            "mode": "subscription",
+            "success_url": request.success_url,
+            "cancel_url": request.cancel_url,
+            "metadata": {
                 "user_id": str(user.id),
                 "tier": request.tier,
             },
-        )
+        }
+        if discount_ids:
+            session_kwargs["discounts"] = discount_ids
+        session = stripe.checkout.Session.create(**session_kwargs)
+
+        if request.promo_code and discount_ids:
+            await pricing_service.record_discount_redemption(db, discount)
 
         return {"checkout_url": session.url, "session_id": session.id}
 

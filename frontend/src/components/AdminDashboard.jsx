@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { authenticatedFetch } from "../utils/csrf";
 import { WHATS_NEW, formatReleaseDate } from "../data/whatsNew";
+import PricingManager from "./PricingManager";
 
 export default function AdminDashboard({ onClose }) {
   const [loading, setLoading] = useState(true);
@@ -171,6 +172,12 @@ export default function AdminDashboard({ onClose }) {
             onClick={() => setActiveTab("analytics")}
           >
             Analytics
+          </button>
+          <button
+            className={`admin-tab ${activeTab === "pricing" ? "active" : ""}`}
+            onClick={() => setActiveTab("pricing")}
+          >
+            Pricing
           </button>
           <button
             className={`admin-tab ${activeTab === "releases" ? "active" : ""}`}
@@ -654,6 +661,8 @@ export default function AdminDashboard({ onClose }) {
               </div>
             </div>
           )}
+
+          {activeTab === "pricing" && <PricingManager />}
 
           {activeTab === "releases" && (
             <div className="admin-releases">

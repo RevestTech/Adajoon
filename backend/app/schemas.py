@@ -357,3 +357,113 @@ class EpgScheduleBatchResponse(BaseModel):
     from_at: datetime
     to_at: datetime
     items: dict[str, list[EpgProgrammeOut]]
+
+
+class PricingFeatureOut(BaseModel):
+    id: int
+    tier_id: int | None
+    key: str
+    label: str
+    is_addon: bool
+    addon_price_cents: int
+    sort_order: int
+    is_active: bool
+
+    model_config = {"from_attributes": True}
+
+
+class PricingFeatureCreate(BaseModel):
+    tier_id: int | None = None
+    key: str
+    label: str
+    is_addon: bool = False
+    addon_price_cents: int = 0
+    sort_order: int = 0
+
+
+class PricingFeatureUpdate(BaseModel):
+    label: str | None = None
+    is_addon: bool | None = None
+    addon_price_cents: int | None = None
+    sort_order: int | None = None
+    is_active: bool | None = None
+
+
+class PricingTierOut(BaseModel):
+    id: int
+    key: str
+    name: str
+    monthly_price_cents: int
+    annual_price_cents: int | None
+    stripe_price_id_monthly: str
+    stripe_price_id_annual: str
+    sort_order: int
+    is_active: bool
+    features: list[PricingFeatureOut] = []
+
+    model_config = {"from_attributes": True}
+
+
+class PricingTierCreate(BaseModel):
+    key: str
+    name: str
+    monthly_price_cents: int = 0
+    annual_price_cents: int | None = None
+    stripe_price_id_monthly: str = ""
+    stripe_price_id_annual: str = ""
+    sort_order: int = 0
+
+
+class PricingTierUpdate(BaseModel):
+    name: str | None = None
+    monthly_price_cents: int | None = None
+    annual_price_cents: int | None = None
+    stripe_price_id_monthly: str | None = None
+    stripe_price_id_annual: str | None = None
+    sort_order: int | None = None
+    is_active: bool | None = None
+
+
+class PricingDiscountOut(BaseModel):
+    id: int
+    code: str
+    label: str
+    percent_off: int | None
+    amount_off_cents: int | None
+    tier_id: int | None
+    starts_at: datetime | None
+    ends_at: datetime | None
+    max_redemptions: int | None
+    redemption_count: int
+    is_active: bool
+
+    model_config = {"from_attributes": True}
+
+
+class PricingDiscountCreate(BaseModel):
+    code: str
+    label: str = ""
+    percent_off: int | None = None
+    amount_off_cents: int | None = None
+    tier_id: int | None = None
+    starts_at: datetime | None = None
+    ends_at: datetime | None = None
+    max_redemptions: int | None = None
+
+    @field_validator("percent_off")
+    @classmethod
+    def _validate_percent(cls, v: int | None) -> int | None:
+        if v is not None and not (0 < v <= 100):
+            raise ValueError("percent_off must be between 1 and 100")
+        return v
+
+
+class PricingDiscountUpdate(BaseModel):
+    label: str | None = None
+    percent_off: int | None = None
+    amount_off_cents: int | None = None
+    tier_id: int | None = None
+    starts_at: datetime | None = None
+    ends_at: datetime | None = None
+    max_redemptions: int | None = None
+    is_active: bool | None = None

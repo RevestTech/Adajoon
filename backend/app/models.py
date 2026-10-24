@@ -329,3 +329,85 @@ class EpgProgramme(Base):
         Index("ix_epg_programmes_channel_start", "channel_id", "start_at"),
         Index("ix_epg_programmes_start_stop", "start_at", "stop_at"),
     )
+
+
+class PricingTier(Base):
+    """A subscription tier, editable by admins instead of hardcoded in the API."""
+
+    __tablename__ = "pricing_tiers"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    key = Column(String(50), unique=True, nullable=False, index=True)
+    name = Column(String(100), nullable=False)
+    monthly_price_cents = Column(Integer, nullable=False, default=0)
+    annual_price_cents = Column(Integer, default=None)
+    stripe_price_id_monthly = Column(String(255), default="")
+    stripe_price_id_annual = Column(String(255), default="")
+    sort_order = Column(Integer, default=0, index=True)
+    is_active = Column(Boolean, default=True, index=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    features = relationship(
+        "PricingFeature", back_populates="tier", cascade="all, delete-orphan"
+    )
+
+
+class PricingFeature(Base):
+    """A feature line shown on a tier, or sold as a standalone add-on.
+
+    A feature with a null tier_id and a non-zero price is an a-la-carte
+    add-on rather than something bundled into a subscription tier.
+    """
+
+    __tablename__ = "pricing_features"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    tier_id = Column(
+        Integer,
+        ForeignKey("pricing_tiers.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
+    key = Column(String(100), nullable=False, index=True)
+    label = Column(String(255), nullable=False)
+    is_addon = Column(Boolean, default=False)
+    addon_price_cents = Column(Integer, default=0)
+    sort_order = Column(Integer, default=0)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    tier = relationship("PricingTier", back_populates="features")
+
+    __table_args__ = (
+        UniqueConstraint("tier_id", "key", name="uq_pricing_feature_tier_key"),
+    )
+
+
+class PricingDiscount(Base):
+    """An admin-managed promo code, optionally restricted to one tier."""
+
+    __tablename__ = "pricing_discounts"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    code = Column(String(50), unique=True, nullable=False, index=True)
+    label = Column(String(255), default="")
+    percent_off = Column(Integer, default=None)
+    amount_off_cents = Column(Integer, default=None)
+    tier_id = Column(
+        Integer,
+        ForeignKey("pricing_tiers.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
+    stripe_coupon_id = Column(String(255), default="")
+    starts_at = Column(DateTime(timezone=True), default=None)
+    ends_at = Column(DateTime(timezone=True), default=None)
+    max_redemptions = Column(Integer, default=None)
+    redemption_count = Column(Integer, default=0)
+    is_active = Column(Boolean, default=True, index=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    tier = relationship("PricingTier")
