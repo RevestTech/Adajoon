@@ -1,9 +1,15 @@
+import re
+
 from sqlalchemy import case, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Category, Channel, Country, Stream
+from app.models import AnalyticsEvent, Category, Channel, Country, Stream
 from app.schemas import ChannelSearchParams
 from app.services.status_filters import apply_status_filters
+
+FOR_YOU_LOOKBACK_EVENTS = 50
+FOR_YOU_DEFAULT_LIMIT = 10
+FOR_YOU_MAX_LIMIT = 20
 
 
 async def search_channels(db: AsyncSession, params: ChannelSearchParams):
@@ -89,6 +95,63 @@ async def search_channels(db: AsyncSession, params: ChannelSearchParams):
     channels = result.scalars().all()
 
     return channels, total
+
+
+async def get_for_you_channels(
+    db: AsyncSession, session_id: str, limit: int = FOR_YOU_DEFAULT_LIMIT
+) -> tuple[list[Channel], str | None]:
+    """Channels in the category this browser session has watched the most,
+    for a "For You" row - no login required. Reuses the existing "Content
+    Played" analytics events already logged for every play (guest or not)
+    instead of a new tracking table. Returns ([], None) once there's no
+    play history yet for this session."""
+    if not session_id:
+        return [], None
+    limit = max(1, min(limit, FOR_YOU_MAX_LIMIT))
+
+    stmt = (
+        select(AnalyticsEvent.properties)
+        .where(
+            AnalyticsEvent.session_id == session_id,
+            AnalyticsEvent.event_name == "Content Played",
+        )
+        .order_by(AnalyticsEvent.created_at.desc())
+        .limit(FOR_YOU_LOOKBACK_EVENTS)
+    )
+    result = await db.execute(stmt)
+
+    played_ids: set[str] = set()
+    category_counts: dict[str, int] = {}
+    for (props,) in result:
+        if not props or props.get("item_type") != "tv":
+            continue
+        item_id = props.get("item_id")
+        if isinstance(item_id, str) and item_id:
+            played_ids.add(item_id)
+        item_category = props.get("item_category")
+        if not isinstance(item_category, str):
+            continue
+        for cat in re.split(r"[;,]", item_category):
+            cat = cat.strip()
+            if cat:
+                category_counts[cat] = category_counts.get(cat, 0) + 1
+
+    if not category_counts:
+        return [], None
+
+    top_category = max(category_counts, key=category_counts.get)
+
+    filters = [
+        Channel.is_nsfw.is_(False),
+        Channel.stream_url != "",
+        Channel.categories.ilike(f"%{top_category}%"),
+    ]
+    if played_ids:
+        filters.append(Channel.id.notin_(played_ids))
+
+    stmt = select(Channel).where(*filters).order_by(func.random()).limit(limit)
+    result = await db.execute(stmt)
+    return list(result.scalars().all()), top_category
 
 
 async def get_channel_by_id(db: AsyncSession, channel_id: str):
