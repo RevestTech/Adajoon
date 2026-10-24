@@ -70,6 +70,37 @@
   animation: spin 0.8s linear infinite;
 }
 
+.radio-garden-map__nearby {
+  position: absolute;
+  top: 46px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  max-width: min(92%, 420px);
+  pointer-events: auto;
+}
+
+.radio-garden-map__nearby-pick {
+  padding: 5px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 14px;
+  background: rgba(15, 15, 26, 0.85);
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.radio-garden-map__nearby-pick:hover {
+  background: rgba(46, 204, 113, 0.25);
+  border-color: rgba(46, 204, 113, 0.5);
+}
+
 .radio-garden-map__ride {
   position: absolute;
   bottom: 20px;

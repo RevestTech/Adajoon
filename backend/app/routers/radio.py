@@ -16,8 +16,11 @@ from app.schemas import (
 from app.services.radio_service import (
     MAP_DEFAULT_LIMIT,
     MAP_MAX_LIMIT,
+    MAP_NEARBY_DEFAULT_LIMIT,
+    MAP_NEARBY_MAX_LIMIT,
     NOW_PLAYING_BATCH_MAX,
     get_map_bbox,
+    get_nearby_stations,
     get_now_playing_batch,
     get_radio_countries,
     get_ride_station,
@@ -181,6 +184,25 @@ async def radio_map_ride(
             detail="No geo stations available",
         )
     return RadioStationOut.model_validate(station)
+
+
+@router.get("/map/nearby", response_model=list[RadioStationOut])
+async def radio_map_nearby(
+    lat: float = Query(..., ge=-90, le=90),
+    lng: float = Query(..., ge=-180, le=180),
+    limit: int = Query(MAP_NEARBY_DEFAULT_LIMIT, ge=1, le=MAP_NEARBY_MAX_LIMIT),
+    working_only: bool = Query(True),
+    db: AsyncSession = Depends(get_db),
+):
+    """Closest playable geo stations to a point, for sparse map regions."""
+    stations = await get_nearby_stations(
+        db,
+        lat=lat,
+        lng=lng,
+        limit=limit,
+        working_only=working_only,
+    )
+    return [RadioStationOut.model_validate(s) for s in stations]
 
 
 @router.get("/map", response_model=MapBboxResponse)

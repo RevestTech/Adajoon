@@ -10,6 +10,7 @@ export default function Header({
   showFavorites, onToggleFavorites, favoritesCount, isGuest, onGuestNotice,
   onOpenAISearch,
   onOpenAdmin,
+  onOpenSettings,
   onOpenWhatsNew, hasUnseenWhatsNew,
   theme, onToggleTheme,
 }) {
@@ -217,7 +218,7 @@ export default function Header({
         </button>
       </div>
       <div className="header-user">
-        <UserMenu user={user} onLogin={onLogin} onLogout={onLogout} onOpenAdmin={onOpenAdmin} />
+        <UserMenu user={user} onLogin={onLogin} onLogout={onLogout} onOpenAdmin={onOpenAdmin} onOpenSettings={onOpenSettings} />
       </div>
     </header>
   );

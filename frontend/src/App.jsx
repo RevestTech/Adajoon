@@ -8,6 +8,7 @@ import RadioPlayer from "./components/RadioPlayer";
 import MiniPlayer from "./components/MiniPlayer";
 import FloatingPlayer from "./components/FloatingPlayer";
 import AdminDashboard from "./components/AdminDashboard";
+import SettingsPage from "./components/SettingsPage";
 import GuestNoticeToast from "./components/GuestNoticeToast";
 import FavoritesView from "./components/FavoritesView";
 import RecentlyPlayed from "./components/RecentlyPlayed";
@@ -37,6 +38,7 @@ import {
 } from "./hooks/useUrlState";
 import { fetchChannels, fetchChannel, fetchCategories, fetchCountries, fetchStats } from "./api/channels";
 import { fetchRadioStations, fetchStation, fetchRadioTags, fetchRadioCountries } from "./api/radio";
+import { recordWatchHistory } from "./api/history";
 import { openRadioPopoutWindow } from "./utils/radioPopout";
 import {
   hasSkippedGuestLogin,
@@ -273,13 +275,31 @@ export default function App() {
     if (selectedChannel) {
       setTvModalOpen(true);
       addRecent("tv", selectedChannel);
+      if (auth.user) {
+        recordWatchHistory({
+          itemType: "tv",
+          itemId: selectedChannel.id,
+          itemName: selectedChannel.name,
+          itemLogo: selectedChannel.logo || "",
+        }).catch(() => {});
+      }
       analytics.trackPlay("tv", selectedChannel);
     }
-  }, [selectedChannel, addRecent]);
+  }, [selectedChannel, addRecent, auth.user]);
 
   useEffect(() => {
-    if (selectedStation) addRecent("radio", selectedStation);
-  }, [selectedStation, addRecent]);
+    if (selectedStation) {
+      addRecent("radio", selectedStation);
+      if (auth.user) {
+        recordWatchHistory({
+          itemType: "radio",
+          itemId: selectedStation.id,
+          itemName: selectedStation.name,
+          itemLogo: selectedStation.favicon || "",
+        }).catch(() => {});
+      }
+    }
+  }, [selectedStation, addRecent, auth.user]);
 
   useEffect(() => {
     if (auth.user) {
@@ -738,6 +758,9 @@ export default function App() {
   // Admin dashboard state
   const [showAdminDashboard, setShowAdminDashboard] = useState(false);
 
+  // Settings page state
+  const [showSettings, setShowSettings] = useState(false);
+
   // What's New state
   const [showWhatsNew, setShowWhatsNew] = useState(false);
   const [unseenWhatsNew, setUnseenWhatsNew] = useState(() => hasUnseenWhatsNew(LATEST_VERSION));
@@ -816,6 +839,7 @@ export default function App() {
         onGuestNotice={onGuestNotice}
         onOpenAISearch={() => setShowAISearch(true)}
         onOpenAdmin={() => setShowAdminDashboard(true)}
+        onOpenSettings={() => setShowSettings(true)}
         onOpenWhatsNew={() => setShowWhatsNew(true)}
         hasUnseenWhatsNew={unseenWhatsNew}
         theme={theme}
@@ -989,6 +1013,10 @@ export default function App() {
               onGuestNotice={onGuestNotice}
               getVoteSummary={(id) => votes.getSummaryFor("radio", id)}
               stats={stats}
+              onSelectCollection={(tags) => {
+                setActiveTags(tags);
+                setShowRadioFavorites(false);
+              }}
             />
           )}
         </main>
@@ -1093,6 +1121,15 @@ export default function App() {
         <AdminDashboard
           onClose={() => setShowAdminDashboard(false)}
         />
+      )}
+      {showSettings && (
+        <ErrorBoundary compact compactMessage="Settings failed to load.">
+          <SettingsPage
+            onClose={() => setShowSettings(false)}
+            onSelectChannel={(ch) => { setShowSettings(false); setMode("tv"); openTvPlayer(ch); }}
+            onSelectStation={(st) => { setShowSettings(false); setMode("radio"); handleSelectStation(st); }}
+          />
+        </ErrorBoundary>
       )}
       {showWhatsNew && (
         <ErrorBoundary compact compactMessage="What's New failed to load.">

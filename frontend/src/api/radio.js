@@ -99,6 +99,18 @@ export async function fetchRadioMapRide({ lat, lng, workingOnly = true, signal }
   return res.json();
 }
 
+export async function fetchRadioMapNearby({ lat, lng, limit = 6, workingOnly = true, signal } = {}) {
+  const params = new URLSearchParams();
+  params.set("lat", String(lat));
+  params.set("lng", String(lng));
+  params.set("limit", String(limit));
+  params.set("working_only", workingOnly ? "true" : "false");
+
+  const res = await fetch(`${BASE}/map/nearby?${params}`, { signal });
+  if (!res.ok) throw new Error("Failed to load nearby stations");
+  return res.json();
+}
+
 /**
  * Current track title for a page of visible station cards, fetched live
  * from each station's ICY in-band metadata. Stations without it are simply

@@ -24,6 +24,8 @@ MAP_CLUSTER_ZOOM_MAX = 7
 MAP_DEFAULT_LIMIT = 500
 MAP_MAX_LIMIT = 2000
 MAP_RIDE_NEAR_CANDIDATES = 40
+MAP_NEARBY_DEFAULT_LIMIT = 6
+MAP_NEARBY_MAX_LIMIT = 20
 NOW_PLAYING_CACHE_TTL = 90
 NOW_PLAYING_BATCH_CONCURRENCY = 8
 NOW_PLAYING_BATCH_MAX = 40
@@ -512,3 +514,27 @@ async def get_ride_station(
 
     stmt = select(RadioStation).where(and_(*filters)).order_by(func.random()).limit(1)
     return (await db.execute(stmt)).scalar_one_or_none()
+
+
+async def get_nearby_stations(
+    db: AsyncSession,
+    *,
+    lat: float,
+    lng: float,
+    limit: int = MAP_NEARBY_DEFAULT_LIMIT,
+    working_only: bool = True,
+) -> list[RadioStation]:
+    """Closest playable geo stations to a point, for the map's empty-viewport fallback."""
+    limit = max(1, min(int(limit), MAP_NEARBY_MAX_LIMIT))
+
+    filters = [_has_geo_filter()]
+    if working_only:
+        filters.append(RadioStation.last_check_ok.is_(True))
+
+    lat_f = _geo_lat_expr()
+    lng_f = _geo_lng_expr()
+    dist_sq = (lat_f - lat) * (lat_f - lat) + (lng_f - lng) * (lng_f - lng)
+    stmt = (
+        select(RadioStation).where(and_(*filters)).order_by(dist_sq.asc()).limit(limit)
+    )
+    return list((await db.execute(stmt)).scalars().all())

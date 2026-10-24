@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { authenticatedFetch } from '../utils/csrf';
 import { isPinUnlocked, setPinUnlocked, clearPinUnlock } from '../utils/parental';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const BASE = '/api';
 
 export default function useParentalControls() {
   const [kidsModeEnabled, setKidsModeEnabled] = useState(false);
@@ -20,7 +20,7 @@ export default function useParentalControls() {
     setLoading(true);
     
     try {
-      const response = await authenticatedFetch(`${API_URL}/api/parental/status`);
+      const response = await authenticatedFetch(`${BASE}/parental/status`);
       if (response.ok) {
         const data = await response.json();
         setKidsModeEnabled(data.kids_mode_enabled);
@@ -39,7 +39,7 @@ export default function useParentalControls() {
    */
   const setPin = async (pin) => {
     try {
-      const response = await authenticatedFetch(`${API_URL}/api/parental/set-pin`, {
+      const response = await authenticatedFetch(`${BASE}/parental/set-pin`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pin }),
@@ -63,7 +63,7 @@ export default function useParentalControls() {
    */
   const verifyPin = async (pin) => {
     try {
-      const response = await authenticatedFetch(`${API_URL}/api/parental/verify-pin`, {
+      const response = await authenticatedFetch(`${BASE}/parental/verify-pin`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pin }),
@@ -88,7 +88,7 @@ export default function useParentalControls() {
    */
   const toggleKidsMode = async (enabled) => {
     try {
-      const response = await authenticatedFetch(`${API_URL}/api/parental/kids-mode`, {
+      const response = await authenticatedFetch(`${BASE}/parental/kids-mode`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ enabled }),
@@ -119,7 +119,7 @@ export default function useParentalControls() {
    */
   const removePin = async (pin) => {
     try {
-      const response = await authenticatedFetch(`${API_URL}/api/parental/pin`, {
+      const response = await authenticatedFetch(`${BASE}/parental/pin`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pin }),
