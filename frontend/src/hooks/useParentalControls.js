@@ -115,12 +115,14 @@ export default function useParentalControls() {
   };
 
   /**
-   * Remove PIN (requires verification first).
+   * Remove PIN (server re-verifies the PIN before removing it).
    */
-  const removePin = async () => {
+  const removePin = async (pin) => {
     try {
       const response = await authenticatedFetch(`${API_URL}/api/parental/pin`, {
         method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pin }),
       });
       
       if (!response.ok) {

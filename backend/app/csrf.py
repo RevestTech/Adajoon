@@ -1,8 +1,11 @@
 """CSRF protection utilities."""
+
+import hmac
 import secrets
 from typing import Optional
-from fastapi import Request, HTTPException, status
-from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
+
+from fastapi import HTTPException, Request, status
+from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 
 from app.config import settings
 
@@ -33,18 +36,25 @@ async def verify_csrf_token(request: Request) -> None:
     # Skip CSRF for GET, HEAD, OPTIONS
     if request.method in ("GET", "HEAD", "OPTIONS"):
         return
-    
+
     # Get CSRF token from header
     csrf_token = request.headers.get("X-CSRF-Token")
     if not csrf_token:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Missing CSRF token"
+            status_code=status.HTTP_403_FORBIDDEN, detail="Missing CSRF token"
         )
-    
+
+    # Double-submit check: header token must match the cookie the server issued
+    cookie_token = request.cookies.get("csrf_token")
+    if not cookie_token or not hmac.compare_digest(csrf_token, cookie_token):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="CSRF token does not match session",
+        )
+
     # Validate token
     if not validate_csrf_token(csrf_token):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Invalid or expired CSRF token"
+            detail="Invalid or expired CSRF token",
         )

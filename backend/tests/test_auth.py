@@ -38,6 +38,7 @@ async def test_google_login_success(client: AsyncClient):
         mock_verify.return_value = {
             "sub": "google_user_123",
             "email": "user@example.com",
+            "email_verified": True,
             "name": "New User",
             "picture": "https://example.com/pic.jpg",
         }

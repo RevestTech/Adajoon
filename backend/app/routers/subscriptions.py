@@ -1,25 +1,41 @@
 """Subscription and billing endpoints."""
+
 import logging
 from datetime import datetime, timezone
 from typing import Optional
+from urllib.parse import urlparse
+
+import stripe
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from pydantic import BaseModel, field_validator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from pydantic import BaseModel
-import stripe
 
-from app.database import get_db
 from app.config import settings
+from app.csrf import verify_csrf_token
+from app.database import get_db
 from app.models import User
 from app.routers.auth import require_user
-from app.csrf import verify_csrf_token
+
+
+def _is_allowed_redirect_url(url: str) -> bool:
+    """Only allow redirect URLs that point back at our own frontend origins."""
+    try:
+        parsed = urlparse(url)
+    except ValueError:
+        return False
+    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+        return False
+    origin = f"{parsed.scheme}://{parsed.netloc}"
+    return origin in settings.cors_origins
+
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/subscriptions", tags=["subscriptions"])
 
 # Initialize Stripe
-if hasattr(settings, 'stripe_secret_key') and settings.stripe_secret_key:
+if hasattr(settings, "stripe_secret_key") and settings.stripe_secret_key:
     stripe.api_key = settings.stripe_secret_key
 
 
@@ -49,7 +65,13 @@ TIERS = {
         "name": "Family",
         "price": 14.99,
         "price_id": "price_family_monthly",
-        "features": ["No ads", "4K quality", "Offline downloads", "10 devices", "6 profiles"],
+        "features": [
+            "No ads",
+            "4K quality",
+            "Offline downloads",
+            "10 devices",
+            "6 profiles",
+        ],
     },
 }
 
@@ -58,19 +80,35 @@ TIERS = {
 # Request Models
 # ---------------------------------------------------------------------------
 
+
 class CheckoutRequest(BaseModel):
     tier: str
     success_url: str
     cancel_url: str
 
+    @field_validator("success_url", "cancel_url")
+    @classmethod
+    def _validate_redirect_url(cls, v: str) -> str:
+        if not _is_allowed_redirect_url(v):
+            raise ValueError("URL must point to an allowed app origin")
+        return v
+
 
 class PortalRequest(BaseModel):
     return_url: str
+
+    @field_validator("return_url")
+    @classmethod
+    def _validate_redirect_url(cls, v: str) -> str:
+        if not _is_allowed_redirect_url(v):
+            raise ValueError("URL must point to an allowed app origin")
+        return v
 
 
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
+
 
 @router.get("/tiers")
 async def get_tiers():
@@ -86,7 +124,9 @@ async def get_subscription_status(
     return {
         "tier": user.subscription_tier or "free",
         "status": user.subscription_status or "",
-        "ends_at": user.subscription_ends_at.isoformat() if user.subscription_ends_at else None,
+        "ends_at": (
+            user.subscription_ends_at.isoformat() if user.subscription_ends_at else None
+        ),
         "stripe_customer_id": user.stripe_customer_id or "",
     }
 
@@ -100,20 +140,14 @@ async def create_checkout_session(
 ):
     """Create Stripe checkout session for subscription."""
     if not stripe.api_key:
-        raise HTTPException(
-            status_code=501,
-            detail="Stripe not configured"
-        )
-    
+        raise HTTPException(status_code=501, detail="Stripe not configured")
+
     # Validate tier
     if request.tier not in TIERS or request.tier == "free":
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid tier"
-        )
-    
+        raise HTTPException(status_code=400, detail="Invalid tier")
+
     tier_info = TIERS[request.tier]
-    
+
     try:
         # Create or retrieve Stripe customer
         if user.stripe_customer_id:
@@ -127,7 +161,7 @@ async def create_checkout_session(
             customer_id = customer.id
             user.stripe_customer_id = customer_id
             await db.commit()
-        
+
         # Create checkout session
         session = stripe.checkout.Session.create(
             customer=customer_id,
@@ -146,9 +180,9 @@ async def create_checkout_session(
                 "tier": request.tier,
             },
         )
-        
+
         return {"checkout_url": session.url, "session_id": session.id}
-    
+
     except stripe.error.StripeError as e:
         logger.error("Stripe checkout error: %s", e)
         raise HTTPException(status_code=400, detail=str(e))
@@ -163,21 +197,18 @@ async def create_portal_session(
     """Create Stripe customer portal session for managing subscription."""
     if not stripe.api_key:
         raise HTTPException(status_code=501, detail="Stripe not configured")
-    
+
     if not user.stripe_customer_id:
-        raise HTTPException(
-            status_code=400,
-            detail="No subscription found"
-        )
-    
+        raise HTTPException(status_code=400, detail="No subscription found")
+
     try:
         session = stripe.billing_portal.Session.create(
             customer=user.stripe_customer_id,
             return_url=request.return_url,
         )
-        
+
         return {"portal_url": session.url}
-    
+
     except stripe.error.StripeError as e:
         logger.error("Stripe portal error: %s", e)
         raise HTTPException(status_code=400, detail=str(e))
@@ -191,20 +222,17 @@ async def stripe_webhook(
     """Handle Stripe webhook events."""
     if not stripe.api_key:
         raise HTTPException(status_code=501, detail="Stripe not configured")
-    
+
     if not settings.stripe_webhook_secret:
         logger.error("Stripe webhook secret not configured - rejecting webhook")
-        raise HTTPException(
-            status_code=500,
-            detail="Webhook secret not configured"
-        )
-    
+        raise HTTPException(status_code=500, detail="Webhook secret not configured")
+
     payload = await request.body()
     sig_header = request.headers.get("stripe-signature")
-    
+
     if not sig_header:
         raise HTTPException(status_code=400, detail="Missing stripe-signature header")
-    
+
     try:
         event = stripe.Webhook.construct_event(
             payload, sig_header, settings.stripe_webhook_secret
@@ -215,64 +243,66 @@ async def stripe_webhook(
     except stripe.error.SignatureVerificationError:
         logger.error("Invalid webhook signature")
         raise HTTPException(status_code=400, detail="Invalid signature")
-    
+
     # Handle events
     event_type = event["type"]
     data = event["data"]["object"]
-    
+
     if event_type == "checkout.session.completed":
         # Payment successful, activate subscription
         user_id = int(data["metadata"]["user_id"])
         tier = data["metadata"]["tier"]
-        
+
         result = await db.execute(select(User).where(User.id == user_id))
         user = result.scalar_one_or_none()
-        
+
         if user:
             user.subscription_tier = tier
             user.subscription_status = "active"
             await db.commit()
             logger.info("Subscription activated for user %s: %s", user_id, tier)
-    
+
     elif event_type == "customer.subscription.updated":
         # Subscription status changed
         customer_id = data["customer"]
         subscription_status = data["status"]
-        
+
         result = await db.execute(
             select(User).where(User.stripe_customer_id == customer_id)
         )
         user = result.scalar_one_or_none()
-        
+
         if user:
             user.subscription_status = subscription_status
-            
+
             # Update tier if subscription is canceled/past_due
             if subscription_status in ("canceled", "unpaid", "past_due"):
                 user.subscription_tier = "free"
-            
+
             # Set end date if subscription is ending
             if data.get("cancel_at"):
                 user.subscription_ends_at = datetime.fromtimestamp(
                     data["cancel_at"], tz=timezone.utc
                 )
-            
+
             await db.commit()
-            logger.info("Subscription updated for user %s: %s", user.id, subscription_status)
-    
+            logger.info(
+                "Subscription updated for user %s: %s", user.id, subscription_status
+            )
+
     elif event_type == "customer.subscription.deleted":
         # Subscription canceled/expired
         customer_id = data["customer"]
-        
+
         result = await db.execute(
             select(User).where(User.stripe_customer_id == customer_id)
         )
         user = result.scalar_one_or_none()
-        
+
         if user:
             user.subscription_tier = "free"
             user.subscription_status = "canceled"
             await db.commit()
             logger.info("Subscription deleted for user %s", user.id)
-    
+
     return {"status": "processed"}
