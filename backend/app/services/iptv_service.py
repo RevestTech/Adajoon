@@ -2,7 +2,7 @@ import logging
 from datetime import datetime, timezone
 
 import httpx
-from sqlalchemy import case, delete, func, select
+from sqlalchemy import case, delete, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 

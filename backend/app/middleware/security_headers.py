@@ -48,13 +48,24 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             # CSP tailored for your streaming app with OAuth support
             csp_directives = [
                 "default-src 'self'",
-                "script-src 'self' 'unsafe-eval' https://accounts.google.com https://appleid.cdn-apple.com https://www.gstatic.com https://imasdk.googleapis.com",  # OAuth + Chromecast + IMA SDK (no inline scripts remain - see frontend/public/*.js)
+                # OAuth + Chromecast + IMA SDK (no inline scripts remain - see frontend/public/*.js)
+                "script-src 'self' 'unsafe-eval' https://accounts.google.com "
+                "https://appleid.cdn-apple.com https://www.gstatic.com "
+                "https://imasdk.googleapis.com",
                 "worker-src 'self' blob:",  # MapLibre GL web workers
-                "style-src 'self' 'unsafe-inline' https://accounts.google.com https://appleid.cdn-apple.com https://fonts.googleapis.com",  # OAuth + Google Fonts
+                # OAuth + Google Fonts
+                "style-src 'self' 'unsafe-inline' https://accounts.google.com "
+                "https://appleid.cdn-apple.com https://fonts.googleapis.com",
                 "img-src 'self' data: blob: https:",  # Logos + MapLibre tile/sprite images
                 "media-src 'self' blob: https: http:",  # Allow streaming from external sources (incl. legacy HTTP HLS)
-                "connect-src 'self' https://tiles.openfreemap.org https://iptv-org.github.io https://de1.api.radio-browser.info https://raw.githubusercontent.com https://accounts.google.com https://appleid.apple.com https://fonts.googleapis.com https://fonts.gstatic.com https://imasdk.googleapis.com https://www.gstatic.com",  # MapLibre tiles + OAuth + APIs
-                "font-src 'self' data: https://fonts.gstatic.com https://tiles.openfreemap.org",  # Google Fonts + MapLibre glyphs
+                # MapLibre tiles + OAuth + APIs
+                "connect-src 'self' https://tiles.openfreemap.org https://iptv-org.github.io "
+                "https://de1.api.radio-browser.info https://raw.githubusercontent.com "
+                "https://accounts.google.com https://appleid.apple.com "
+                "https://fonts.googleapis.com https://fonts.gstatic.com "
+                "https://imasdk.googleapis.com https://www.gstatic.com",
+                # Google Fonts + MapLibre glyphs
+                "font-src 'self' data: https://fonts.gstatic.com https://tiles.openfreemap.org",
                 "object-src 'none'",
                 "base-uri 'self'",
                 "form-action 'self' https://accounts.google.com https://appleid.apple.com",  # OAuth form actions

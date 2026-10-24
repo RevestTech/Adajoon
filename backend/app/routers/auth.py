@@ -14,7 +14,7 @@ from jose import JWTError, jwt
 from pydantic import BaseModel, Field
 from slowapi import Limiter
 from slowapi.util import get_remote_address
-from sqlalchemy import case, delete, exists, func, select
+from sqlalchemy import delete, exists, func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from webauthn import (
@@ -37,6 +37,7 @@ from app.config import settings
 from app.csrf import generate_csrf_token, verify_csrf_token
 from app.database import get_db
 from app.models import Passkey, User, UserFavorite, UserVote
+from app.redis_client import cache_get, cache_set
 from app.services.analytics_service import log_auth_event
 
 logger = logging.getLogger(__name__)
@@ -281,8 +282,6 @@ async def google_login(
     )
     return _user_response(user)
 
-
-from app.redis_client import cache_get, cache_set
 
 APPLE_KEYS_TTL = 3600  # 1 hour
 

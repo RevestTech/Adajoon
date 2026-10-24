@@ -42,21 +42,21 @@ from app.routers import (
 from app.services.iptv_service import full_sync
 from app.services.radio_service import sync_radio_stations
 
-# Prometheus metrics
-try:
-    from prometheus_fastapi_instrumentator import Instrumentator, metrics
-
-    PROMETHEUS_AVAILABLE = True
-except ImportError:
-    PROMETHEUS_AVAILABLE = False
-    logger.warning("prometheus-fastapi-instrumentator not installed, metrics disabled")
-
 # Setup structured logging
 log_level = os.getenv("LOG_LEVEL", "INFO")
 json_logs = os.getenv("JSON_LOGS", "true").lower() in ("true", "1", "yes")
 setup_logging(log_level=log_level, json_logs=json_logs)
 
 logger = logging.getLogger(__name__)
+
+# Prometheus metrics
+try:
+    from prometheus_fastapi_instrumentator import Instrumentator
+
+    PROMETHEUS_AVAILABLE = True
+except ImportError:
+    PROMETHEUS_AVAILABLE = False
+    logger.warning("prometheus-fastapi-instrumentator not installed, metrics disabled")
 
 # Rate limiting with Redis storage for distributed limiting
 limiter = Limiter(

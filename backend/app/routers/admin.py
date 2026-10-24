@@ -59,7 +59,7 @@ async def get_stats_overview(
 
     # Admin count
     admin_count_query = await db.execute(
-        select(func.count(User.id)).where(User.is_admin == True)
+        select(func.count(User.id)).where(User.is_admin.is_(True))
     )
     admin_count = admin_count_query.scalar() or 0
 
@@ -215,7 +215,7 @@ async def get_content_stats(
 
     # Most favorited TV channels
     top_tv = await db.execute(text("""
-            SELECT 
+            SELECT
                 uf.item_id,
                 COUNT(*) as favorites_count,
                 MAX(uf.item_data::json->>'name') as name,
@@ -238,7 +238,7 @@ async def get_content_stats(
 
     # Most favorited radio stations
     top_radio = await db.execute(text("""
-            SELECT 
+            SELECT
                 uf.item_id,
                 COUNT(*) as favorites_count,
                 MAX(uf.item_data::json->>'name') as name,

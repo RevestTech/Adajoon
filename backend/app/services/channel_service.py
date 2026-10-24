@@ -1,14 +1,14 @@
 from sqlalchemy import case, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Category, Channel, Country, RadioStation, Stream, UserVote
+from app.models import Category, Channel, Country, Stream
 from app.schemas import ChannelSearchParams
 from app.services.status_filters import apply_status_filters
 
 
 async def search_channels(db: AsyncSession, params: ChannelSearchParams):
-    query = select(Channel).where(Channel.is_nsfw == False)
-    count_query = select(func.count(Channel.id)).where(Channel.is_nsfw == False)
+    query = select(Channel).where(Channel.is_nsfw.is_(False))
+    count_query = select(func.count(Channel.id)).where(Channel.is_nsfw.is_(False))
 
     if params.query:
         pattern = f"%{params.query}%"
@@ -101,7 +101,7 @@ async def get_categories_with_counts(db: AsyncSession):
             func.count(case((verified_cond, Channel.id))).label("verified_count"),
         )
         .outerjoin(
-            Channel, (Channel.category_id == Category.id) & (Channel.is_nsfw == False)
+            Channel, (Channel.category_id == Category.id) & (Channel.is_nsfw.is_(False))
         )
         .where(~func.lower(Category.id).in_(_HIDDEN_CATEGORIES))
         .group_by(Category.id, Category.name)
@@ -123,7 +123,8 @@ async def get_countries_with_counts(db: AsyncSession):
             func.count(case((verified_cond, Channel.id))).label("verified_count"),
         )
         .outerjoin(
-            Channel, (Channel.country_code == Country.code) & (Channel.is_nsfw == False)
+            Channel,
+            (Channel.country_code == Country.code) & (Channel.is_nsfw.is_(False)),
         )
         .group_by(Country.code, Country.name, Country.flag)
         .having(func.count(Channel.id) > 0)

@@ -8,7 +8,7 @@ from urllib.parse import urljoin
 
 import httpx
 import m3u8
-from sqlalchemy import func, select, update
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import async_session

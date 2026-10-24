@@ -35,7 +35,7 @@ async def get_tenant(
         )
 
     result = await db.execute(
-        select(Tenant).where(Tenant.api_key == x_api_key, Tenant.is_active == True)
+        select(Tenant).where(Tenant.api_key == x_api_key, Tenant.is_active.is_(True))
     )
     tenant = result.scalar_one_or_none()
 
