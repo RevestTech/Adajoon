@@ -4,22 +4,25 @@ Application configuration.
 Secrets are loaded from railway-vault (centralized encrypted storage).
 Database and Redis URLs come from Railway service references.
 """
+
 import os
-from pydantic_settings import BaseSettings
 from typing import Optional
+
+from pydantic_settings import BaseSettings
 
 
 def _get_vault_client():
     """Initialize vault client for secrets (lazy loaded)."""
     vault_url = os.getenv("VAULT_URL")
     vault_token = os.getenv("VAULT_TOKEN")
-    
+
     if not vault_url or not vault_token:
         # Vault not configured - development mode
         return None
-    
+
     try:
         from app.vault_client import VaultClient
+
         return VaultClient(url=vault_url, token=vault_token)
     except Exception as e:
         print(f"Warning: Failed to connect to vault: {e}")
@@ -42,7 +45,7 @@ def _get_secret(key: str, default: str = "") -> str:
             return _vault.get(f"adajoon:{key}")
         except Exception as e:
             print(f"Warning: Failed to get {key} from vault, trying env var: {e}")
-    
+
     # Fallback to environment variable (for development)
     env_key = key.upper()
     return os.getenv(env_key, default)
@@ -67,7 +70,11 @@ class Settings(BaseSettings):
         if url.startswith("postgres://"):
             url = url.replace("postgres://", "postgresql+asyncpg://", 1)
         elif not url.startswith("postgresql+asyncpg://"):
-            url = "postgresql+asyncpg://" + url.split("://", 1)[1] if "://" in url else url
+            url = (
+                "postgresql+asyncpg://" + url.split("://", 1)[1]
+                if "://" in url
+                else url
+            )
         return url
 
     # JWT (from vault)
@@ -97,7 +104,9 @@ class Settings(BaseSettings):
 
     # External APIs (public URLs, not secrets)
     iptv_api_base: str = "https://iptv-org.github.io/api"
-    iptv_github_url: str = "https://raw.githubusercontent.com/iptv-org/iptv/master/streams.json"
+    iptv_github_url: str = (
+        "https://raw.githubusercontent.com/iptv-org/iptv/master/streams.json"
+    )
     radio_browser_api: str = "https://de1.api.radio-browser.info"
 
     # AI Search (from vault)
@@ -133,9 +142,13 @@ class Settings(BaseSettings):
         elif len(self.jwt_secret) < 32:
             errors.append("JWT_SECRET must be at least 32 characters long")
         elif self.jwt_secret == "change-me-in-production":
-            errors.append("JWT_SECRET must not be the default value 'change-me-in-production'")
+            errors.append(
+                "JWT_SECRET must not be the default value 'change-me-in-production'"
+            )
         elif self.jwt_secret == DEV_JWT_SECRET_DEFAULT and self.env == "production":
-            errors.append("JWT_SECRET must not be the built-in development default in production")
+            errors.append(
+                "JWT_SECRET must not be the built-in development default in production"
+            )
 
         if self.env == "production":
             if "localhost" in self.database_url:
@@ -145,7 +158,9 @@ class Settings(BaseSettings):
                 errors.append("REDIS_URL must not contain 'localhost' in production")
 
             if self.stripe_secret_key and not self.stripe_webhook_secret:
-                errors.append("STRIPE_WEBHOOK_SECRET must be set when using Stripe in production")
+                errors.append(
+                    "STRIPE_WEBHOOK_SECRET must be set when using Stripe in production"
+                )
 
         if errors:
             error_msg = "Configuration validation failed:\n  - " + "\n  - ".join(errors)
