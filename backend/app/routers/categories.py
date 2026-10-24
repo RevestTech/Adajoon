@@ -5,7 +5,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.schemas import CategoryOut, CountryOut, StatsOut
 from app.services.channel_service import (
-    get_categories_with_counts, get_countries_with_counts, get_stats,
+    get_categories_with_counts,
+    get_countries_with_counts,
+    get_stats,
 )
 from app.redis_client import cache_get, cache_set
 
@@ -41,7 +43,7 @@ async def list_categories(db: AsyncSession = Depends(get_db)):
         return data
     except Exception as e:
         logger.error(f"Error in list_categories: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to fetch categories: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to fetch categories")
 
 
 @router.get("/countries", response_model=list[CountryOut])
