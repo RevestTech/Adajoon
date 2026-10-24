@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.6.1] - 2026-10-24
+
+### Fixed
+- **CSRF double-submit**: cookie no longer unchecked against the header token; Bearer-authenticated requests bypass the cookie check since that auth path isn't CSRF-exploitable
+- **JWT secret validation**: dev default now rejected outside `development`/`dev` env, not just exactly `production`
+- **Google login**: now requires `email_verified`, closing an account-takeover path
+- **Admin/passkey endpoints**: added missing CSRF checks on promote/revoke-admin and passkey registration
+- **`/api/recommendations/similar`**: was completely broken - referenced nonexistent `Channel.country`/`upvotes`/`downvotes` columns, used Postgres `position()` with invalid comma-call syntax, and split categories on the wrong separator. Fixed, switched to the indexed `country_code` column, added caching and rate limiting
+- **Hourly validator worker**: `health_checked_at` is a timestamptz column but was compared against ISO-format strings - Postgres rejects that outright, so the worker has likely never completed a validation cycle. Fixed to use real datetimes
+- **`POST /api/healthcheck/{id}`**: same timestamptz-vs-string bug on the write side; also stopped its own 404 getting swallowed into a 500
+- **Unauthenticated cache-clear**: `POST /api/redis/cache/clear/{key}` now requires admin auth + CSRF
+- **History endpoints**: now 401 cleanly on missing auth instead of a 500
+- **Frontend build**: Docker image now installs from the committed lockfile (`npm ci`) instead of re-resolving dependencies fresh on every build, which had started failing against the current npm registry state
+- Deduplicated channel/radio status-filter logic, TV/radio AI-search fallback scoring, and the channel/radio batch validator loop
+- Backend container now runs as a non-root user
+- CSP no longer needs `unsafe-inline` for scripts; COOP/COEP relaxation for OAuth now scoped to the HTML page only, not API responses
+
 ## [2.6.0] - 2026-07-21
 
 ### Added
