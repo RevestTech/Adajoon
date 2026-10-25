@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   fetchAdminTiers,
   createAdminTier,
@@ -25,18 +25,32 @@ function TierRow({ tier, onChange, onDelete, onAddFeature, onUpdateFeature, onDe
   // idle | saving | saved | error - cleared back to idle a couple seconds
   // after a save, so an edit always gives some visible confirmation.
   const [saveStatus, setSaveStatus] = useState("idle");
+  const saveSeqRef = useRef(0);
+  const resetTimeoutRef = useRef(null);
 
   const save = async () => {
+    const seq = ++saveSeqRef.current;
+    if (resetTimeoutRef.current) clearTimeout(resetTimeoutRef.current);
     setSaveStatus("saving");
     try {
       await onChange(tier.id, { name, monthly_price_cents: dollarsToCents(price) });
+      if (seq !== saveSeqRef.current) return; // a newer save has started since
       setSaveStatus("saved");
     } catch {
+      if (seq !== saveSeqRef.current) return;
       setSaveStatus("error");
     } finally {
-      setTimeout(() => setSaveStatus("idle"), 2000);
+      if (seq === saveSeqRef.current) {
+        resetTimeoutRef.current = setTimeout(() => setSaveStatus("idle"), 2000);
+      }
     }
   };
+
+  useEffect(() => {
+    return () => {
+      if (resetTimeoutRef.current) clearTimeout(resetTimeoutRef.current);
+    };
+  }, []);
 
   const addFeature = () => {
     if (!newFeatureLabel.trim()) return;
@@ -84,11 +98,19 @@ function TierRow({ tier, onChange, onDelete, onAddFeature, onUpdateFeature, onDe
           />
           Active
         </label>
-        {saveStatus !== "idle" && (
-          <span className={`pricing-save-status pricing-save-status--${saveStatus}`}>
-            {saveStatus === "saving" ? "Saving…" : saveStatus === "saved" ? "Saved" : "Failed to save"}
-          </span>
-        )}
+        <span
+          role="status"
+          aria-live="polite"
+          className={`pricing-save-status pricing-save-status--${saveStatus}`}
+        >
+          {saveStatus === "saving"
+            ? "Saving…"
+            : saveStatus === "saved"
+              ? "Saved"
+              : saveStatus === "error"
+                ? "Failed to save"
+                : ""}
+        </span>
         <button
           type="button"
           className="admin-table-action-btn admin-table-action-danger"
@@ -164,16 +186,58 @@ function TierRow({ tier, onChange, onDelete, onAddFeature, onUpdateFeature, onDe
 }
 
 function PricingPreview({ tiers, onClose }) {
+  const modalRef = useRef(null);
+  const closeButtonRef = useRef(null);
+
+  useEffect(() => {
+    const previouslyFocused = document.activeElement;
+    closeButtonRef.current?.focus();
+
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") {
+        onClose();
+        return;
+      }
+      if (e.key !== "Tab") return;
+      const focusable = modalRef.current?.querySelectorAll(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      );
+      if (!focusable || focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      previouslyFocused?.focus?.();
+    };
+  }, [onClose]);
+
   const visibleTiers = [...tiers]
     .filter((t) => t.is_active)
     .sort((a, b) => a.sort_order - b.sort_order);
 
   return (
     <div className="pricing-preview-overlay" onClick={onClose}>
-      <div className="pricing-preview-modal" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="pricing-preview-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="pricing-preview-title"
+        ref={modalRef}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="pricing-preview-header">
-          <h2>What customers will see</h2>
-          <button type="button" className="admin-table-action-btn" onClick={onClose}>
+          <h2 id="pricing-preview-title">What customers will see</h2>
+          <button type="button" className="admin-table-action-btn" onClick={onClose} ref={closeButtonRef}>
             Close preview
           </button>
         </div>
