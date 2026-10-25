@@ -85,7 +85,14 @@ async def get_tiers(db: AsyncSession = Depends(get_db)):
                 "price": tier.monthly_price_cents / 100,
                 "price_id": tier.stripe_price_id_monthly,
                 "features": [
-                    f.label for f in sorted(tier.features, key=lambda f: f.sort_order)
+                    f.label
+                    for f in sorted(tier.features, key=lambda f: f.sort_order)
+                    if not f.is_addon
+                ],
+                "addons": [
+                    {"label": f.label, "price": f.addon_price_cents / 100}
+                    for f in sorted(tier.features, key=lambda f: f.sort_order)
+                    if f.is_addon
                 ],
             }
             for tier in tiers
