@@ -52,11 +52,11 @@ export default function useSubscription() {
   /**
    * Create checkout session and redirect to Stripe.
    */
-  const checkout = async (targetTier) => {
+  const checkout = async (targetTier, promoCode) => {
     try {
       const successUrl = `${window.location.origin}/subscription/success`;
       const cancelUrl = `${window.location.origin}/subscription/cancel`;
-      
+
       const response = await authenticatedFetch(`${API_URL}/api/subscriptions/checkout`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -64,6 +64,7 @@ export default function useSubscription() {
           tier: targetTier,
           success_url: successUrl,
           cancel_url: cancelUrl,
+          ...(promoCode ? { promo_code: promoCode } : {}),
         }),
       });
       

@@ -9,6 +9,7 @@ import MiniPlayer from "./components/MiniPlayer";
 import FloatingPlayer from "./components/FloatingPlayer";
 import AdminDashboard from "./components/AdminDashboard";
 import SettingsPage from "./components/SettingsPage";
+import PricingPage from "./components/PricingPage";
 import GuestNoticeToast from "./components/GuestNoticeToast";
 import FavoritesView from "./components/FavoritesView";
 import RecentlyPlayed from "./components/RecentlyPlayed";
@@ -761,6 +762,9 @@ export default function App() {
   // Settings page state
   const [showSettings, setShowSettings] = useState(false);
 
+  // Pricing page state
+  const [showPricing, setShowPricing] = useState(false);
+
   // What's New state
   const [showWhatsNew, setShowWhatsNew] = useState(false);
   const [unseenWhatsNew, setUnseenWhatsNew] = useState(() => hasUnseenWhatsNew(LATEST_VERSION));
@@ -840,6 +844,7 @@ export default function App() {
         onOpenAISearch={() => setShowAISearch(true)}
         onOpenAdmin={() => setShowAdminDashboard(true)}
         onOpenSettings={() => setShowSettings(true)}
+        onOpenPricing={() => setShowPricing(true)}
         onOpenWhatsNew={() => setShowWhatsNew(true)}
         hasUnseenWhatsNew={unseenWhatsNew}
         theme={theme}
@@ -1128,6 +1133,15 @@ export default function App() {
             onClose={() => setShowSettings(false)}
             onSelectChannel={(ch) => { setShowSettings(false); setMode("tv"); openTvPlayer(ch); }}
             onSelectStation={(st) => { setShowSettings(false); setMode("radio"); handleSelectStation(st); }}
+          />
+        </ErrorBoundary>
+      )}
+      {showPricing && (
+        <ErrorBoundary compact compactMessage="Pricing failed to load.">
+          <PricingPage
+            isGuest={isGuest}
+            onLogin={() => { setShowPricing(false); setShowLogin(true); }}
+            onClose={() => setShowPricing(false)}
           />
         </ErrorBoundary>
       )}
