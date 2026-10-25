@@ -5,6 +5,7 @@ import FeedbackBar from "./FeedbackBar";
 import MiniPlayer from "./MiniPlayer";
 import SimilarItemsRail from "./SimilarItemsRail";
 import { useShare } from "../hooks/useShare";
+import useAds from "../hooks/useAds";
 
 function formatEpgTime(iso) {
   if (!iso) return "";
@@ -100,6 +101,11 @@ export default function VideoPlayer({
   };
   const internalVideoRef = useRef(null);
   const videoRef = externalVideoRef || internalVideoRef;
+  const adContainerRef = useRef(null);
+  const { adPlaying, playPreRoll } = useAds(videoRef, adContainerRef);
+  // Guards the pre-roll against re-firing on every retry/stall of the same
+  // channel - only ever one pre-roll per channel.id.
+  const preRolledChannelIdRef = useRef(null);
   const hlsRef = useRef(null);
   const stallTimeoutRef = useRef(null);
   const [streams, setStreams] = useState([]);
@@ -261,38 +267,50 @@ export default function VideoPlayer({
       handleStreamFailure("Stream timed out. It may be offline.");
     }, 15000);
 
-    if (activeUrl.includes(".m3u8") && !video.canPlayType("application/vnd.apple.mpegurl")) {
-      import("hls.js").then(({ default: Hls }) => {
-        if (cancelled) return;
-        if (!Hls.isSupported()) {
+    const loadSource = () => {
+      if (cancelled) return;
+      if (activeUrl.includes(".m3u8") && !video.canPlayType("application/vnd.apple.mpegurl")) {
+        import("hls.js").then(({ default: Hls }) => {
+          if (cancelled) return;
+          if (!Hls.isSupported()) {
+            clearStallTimeout();
+            handleStreamFailure("This stream format is not supported in your browser.");
+            return;
+          }
+          const hls = new Hls({ enableWorker: true, lowLatencyMode: true });
+          hls.loadSource(activeUrl);
+          hls.attachMedia(video);
+          hls.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(() => {}));
+          hls.on(Hls.Events.ERROR, (_, data) => {
+            if (data.fatal) {
+              clearStallTimeout();
+              handleStreamFailure("Stream could not be loaded. It may be offline.");
+            }
+          });
+          hlsRef.current = hls;
+        });
+      } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
+        video.src = activeUrl;
+        video.play().catch(() => {
+          clearStallTimeout();
+          handleStreamFailure("Stream could not be loaded. It may be offline.");
+        });
+      } else {
+        video.src = activeUrl;
+        video.play().catch(() => {
           clearStallTimeout();
           handleStreamFailure("This stream format is not supported in your browser.");
-          return;
-        }
-        const hls = new Hls({ enableWorker: true, lowLatencyMode: true });
-        hls.loadSource(activeUrl);
-        hls.attachMedia(video);
-        hls.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(() => {}));
-        hls.on(Hls.Events.ERROR, (_, data) => {
-          if (data.fatal) {
-            clearStallTimeout();
-            handleStreamFailure("Stream could not be loaded. It may be offline.");
-          }
         });
-        hlsRef.current = hls;
-      });
-    } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
-      video.src = activeUrl;
-      video.play().catch(() => {
-        clearStallTimeout();
-        handleStreamFailure("Stream could not be loaded. It may be offline.");
-      });
+      }
+    };
+
+    // One pre-roll per channel - re-running this effect for a retry or
+    // fallback source on the same channel must not replay the ad.
+    if (preRolledChannelIdRef.current !== channel.id) {
+      preRolledChannelIdRef.current = channel.id;
+      playPreRoll().then(loadSource);
     } else {
-      video.src = activeUrl;
-      video.play().catch(() => {
-        clearStallTimeout();
-        handleStreamFailure("This stream format is not supported in your browser.");
-      });
+      loadSource();
     }
 
     return () => {
@@ -562,6 +580,11 @@ export default function VideoPlayer({
                       </div>
                     )}
                     <video ref={videoRef} controls autoPlay playsInline />
+                    <div
+                      ref={adContainerRef}
+                      className="video-ad-container"
+                      style={{ display: adPlaying ? "block" : "none" }}
+                    />
                   </>
                 )}
               </div>

@@ -13,157 +13,133 @@ import {
 import { useAuth } from './useAuth';
 
 export default function useAds(videoElementRef, adContainerRef) {
-  const [adsLoaded, setAdsLoaded] = useState(false);
   const [adPlaying, setAdPlaying] = useState(false);
   const [adsEnabled, setAdsEnabled] = useState(false);
-  
+
   const { user } = useAuth();
-  
+
   const adsLoaderRef = useRef(null);
   const adsManagerRef = useRef(null);
   const adDisplayContainerRef = useRef(null);
+  // Resolves the in-flight playPreRoll() promise once the ad sequence
+  // genuinely finishes (completed, skipped, or errored) - set per call so
+  // we never resolve early just because the manager loaded.
+  const resolvePreRollRef = useRef(null);
+
+  const finishPreRoll = useCallback(() => {
+    setAdPlaying(false);
+    const resolve = resolvePreRollRef.current;
+    resolvePreRollRef.current = null;
+    resolve?.();
+  }, []);
 
   useEffect(() => {
-    // Check if ads should be enabled
     const shouldEnable = areAdsSupported() && shouldShowAds(user);
     setAdsEnabled(shouldEnable);
-    
+
     if (!shouldEnable) return;
-    
-    // Initialize IMA
+
     const videoElement = videoElementRef?.current;
     const adContainer = adContainerRef?.current;
-    
+
     if (!videoElement || !adContainer) return;
-    
-    // Create ad display container
+
     adDisplayContainerRef.current = createAdDisplayContainer(videoElement, adContainer);
-    
-    // Create ads loader
+
     const adsLoader = createAdsLoader(adDisplayContainerRef.current, videoElement);
     if (!adsLoader) return;
-    
+
     adsLoaderRef.current = adsLoader;
-    
-    // Listen for ads loaded
+
     adsLoader.addEventListener(
       google.ima.AdsManagerLoadedEvent.Type.ADS_MANAGER_LOADED,
       (event) => {
         const adsManager = event.getAdsManager(videoElement);
         adsManagerRef.current = adsManager;
-        
+
         setupAdsManager(adsManager, {
           onAdStarted: () => {
             setAdPlaying(true);
             videoElement.pause(); // Pause main content during ad
           },
-          onAdComplete: () => {
-            setAdPlaying(false);
-          },
-          onAdSkipped: () => {
-            setAdPlaying(false);
-          },
-          onAllAdsComplete: () => {
-            setAdPlaying(false);
-            setAdsLoaded(true);
-            videoElement.play(); // Resume main content
-          },
+          onAdComplete: finishPreRoll,
+          onAdSkipped: finishPreRoll,
+          onAllAdsComplete: finishPreRoll,
           onAdError: (adErrorEvent) => {
             console.error('Ad error:', adErrorEvent.getError());
-            setAdPlaying(false);
-            setAdsLoaded(true);
             adsManager.destroy();
-            videoElement.play(); // Play content even if ad fails
+            finishPreRoll();
           },
         });
-        
-        setAdsLoaded(true);
+
+        try {
+          const width = videoElement.offsetWidth || 640;
+          const height = videoElement.offsetHeight || 360;
+          adsManager.init(width, height, google.ima.ViewMode.NORMAL);
+          adsManager.start();
+        } catch (error) {
+          console.error('Failed to start ads:', error);
+          finishPreRoll();
+        }
       },
       false
     );
-    
-    // Listen for ad errors
+
     adsLoader.addEventListener(
       google.ima.AdErrorEvent.Type.AD_ERROR,
       (adErrorEvent) => {
         console.error('Ad loading error:', adErrorEvent.getError());
-        setAdsLoaded(true);
-        videoElement.play(); // Play content even if ad loading fails
+        finishPreRoll();
       },
       false
     );
-    
-    // Cleanup
+
     return () => {
       if (adsManagerRef.current) {
         adsManagerRef.current.destroy();
+        adsManagerRef.current = null;
       }
       if (adsLoaderRef.current) {
         adsLoaderRef.current.destroy();
+        adsLoaderRef.current = null;
       }
     };
-  }, [videoElementRef, adContainerRef, user]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [videoElementRef, adContainerRef, user, finishPreRoll]);
 
   /**
-   * Play pre-roll ad before content.
+   * Request and play a pre-roll ad before content. Resolves once the ad
+   * sequence completes, is skipped, errors, or 10s pass with no response -
+   * never resolves early just because the ads manager finished loading.
    */
   const playPreRoll = useCallback(() => {
     if (!adsEnabled || !adsLoaderRef.current || !adDisplayContainerRef.current) {
-      return Promise.resolve(); // Skip ads if not enabled
+      return Promise.resolve();
     }
-    
+
     return new Promise((resolve) => {
-      // Initialize ad display container
+      resolvePreRollRef.current = resolve;
+
       adDisplayContainerRef.current.initialize();
-      
-      // Request ads
+
       const videoElement = videoElementRef?.current;
       if (videoElement) {
         const width = videoElement.offsetWidth || 640;
         const height = videoElement.offsetHeight || 360;
         requestAds(adsLoaderRef.current, adDisplayContainerRef.current, width, height);
       }
-      
-      // Resolve when ads complete or error
-      const checkComplete = setInterval(() => {
-        if (adsLoaded && !adPlaying) {
-          clearInterval(checkComplete);
-          resolve();
-        }
-      }, 100);
-      
-      // Timeout after 10 seconds
+
       setTimeout(() => {
-        clearInterval(checkComplete);
-        resolve();
+        if (resolvePreRollRef.current === resolve) {
+          finishPreRoll();
+        }
       }, 10000);
     });
-  }, [adsEnabled, adsLoaded, adPlaying, videoElementRef]);
-
-  /**
-   * Start ads manager (call after playPreRoll).
-   */
-  const startAds = useCallback(() => {
-    if (!adsManagerRef.current) return;
-    
-    try {
-      const videoElement = videoElementRef?.current;
-      if (videoElement) {
-        const width = videoElement.offsetWidth || 640;
-        const height = videoElement.offsetHeight || 360;
-        adsManagerRef.current.init(width, height, google.ima.ViewMode.NORMAL);
-        adsManagerRef.current.start();
-      }
-    } catch (error) {
-      console.error('Failed to start ads:', error);
-    }
-  }, [videoElementRef]);
+  }, [adsEnabled, videoElementRef, finishPreRoll]);
 
   return {
     adsEnabled,
-    adsLoaded,
     adPlaying,
     playPreRoll,
-    startAds,
   };
 }
