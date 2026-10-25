@@ -22,9 +22,20 @@ function TierRow({ tier, onChange, onDelete, onAddFeature, onUpdateFeature, onDe
   const [newFeatureLabel, setNewFeatureLabel] = useState("");
   const [newFeatureIsAddon, setNewFeatureIsAddon] = useState(false);
   const [newFeaturePrice, setNewFeaturePrice] = useState("");
+  // idle | saving | saved | error - cleared back to idle a couple seconds
+  // after a save, so an edit always gives some visible confirmation.
+  const [saveStatus, setSaveStatus] = useState("idle");
 
-  const save = () => {
-    onChange(tier.id, { name, monthly_price_cents: dollarsToCents(price) });
+  const save = async () => {
+    setSaveStatus("saving");
+    try {
+      await onChange(tier.id, { name, monthly_price_cents: dollarsToCents(price) });
+      setSaveStatus("saved");
+    } catch {
+      setSaveStatus("error");
+    } finally {
+      setTimeout(() => setSaveStatus("idle"), 2000);
+    }
   };
 
   const addFeature = () => {
@@ -69,10 +80,15 @@ function TierRow({ tier, onChange, onDelete, onAddFeature, onUpdateFeature, onDe
           <input
             type="checkbox"
             checked={tier.is_active}
-            onChange={(e) => onChange(tier.id, { is_active: e.target.checked })}
+            onChange={(e) => onChange(tier.id, { is_active: e.target.checked }).catch(() => {})}
           />
           Active
         </label>
+        {saveStatus !== "idle" && (
+          <span className={`pricing-save-status pricing-save-status--${saveStatus}`}>
+            {saveStatus === "saving" ? "Saving…" : saveStatus === "saved" ? "Saved" : "Failed to save"}
+          </span>
+        )}
         <button
           type="button"
           className="admin-table-action-btn admin-table-action-danger"
@@ -147,6 +163,60 @@ function TierRow({ tier, onChange, onDelete, onAddFeature, onUpdateFeature, onDe
   );
 }
 
+function PricingPreview({ tiers, onClose }) {
+  const visibleTiers = [...tiers]
+    .filter((t) => t.is_active)
+    .sort((a, b) => a.sort_order - b.sort_order);
+
+  return (
+    <div className="pricing-preview-overlay" onClick={onClose}>
+      <div className="pricing-preview-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="pricing-preview-header">
+          <h2>What customers will see</h2>
+          <button type="button" className="admin-table-action-btn" onClick={onClose}>
+            Close preview
+          </button>
+        </div>
+        <p className="admin-section-hint">
+          Inactive tiers are hidden here too, same as on the real pricing page.
+        </p>
+        <div className="pricing-preview-cards">
+          {visibleTiers.map((tier) => {
+            const included = tier.features.filter((f) => f.is_active && !f.is_addon);
+            const addons = tier.features.filter((f) => f.is_active && f.is_addon);
+            return (
+              <div key={tier.id} className="pricing-preview-card">
+                <div className="pricing-preview-card-name">{tier.name}</div>
+                <div className="pricing-preview-card-price">
+                  ${centsToDollars(tier.monthly_price_cents)}
+                  <span className="pricing-preview-card-period">/mo</span>
+                </div>
+                <ul className="pricing-preview-feature-list">
+                  {included.map((f) => (
+                    <li key={f.id}>{f.label}</li>
+                  ))}
+                </ul>
+                {addons.length > 0 && (
+                  <>
+                    <div className="pricing-preview-addons-label">Available add-ons</div>
+                    <ul className="pricing-preview-feature-list pricing-preview-feature-list--addons">
+                      {addons.map((f) => (
+                        <li key={f.id}>
+                          {f.label} <span>+${centsToDollars(f.addon_price_cents)}/mo</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function DiscountForm({ tiers, onCreate }) {
   const [code, setCode] = useState("");
   const [percentOff, setPercentOff] = useState("");
@@ -207,6 +277,7 @@ export default function PricingManager() {
   const [loading, setLoading] = useState(true);
   const [newTierKey, setNewTierKey] = useState("");
   const [newTierName, setNewTierName] = useState("");
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -235,6 +306,7 @@ export default function PricingManager() {
       setTiers((prev) => prev.map((t) => (t.id === id ? { ...t, ...updated } : t)));
     } catch (err) {
       setError(err.message);
+      throw err;
     }
   };
 
@@ -334,8 +406,15 @@ export default function PricingManager() {
     <div className="pricing-manager">
       {error && <div className="admin-error">{error}</div>}
 
+      {previewOpen && <PricingPreview tiers={tiers} onClose={() => setPreviewOpen(false)} />}
+
       <div className="admin-section">
-        <h2>Tiers</h2>
+        <div className="pricing-section-header">
+          <h2>Tiers</h2>
+          <button type="button" className="admin-table-action-btn" onClick={() => setPreviewOpen(true)}>
+            Preview pricing page
+          </button>
+        </div>
         <p className="admin-section-hint">
           Edit name, monthly price, and per-tier features. Checkout and the public pricing
           display read from this list.
