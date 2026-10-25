@@ -2802,6 +2802,13 @@ body {
   height: 100%;
 }
 
+.video-ad-container {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  background: #000;
+}
+
 .channel-step-flash {
   position: absolute;
   top: 20px;
