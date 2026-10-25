@@ -118,12 +118,11 @@ class WatchHistory(Base):
         Index("ix_watch_history_item", "item_type", "item_id"),
         # Named to match the on_conflict_do_update() constraint in
         # history.py's record_watch_history - one row per item per user.
-        Index(
-            "ix_watch_history_user_item_recent",
-            "user_id",
-            "item_type",
-            "item_id",
-            unique=True,
+        # Must be a real constraint (not just a unique index): Postgres's
+        # ON CONFLICT ON CONSTRAINT looks it up in pg_constraint, which a
+        # plain CREATE UNIQUE INDEX never registers.
+        UniqueConstraint(
+            "user_id", "item_type", "item_id", name="ix_watch_history_user_item_recent"
         ),
     )
 
