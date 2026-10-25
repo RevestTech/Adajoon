@@ -754,8 +754,12 @@ async def get_top_content(
     cutoff_date = datetime.utcnow() - timedelta(days=days)
 
     # Query for Playback Started events
-    item_name_expr = func.jsonb_extract_path_text(AnalyticsEvent.properties, "item_name")
-    item_type_expr = func.jsonb_extract_path_text(AnalyticsEvent.properties, "item_type")
+    item_name_expr = func.jsonb_extract_path_text(
+        AnalyticsEvent.properties, "item_name"
+    )
+    item_type_expr = func.jsonb_extract_path_text(
+        AnalyticsEvent.properties, "item_type"
+    )
     query = (
         select(
             item_name_expr.label("item_name"),
