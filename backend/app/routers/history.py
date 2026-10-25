@@ -46,9 +46,9 @@ async def record_watch_history(
 ):
     """Record or update a watch history entry."""
     try:
-        # Upsert: if same user + item exists in last 1 hour, update it; otherwise
-        # insert. The "last 1 hour" window is enforced by the partial unique
-        # index ix_watch_history_user_item_recent, not by a query filter here.
+        # Upsert: one row per (user, item_type, item_id) via the unique
+        # index ix_watch_history_user_item_recent - replaying an item just
+        # bumps its watched_at instead of adding a duplicate row.
         stmt = pg_insert(WatchHistory).values(
             user_id=user.id,
             item_type=item.item_type,
