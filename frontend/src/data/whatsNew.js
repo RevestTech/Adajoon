@@ -10,6 +10,15 @@
  */
 export const WHATS_NEW = [
   {
+    version: "2.7.0",
+    date: "2026-10-25",
+    highlights: [
+      "New: live current-track titles on radio station cards and the player, pulled from each station's own stream",
+      "New: admin pricing manager — set tier prices, bundled or paid add-on features, and discount codes without a code change",
+      "New: no-login \"For You\" row on the TV home screen, built from your own watch history",
+    ],
+  },
+  {
     version: "2.6.2",
     date: "2026-10-24",
     highlights: [
