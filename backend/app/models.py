@@ -116,6 +116,15 @@ class WatchHistory(Base):
     __table_args__ = (
         Index("ix_watch_history_user_type", "user_id", "item_type", "watched_at"),
         Index("ix_watch_history_item", "item_type", "item_id"),
+        # Named to match the on_conflict_do_update() constraint in
+        # history.py's record_watch_history - one row per item per user.
+        Index(
+            "ix_watch_history_user_item_recent",
+            "user_id",
+            "item_type",
+            "item_id",
+            unique=True,
+        ),
     )
 
 
