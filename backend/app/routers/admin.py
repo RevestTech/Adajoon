@@ -546,17 +546,16 @@ async def get_events_over_time(
 
     cutoff_date = datetime.utcnow() - timedelta(days=days)
 
+    day_expr = func.date_trunc("day", AnalyticsEvent.created_at)
     query = select(
-        func.date_trunc("day", AnalyticsEvent.created_at).label("date"),
+        day_expr.label("date"),
         func.count(AnalyticsEvent.id).label("count"),
     ).where(AnalyticsEvent.created_at >= cutoff_date)
 
     if event_name:
         query = query.where(AnalyticsEvent.event_name == event_name)
 
-    query = query.group_by(func.date_trunc("day", AnalyticsEvent.created_at)).order_by(
-        func.date_trunc("day", AnalyticsEvent.created_at)
-    )
+    query = query.group_by(day_expr).order_by(day_expr)
 
     result = await db.execute(query)
 
@@ -755,14 +754,12 @@ async def get_top_content(
     cutoff_date = datetime.utcnow() - timedelta(days=days)
 
     # Query for Playback Started events
+    item_name_expr = func.jsonb_extract_path_text(AnalyticsEvent.properties, "item_name")
+    item_type_expr = func.jsonb_extract_path_text(AnalyticsEvent.properties, "item_type")
     query = (
         select(
-            func.jsonb_extract_path_text(AnalyticsEvent.properties, "item_name").label(
-                "item_name"
-            ),
-            func.jsonb_extract_path_text(AnalyticsEvent.properties, "item_type").label(
-                "item_type"
-            ),
+            item_name_expr.label("item_name"),
+            item_type_expr.label("item_type"),
             func.count(AnalyticsEvent.id).label("play_count"),
         )
         .where(AnalyticsEvent.event_name == "Playback Started")
@@ -770,16 +767,10 @@ async def get_top_content(
     )
 
     if item_type:
-        query = query.where(
-            func.jsonb_extract_path_text(AnalyticsEvent.properties, "item_type")
-            == item_type
-        )
+        query = query.where(item_type_expr == item_type)
 
     query = (
-        query.group_by(
-            func.jsonb_extract_path_text(AnalyticsEvent.properties, "item_name"),
-            func.jsonb_extract_path_text(AnalyticsEvent.properties, "item_type"),
-        )
+        query.group_by(item_name_expr, item_type_expr)
         .order_by(func.count(AnalyticsEvent.id).desc())
         .limit(limit)
     )
