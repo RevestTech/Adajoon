@@ -339,12 +339,12 @@ class PricingTier(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     key = Column(String(50), unique=True, nullable=False, index=True)
     name = Column(String(100), nullable=False)
-    monthly_price_cents = Column(Integer, nullable=False, default=0)
+    monthly_price_cents = Column(Integer, nullable=False, server_default="0")
     annual_price_cents = Column(Integer, default=None)
-    stripe_price_id_monthly = Column(String(255), default="")
-    stripe_price_id_annual = Column(String(255), default="")
-    sort_order = Column(Integer, default=0, index=True)
-    is_active = Column(Boolean, default=True, index=True)
+    stripe_price_id_monthly = Column(String(255), server_default="")
+    stripe_price_id_annual = Column(String(255), server_default="")
+    sort_order = Column(Integer, server_default="0", index=True)
+    is_active = Column(Boolean, server_default="true", index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
@@ -373,10 +373,10 @@ class PricingFeature(Base):
     )
     key = Column(String(100), nullable=False, index=True)
     label = Column(String(255), nullable=False)
-    is_addon = Column(Boolean, default=False)
-    addon_price_cents = Column(Integer, default=0)
-    sort_order = Column(Integer, default=0)
-    is_active = Column(Boolean, default=True)
+    is_addon = Column(Boolean, server_default="false")
+    addon_price_cents = Column(Integer, server_default="0")
+    sort_order = Column(Integer, server_default="0")
+    is_active = Column(Boolean, server_default="true")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     tier = relationship("PricingTier", back_populates="features")
@@ -393,7 +393,7 @@ class PricingDiscount(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     code = Column(String(50), unique=True, nullable=False, index=True)
-    label = Column(String(255), default="")
+    label = Column(String(255), server_default="")
     percent_off = Column(Integer, default=None)
     amount_off_cents = Column(Integer, default=None)
     tier_id = Column(
@@ -402,12 +402,12 @@ class PricingDiscount(Base):
         nullable=True,
         index=True,
     )
-    stripe_coupon_id = Column(String(255), default="")
+    stripe_coupon_id = Column(String(255), server_default="")
     starts_at = Column(DateTime(timezone=True), default=None)
     ends_at = Column(DateTime(timezone=True), default=None)
     max_redemptions = Column(Integer, default=None)
-    redemption_count = Column(Integer, default=0)
-    is_active = Column(Boolean, default=True, index=True)
+    redemption_count = Column(Integer, server_default="0")
+    is_active = Column(Boolean, server_default="true", index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     tier = relationship("PricingTier")
