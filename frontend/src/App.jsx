@@ -3,6 +3,7 @@ import Header from "./components/Header";
 import Sidebar from "./components/Sidebar";
 import ChannelGrid from "./components/ChannelGrid";
 import RadioGrid from "./components/RadioGrid";
+import MoviesView from "./components/MoviesView";
 import VideoPlayer from "./components/VideoPlayer";
 import RadioPlayer from "./components/RadioPlayer";
 import MiniPlayer from "./components/MiniPlayer";
@@ -961,6 +962,10 @@ export default function App() {
                 )}
               </ErrorBoundary>
             </div>
+          ) : mode === "movies" ? (
+            <ErrorBoundary compact compactMessage="Movies failed to load.">
+              <MoviesView />
+            </ErrorBoundary>
           ) : mode === "tv" ? (
             <ChannelGrid
               channels={channels}

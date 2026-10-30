@@ -2809,6 +2809,62 @@ body {
   background: #000;
 }
 
+/* Movies */
+.movies-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 20px;
+}
+
+.movie-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: inherit;
+  text-align: left;
+}
+
+.movie-card-poster {
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  border-radius: var(--radius, 8px);
+  object-fit: cover;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.movie-card-title {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.movie-card-year {
+  font-size: 12.5px;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.movies-view-loading,
+.movies-view-error,
+.movies-view-empty {
+  padding: 48px 0;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.movie-player-modal__shell {
+  max-width: 900px;
+  width: 95vw;
+}
+
+.movie-player-synopsis {
+  margin: 16px 20px 0;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 14px;
+}
+
 .channel-step-flash {
   position: absolute;
   top: 20px;

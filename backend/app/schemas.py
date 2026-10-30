@@ -467,3 +467,44 @@ class PricingDiscountUpdate(BaseModel):
     ends_at: datetime | None = None
     max_redemptions: int | None = None
     is_active: bool | None = None
+
+
+class MovieOut(BaseModel):
+    id: int
+    title: str
+    synopsis: str = ""
+    poster_url: str = ""
+    year: int | None = None
+    duration_minutes: int | None = None
+    genres: str = ""
+    source: str = ""
+    stream_url: str = ""
+    sort_order: int = 0
+    is_active: bool = True
+
+    model_config = {"from_attributes": True}
+
+
+class MovieCreate(BaseModel):
+    title: str
+    synopsis: str = ""
+    poster_url: str = ""
+    year: int | None = None
+    duration_minutes: int | None = None
+    genres: str = ""
+    source: str = ""
+    stream_url: str
+    sort_order: int = 0
+
+
+class MovieUpdate(BaseModel):
+    title: str | None = None
+    synopsis: str | None = None
+    poster_url: str | None = None
+    year: int | None = None
+    duration_minutes: int | None = None
+    genres: str | None = None
+    source: str | None = None
+    stream_url: str | None = None
+    sort_order: int | None = None
+    is_active: bool | None = None
