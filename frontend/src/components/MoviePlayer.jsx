@@ -31,7 +31,9 @@ export default function MoviePlayer({ movie, onClose }) {
           const hls = new Hls({ enableWorker: true });
           hls.loadSource(url);
           hls.attachMedia(video);
-          hls.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(() => {}));
+          hls.on(Hls.Events.MANIFEST_PARSED, () =>
+            video.play().catch(() => setIsLoading(false))
+          );
           hls.on(Hls.Events.ERROR, (_, data) => {
             if (data.fatal) {
               setIsLoading(false);
@@ -39,11 +41,16 @@ export default function MoviePlayer({ movie, onClose }) {
             }
           });
           hlsRef.current = hls;
+        }).catch(() => {
+          if (cancelled) return;
+          setIsLoading(false);
+          setErrorMsg("This title could not be loaded.");
         });
       } else {
         video.src = url;
-        video.play().catch(() => {
+        video.play().catch((err) => {
           setIsLoading(false);
+          if (err?.name === "NotAllowedError") return;
           setErrorMsg("This title could not be loaded.");
         });
       }

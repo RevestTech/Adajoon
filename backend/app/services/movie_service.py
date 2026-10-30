@@ -26,10 +26,14 @@ async def create_movie(db: AsyncSession, data: dict) -> Movie:
     return movie
 
 
+_CLEARABLE_FIELDS = {"year", "duration_minutes"}
+
+
 async def update_movie(db: AsyncSession, movie: Movie, data: dict) -> Movie:
     for field, value in data.items():
-        if value is not None:
-            setattr(movie, field, value)
+        if value is None and field not in _CLEARABLE_FIELDS:
+            continue
+        setattr(movie, field, value)
     await db.commit()
     await db.refresh(movie)
     return movie

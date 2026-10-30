@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   createAdminMovie,
   deleteAdminMovie,
@@ -17,6 +17,11 @@ const EMPTY_FORM = {
   source: "",
 };
 
+// `Math.trunc(Number(...))` instead of `parseInt` so a `type="number"` value
+// in exponent notation (e.g. "2e3") is read as its real value, not truncated
+// at the "e".
+const toInteger = (value) => (value ? Math.trunc(Number(value)) : null);
+
 function toPayload(form) {
   return {
     title: form.title.trim(),
@@ -25,8 +30,8 @@ function toPayload(form) {
     synopsis: form.synopsis.trim(),
     genres: form.genres.trim(),
     source: form.source.trim(),
-    year: form.year ? parseInt(form.year, 10) : null,
-    duration_minutes: form.duration_minutes ? parseInt(form.duration_minutes, 10) : null,
+    year: toInteger(form.year),
+    duration_minutes: toInteger(form.duration_minutes),
   };
 }
 
@@ -36,13 +41,21 @@ export default function MovieManager() {
   const [error, setError] = useState("");
   const [form, setForm] = useState(EMPTY_FORM);
   const [submitting, setSubmitting] = useState(false);
+  const latestRequest = useRef(0);
 
   const load = () => {
+    const requestId = ++latestRequest.current;
     setLoading(true);
     fetchAdminMovies()
-      .then(setMovies)
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false));
+      .then((data) => {
+        if (requestId === latestRequest.current) setMovies(data);
+      })
+      .catch((err) => {
+        if (requestId === latestRequest.current) setError(err.message);
+      })
+      .finally(() => {
+        if (requestId === latestRequest.current) setLoading(false);
+      });
   };
 
   useEffect(load, []);

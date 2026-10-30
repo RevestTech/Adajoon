@@ -853,6 +853,7 @@ export default function App() {
       />
       {sidebarOpen && <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} />}
       <div className="layout">
+        {mode !== "movies" && (
         <Sidebar
           className={sidebarOpen ? "open" : ""}
           railCollapsed={sidebarRailCollapsed}
@@ -894,6 +895,7 @@ export default function App() {
           onLogin={() => setShowLogin(true)}
           onGuestNotice={onGuestNotice}
         />
+        )}
         <main className={`main-content${showDockedPlayer ? " main-content--mini-player" : ""}`}>
           {showRecentRow && (
             <RecentlyPlayed recentItems={recentItems} onSelect={handleRecentSelect} />
