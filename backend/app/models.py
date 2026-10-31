@@ -1,5 +1,4 @@
 from sqlalchemy import (
-    JSON,
     Boolean,
     Column,
     DateTime,
@@ -11,6 +10,7 @@ from sqlalchemy import (
     UniqueConstraint,
     func,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 
 from app.database import Base
@@ -303,7 +303,7 @@ class AnalyticsEvent(Base):
     )
     session_id = Column(String(255), nullable=False, index=True)
     event_name = Column(String(100), nullable=False, index=True)
-    properties = Column(JSON, default={})
+    properties = Column(JSONB, default={})
     created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
 
     user = relationship("User")

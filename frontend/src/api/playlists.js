@@ -3,13 +3,11 @@
  */
 import { authenticatedFetch } from '../utils/csrf';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-
 /**
  * Fetch all playlists for current user.
  */
 export async function fetchPlaylists() {
-  const response = await authenticatedFetch(`${API_URL}/api/playlists/`);
+  const response = await authenticatedFetch(`/api/playlists/`);
   if (!response.ok) {
     throw new Error(`Failed to fetch playlists: ${response.status}`);
   }
@@ -20,7 +18,7 @@ export async function fetchPlaylists() {
  * Fetch single playlist details with items.
  */
 export async function fetchPlaylist(playlistId) {
-  const response = await authenticatedFetch(`${API_URL}/api/playlists/${playlistId}`);
+  const response = await authenticatedFetch(`/api/playlists/${playlistId}`);
   if (!response.ok) {
     throw new Error(`Failed to fetch playlist: ${response.status}`);
   }
@@ -31,7 +29,7 @@ export async function fetchPlaylist(playlistId) {
  * Create a new playlist.
  */
 export async function createPlaylist(name, description = '', isPublic = false) {
-  const response = await authenticatedFetch(`${API_URL}/api/playlists/`, {
+  const response = await authenticatedFetch(`/api/playlists/`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -52,7 +50,7 @@ export async function createPlaylist(name, description = '', isPublic = false) {
  * Update playlist metadata.
  */
 export async function updatePlaylist(playlistId, updates) {
-  const response = await authenticatedFetch(`${API_URL}/api/playlists/${playlistId}`, {
+  const response = await authenticatedFetch(`/api/playlists/${playlistId}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(updates),
@@ -69,7 +67,7 @@ export async function updatePlaylist(playlistId, updates) {
  * Delete a playlist.
  */
 export async function deletePlaylist(playlistId) {
-  const response = await authenticatedFetch(`${API_URL}/api/playlists/${playlistId}`, {
+  const response = await authenticatedFetch(`/api/playlists/${playlistId}`, {
     method: 'DELETE',
   });
   
@@ -84,7 +82,7 @@ export async function deletePlaylist(playlistId) {
  * Add item to playlist.
  */
 export async function addToPlaylist(playlistId, itemType, itemId, itemData) {
-  const response = await authenticatedFetch(`${API_URL}/api/playlists/${playlistId}/items`, {
+  const response = await authenticatedFetch(`/api/playlists/${playlistId}/items`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -106,7 +104,7 @@ export async function addToPlaylist(playlistId, itemType, itemId, itemData) {
  */
 export async function removeFromPlaylist(playlistId, itemId) {
   const response = await authenticatedFetch(
-    `${API_URL}/api/playlists/${playlistId}/items/${itemId}`,
+    `/api/playlists/${playlistId}/items/${itemId}`,
     { method: 'DELETE' }
   );
   
@@ -121,7 +119,7 @@ export async function removeFromPlaylist(playlistId, itemId) {
  * Reorder playlist items.
  */
 export async function reorderPlaylist(playlistId, itemIds) {
-  const response = await authenticatedFetch(`${API_URL}/api/playlists/${playlistId}/reorder`, {
+  const response = await authenticatedFetch(`/api/playlists/${playlistId}/reorder`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ item_ids: itemIds }),
