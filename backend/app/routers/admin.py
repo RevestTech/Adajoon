@@ -24,6 +24,7 @@ from app.models import (
     UserVote,
     WatchHistory,
 )
+from app.redis_client import cache_delete
 from app.redis_client import health_check as redis_health_check
 from app.services import settings_service
 
@@ -473,7 +474,10 @@ async def list_users(
 
     if q:
         pattern = _ilike_pattern(q)
-        cond = or_(User.email.ilike(pattern), User.name.ilike(pattern))
+        cond = or_(
+            User.email.ilike(pattern, escape="\\"),
+            User.name.ilike(pattern, escape="\\"),
+        )
         stmt = stmt.where(cond)
         count_stmt = count_stmt.where(cond)
     if tier:
@@ -663,7 +667,7 @@ async def admin_search_channels(
     db: AsyncSession = Depends(get_db),
 ):
     pattern = _ilike_pattern(q)
-    cond = Channel.name.ilike(pattern)
+    cond = Channel.name.ilike(pattern, escape="\\")
     total = (
         await db.execute(select(func.count(Channel.id)).where(cond))
     ).scalar() or 0
@@ -706,6 +710,11 @@ async def admin_set_channel_hidden(
         raise HTTPException(status_code=404, detail="Channel not found")
     channel.admin_hidden = hidden
     await db.commit()
+    # Categories/countries/stats are cached (see routers/categories.py) and
+    # their counts depend on admin_hidden - force a re-fetch on next read
+    # instead of waiting out the TTL.
+    for key in ("categories", "countries", "stats"):
+        await cache_delete(key)
     logger.info(
         "Admin %s set channel %s admin_hidden=%s", admin_user.email, channel_id, hidden
     )
@@ -721,7 +730,7 @@ async def admin_search_radio(
     db: AsyncSession = Depends(get_db),
 ):
     pattern = _ilike_pattern(q)
-    cond = RadioStation.name.ilike(pattern)
+    cond = RadioStation.name.ilike(pattern, escape="\\")
     total = (
         await db.execute(select(func.count(RadioStation.id)).where(cond))
     ).scalar() or 0
@@ -764,6 +773,8 @@ async def admin_set_radio_hidden(
         raise HTTPException(status_code=404, detail="Station not found")
     station.admin_hidden = hidden
     await db.commit()
+    for key in ("radio_countries", "stats"):
+        await cache_delete(key)
     logger.info(
         "Admin %s set station %s admin_hidden=%s", admin_user.email, station_id, hidden
     )
