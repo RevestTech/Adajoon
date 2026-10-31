@@ -40,11 +40,21 @@ services:
       CORS_ORIGINS: http://localhost:7350
       WEBAUTHN_ORIGIN: http://localhost:7350
       WEBAUTHN_RP_ID: localhost
-      # Local dev has no vault (VAULT_URL unset), so config.py's secrets fall
-      # back to env vars - set TMDB_API_KEY in a gitignored .env file (see
-      # .env.example) rather than here, docker compose picks it up for
-      # substitution automatically.
-      TMDB_API_KEY: ${TMDB_API_KEY:-}
+      # No app secret ever goes here or in a local .env - all of them
+      # (TMDB_API_KEY, STRIPE_*, etc.) come from the real shared vault
+      # (RevestTech/revest-vault), same as production. VAULT_ADDR/
+      # VAULT_ROLE_ID/VAULT_SECRET_ID below have no value because they're
+      # not meant to be hardcoded either: run this stack with
+      # `railway run -- docker compose -p adajoon up -d` (from a directory
+      # linked to the Adajoon Railway project) so Railway injects them from
+      # the backend service's already-enrolled AppRole variables. Without
+      # that, these are simply unset and config.py's _get_secret() falls
+      # back to each key's own env var, which will also be unset - any
+      # vault-only secret just reads as empty locally rather than failing
+      # closed.
+      VAULT_ADDR:
+      VAULT_ROLE_ID:
+      VAULT_SECRET_ID:
     ports:
       - "7351:8000"
     depends_on:
@@ -66,6 +76,11 @@ services:
       SYNC_DATABASE_URL: postgresql://retv:retv_secret@db:5432/retv
       REDIS_URL: redis://redis:6379
       JWT_SECRET: dev-jwt-secret-change-in-production-min-32-chars
+      # See the backend service's comment above - same no-hardcoded-secrets
+      # policy, injected via `railway run` rather than set here.
+      VAULT_ADDR:
+      VAULT_ROLE_ID:
+      VAULT_SECRET_ID:
     depends_on:
       db:
         condition: service_healthy

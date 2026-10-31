@@ -11,22 +11,21 @@ from pydantic_settings import BaseSettings
 
 
 def _get_vault_client():
-    """Initialize vault client for secrets (lazy loaded)."""
-    vault_url = os.getenv("VAULT_URL")
-    vault_token = os.getenv("VAULT_TOKEN")
+    """Build the AppRole-based vault client (lazy loaded) from
+    VAULT_ADDR/VAULT_ROLE_ID/VAULT_SECRET_ID - the one-time enrollment
+    output from RevestTech/revest-vault's examples/enroll.py, scoped to
+    the `adajoon:*` key prefix. Never a static long-lived token."""
+    vault_addr = os.getenv("VAULT_ADDR")
+    role_id = os.getenv("VAULT_ROLE_ID")
+    secret_id = os.getenv("VAULT_SECRET_ID")
 
-    if not vault_url or not vault_token:
-        # Vault not configured - development mode
+    if not vault_addr or not role_id or not secret_id:
+        # Not enrolled with the vault (e.g. local dev) - env var fallback.
         return None
 
-    try:
-        from app.vault_client import VaultClient
+    from app.vault_client import VaultClient
 
-        return VaultClient(url=vault_url, token=vault_token)
-    except Exception as e:
-        print(f"Warning: Failed to connect to vault: {e}")
-        print("Falling back to environment variables")
-        return None
+    return VaultClient(addr=vault_addr, role_id=role_id, secret_id=secret_id)
 
 
 # Initialize vault client once
@@ -34,9 +33,10 @@ _vault = _get_vault_client()
 
 
 def get_vault():
-    """The shared vault client, or None if VAULT_URL/VAULT_TOKEN aren't set
-    (e.g. local dev). Used by the admin secrets UI to write/clear keys -
-    reads already go through `_get_secret` at startup."""
+    """The shared vault client, or None if VAULT_ADDR/VAULT_ROLE_ID/
+    VAULT_SECRET_ID aren't set (e.g. local dev, not yet enrolled). Used by
+    the admin Secrets UI to write/clear keys - reads already go through
+    `_get_secret` at startup."""
     return _vault
 
 
@@ -46,14 +46,20 @@ DEV_JWT_SECRET_DEFAULT = "dev-jwt-secret-change-in-production-min-32-chars"
 
 
 def _get_secret(key: str, default: str = "") -> str:
-    """Get secret from vault, fallback to env var, then default."""
+    """Get secret from vault, fallback to env var, then default. Never logs
+    the secret value itself - only the key name and failure reason."""
     if _vault:
         try:
             return _vault.get(f"adajoon:{key}")
+        except KeyError:
+            print(f"Vault has no value for {key}, trying env var fallback")
         except Exception as e:
-            print(f"Warning: Failed to get {key} from vault, trying env var: {e}")
+            print(
+                f"Warning: vault lookup failed for {key} ({type(e).__name__}: {e}), trying env var fallback"
+            )
 
-    # Fallback to environment variable (for development)
+    # Fallback to environment variable (for development, or if the vault
+    # doesn't have this key yet)
     env_key = key.upper()
     return os.getenv(env_key, default)
 

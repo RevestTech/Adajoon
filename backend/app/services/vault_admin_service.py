@@ -5,12 +5,16 @@ once set, only whether it's configured (in the vault, via an env var
 fallback, or not at all). Scoped to a fixed whitelist of keys this app
 actually uses (see MANAGED_SECRETS) rather than exposing vault.list()/
 vault.history(), which are admin-vault-token-only operations our app's
-scoped VAULT_TOKEN isn't issued for anyway.
+scoped role isn't issued for anyway.
 """
 
+import logging
 import os
 
 from app.config import get_vault
+from app.vault_client import VaultSealed
+
+logger = logging.getLogger(__name__)
 
 VAULT_PREFIX = "adajoon:"
 
@@ -95,7 +99,12 @@ def get_secret_status() -> list[dict]:
                 source = (
                     "vault" if vault.has(f"{VAULT_PREFIX}{key}") else "unconfigured"
                 )
-            except Exception:
+            except VaultSealed:
+                source = "sealed"
+            except Exception as e:
+                logger.warning(
+                    "vault.has(%s) failed: %s: %s", key, type(e).__name__, e
+                )
                 source = "error"
         if source == "unconfigured" and os.getenv(key.upper()):
             source = "env"

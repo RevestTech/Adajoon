@@ -1,242 +1,152 @@
+"""revest-vault AppRole client.
+
+Adajoon never holds a long-lived vault credential. It holds a
+VAULT_ROLE_ID/VAULT_SECRET_ID pair (from the one-time enrollment -
+see scripts/admin_enroll.py and examples/enroll.py in RevestTech/revest-vault)
+scoped to the `adajoon:*` key prefix, exchanges that for a short-lived
+(15 min) access token at runtime, and refreshes before it expires. Only
+that short-lived token ever touches /get, /set, /has.
+
+Follows RevestTech/revest-vault's AGENTS.md contract exactly:
+- Never log role_id/secret_id or any secret value, including in exceptions.
+- Treat a 503 ("vault is sealed") as retryable, not fatal - VaultSealedError
+  lets callers show a clear "try again shortly" state instead of crashing
+  or silently falling back to a stale value.
+- Never call /list, /history, /admin/* - those are admin-token-only and
+  out of scope for app code.
 """
-Railway Vault Python Client
 
-Drop this file into your Python application and use it to fetch secrets.
+from __future__ import annotations
 
-Installation:
-    pip install requests
+import logging
+import time
 
-Usage:
-    from vault_client import VaultClient
+import httpx
 
-    vault = VaultClient()
-    DATABASE_URL = vault.get("myapp:database_url")
-    API_KEY = vault.get("myapp:api_key")
-"""
+logger = logging.getLogger(__name__)
 
-import os
-import sys
-from typing import Optional
 
-import requests
+class VaultSealed(Exception):
+    """The vault itself is sealed (mid-unseal after a restart) - retryable,
+    unrelated to whether the requested key exists."""
+
+
+class VaultAuthError(Exception):
+    """role_id/secret_id was rejected (invalid or revoked)."""
 
 
 class VaultClient:
-    """Client for Railway KMac Vault."""
-
     def __init__(
-        self, url: Optional[str] = None, token: Optional[str] = None, timeout: int = 5
+        self,
+        addr: str,
+        role_id: str,
+        secret_id: str,
+        timeout: float = 10.0,
     ):
-        """
-        Initialize vault client.
-
-        Args:
-            url: Vault URL (defaults to VAULT_URL env var)
-            token: Auth token (defaults to VAULT_TOKEN env var)
-            timeout: Request timeout in seconds
-        """
-        self.base_url = url or os.getenv(
-            "VAULT_URL", "http://vault.railway.internal:9999"
-        )
-        self.token = token or os.getenv("VAULT_TOKEN")
+        self.addr = addr.rstrip("/")
+        self._role_id = role_id
+        self._secret_id = secret_id
         self.timeout = timeout
+        self._token: str | None = None
+        self._expires_at = 0.0
 
-        if not self.token:
-            raise ValueError(
-                "VAULT_TOKEN environment variable or token parameter required"
-            )
-
-        self.headers = {
-            "Authorization": f"Bearer {self.token}",
-            "Content-Type": "application/json",
-        }
-
-        # Verify connection on init
-        self._verify_connection()
-
-    def _verify_connection(self):
-        """Verify vault is accessible."""
+    def _is_sealed(self) -> bool:
+        """revest-vault's /health is unauthenticated and reports `sealed`
+        accurately. Used as a fallback when an endpoint returns a plain 500
+        instead of 503 while sealed (a known vault-api quirk on /has) -
+        this app never guesses, it asks the vault directly."""
         try:
-            response = requests.get(f"{self.base_url}/health", timeout=self.timeout)
-            if not response.ok:
-                raise ConnectionError(
-                    f"Vault health check failed: {response.status_code}"
-                )
-        except requests.exceptions.RequestException as e:
-            raise ConnectionError(f"Cannot connect to vault: {e}")
+            resp = httpx.get(f"{self.addr}/health", timeout=self.timeout)
+            return bool(resp.json().get("sealed"))
+        except Exception:
+            return False
+
+    def _raise_for_status(self, resp: httpx.Response) -> None:
+        if resp.status_code == 503:
+            raise VaultSealed()
+        if resp.status_code >= 500 and self._is_sealed():
+            raise VaultSealed()
+        resp.raise_for_status()
+
+    def _ensure_token(self) -> str:
+        if self._token and time.time() < self._expires_at - 60:
+            return self._token
+
+        try:
+            resp = httpx.post(
+                f"{self.addr}/auth/token",
+                json={"role_id": self._role_id, "secret_id": self._secret_id},
+                timeout=self.timeout,
+            )
+        except httpx.RequestError as e:
+            raise ConnectionError(f"Cannot reach vault: {e}") from None
+
+        if resp.status_code == 503:
+            raise VaultSealed()
+        if resp.status_code == 401:
+            raise VaultAuthError("role_id/secret_id rejected by vault")
+        resp.raise_for_status()
+
+        data = resp.json()
+        self._token = data["access_token"]
+        self._expires_at = time.time() + data["expires_in"]
+        return self._token
 
     def get(self, key: str) -> str:
-        """
-        Get secret value from vault.
-
-        Args:
-            key: Secret key (e.g., "myapp:database_url")
-
-        Returns:
-            Secret value as string
-
-        Raises:
-            KeyError: If key not found
-            ConnectionError: If vault unreachable
-        """
+        """Raises KeyError if not found, VaultSealed if sealed,
+        ConnectionError if unreachable."""
+        token = self._ensure_token()
         try:
-            response = requests.get(
-                f"{self.base_url}/get/{key}", headers=self.headers, timeout=self.timeout
+            resp = httpx.get(
+                f"{self.addr}/get/{key}",
+                headers={"Authorization": f"Bearer {token}"},
+                timeout=self.timeout,
             )
+        except httpx.RequestError as e:
+            raise ConnectionError(f"Cannot reach vault: {e}") from None
 
-            if response.status_code == 404:
-                raise KeyError(f"Secret not found: {key}")
-
-            response.raise_for_status()
-            return response.json()["value"]
-
-        except requests.exceptions.RequestException as e:
-            raise ConnectionError(f"Failed to get secret {key}: {e}")
+        if resp.status_code == 404:
+            raise KeyError(f"Secret not found: {key}")
+        self._raise_for_status(resp)
+        return resp.json()["value"]
 
     def set(self, key: str, value: str) -> None:
-        """
-        Store secret in vault.
-
-        Args:
-            key: Secret key
-            value: Secret value
-
-        Raises:
-            ConnectionError: If vault unreachable
-        """
+        token = self._ensure_token()
         try:
-            response = requests.post(
-                f"{self.base_url}/set",
-                headers=self.headers,
+            resp = httpx.post(
+                f"{self.addr}/set",
+                headers={"Authorization": f"Bearer {token}"},
                 json={"key": key, "value": value},
                 timeout=self.timeout,
             )
-            response.raise_for_status()
+        except httpx.RequestError as e:
+            raise ConnectionError(f"Cannot reach vault: {e}") from None
 
-        except requests.exceptions.RequestException as e:
-            raise ConnectionError(f"Failed to set secret {key}: {e}")
+        self._raise_for_status(resp)
 
     def delete(self, key: str) -> None:
-        """
-        Delete secret from vault.
-
-        Args:
-            key: Secret key to delete
-
-        Raises:
-            ConnectionError: If vault unreachable
-        """
+        token = self._ensure_token()
         try:
-            response = requests.post(
-                f"{self.base_url}/delete/{key}",
-                headers=self.headers,
+            resp = httpx.post(
+                f"{self.addr}/delete/{key}",
+                headers={"Authorization": f"Bearer {token}"},
                 timeout=self.timeout,
             )
-            response.raise_for_status()
+        except httpx.RequestError as e:
+            raise ConnectionError(f"Cannot reach vault: {e}") from None
 
-        except requests.exceptions.RequestException as e:
-            raise ConnectionError(f"Failed to delete secret {key}: {e}")
-
-    def list(self) -> list[str]:
-        """
-        List all secret keys.
-
-        Returns:
-            List of secret keys
-
-        Raises:
-            ConnectionError: If vault unreachable
-        """
-        try:
-            response = requests.get(
-                f"{self.base_url}/list", headers=self.headers, timeout=self.timeout
-            )
-            response.raise_for_status()
-            return response.json()["keys"]
-
-        except requests.exceptions.RequestException as e:
-            raise ConnectionError(f"Failed to list secrets: {e}")
+        self._raise_for_status(resp)
 
     def has(self, key: str) -> bool:
-        """
-        Check if secret exists.
-
-        Args:
-            key: Secret key to check
-
-        Returns:
-            True if exists, False otherwise
-        """
+        token = self._ensure_token()
         try:
-            response = requests.get(
-                f"{self.base_url}/has/{key}", headers=self.headers, timeout=self.timeout
+            resp = httpx.get(
+                f"{self.addr}/has/{key}",
+                headers={"Authorization": f"Bearer {token}"},
+                timeout=self.timeout,
             )
-            response.raise_for_status()
-            return response.json()["exists"]
+        except httpx.RequestError as e:
+            raise ConnectionError(f"Cannot reach vault: {e}") from None
 
-        except requests.exceptions.RequestException:
-            return False
-
-
-# Convenience function for quick usage
-def load_secrets(prefix: str = "") -> dict:
-    """
-    Load all secrets with optional prefix into a dictionary.
-
-    Args:
-        prefix: Optional key prefix filter (e.g., "myapp:")
-
-    Returns:
-        Dictionary of key-value pairs
-
-    Example:
-        secrets = load_secrets("myapp:")
-        DATABASE_URL = secrets["myapp:database_url"]
-    """
-    vault = VaultClient()
-    keys = vault.list()
-
-    if prefix:
-        keys = [k for k in keys if k.startswith(prefix)]
-
-    return {key: vault.get(key) for key in keys}
-
-
-# Example usage
-if __name__ == "__main__":
-    # Example 1: Basic usage
-    vault = VaultClient()
-
-    # Set a secret
-    vault.set("test:hello", "world")
-
-    # Get a secret
-    value = vault.get("test:hello")
-    print(f"Secret value: {value}")
-
-    # List all secrets
-    keys = vault.list()
-    print(f"All keys: {keys}")
-
-    # Check if exists
-    exists = vault.has("test:hello")
-    print(f"Exists: {exists}")
-
-    # Delete secret
-    vault.delete("test:hello")
-
-    print("✅ All operations successful!")
-
-    # Example 2: Load all app secrets at startup
-    print("\nLoading application secrets...")
-    try:
-        app_secrets = load_secrets("myapp:")
-        print(f"Loaded {len(app_secrets)} secrets for myapp")
-
-        # Use them
-        # DATABASE_URL = app_secrets.get("myapp:database_url")
-        # API_KEY = app_secrets.get("myapp:api_key")
-
-    except Exception as e:
-        print(f"Failed to load secrets: {e}")
-        sys.exit(1)
+        self._raise_for_status(resp)
+        return bool(resp.json().get("exists"))

@@ -6,6 +6,7 @@ const SOURCE_LABEL = {
   env: "Set via env var",
   unconfigured: "Not set",
   error: "Vault unreachable",
+  sealed: "Vault sealed - try again shortly",
 };
 
 function SecretRow({ secret, onSave, onClear }) {

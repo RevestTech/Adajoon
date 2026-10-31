@@ -7842,7 +7842,8 @@ button:focus-visible {
   color: #facc15;
 }
 
-.admin-secret-row__status--error {
+.admin-secret-row__status--error,
+.admin-secret-row__status--sealed {
   background: rgba(239, 68, 68, 0.15);
   color: #f87171;
 }

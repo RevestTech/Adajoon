@@ -14,6 +14,9 @@ from app.csrf import verify_csrf_token
 from app.middleware.admin_required import require_admin
 from app.models import User
 from app.services import vault_admin_service
+from app.vault_client import VaultSealed
+
+VAULT_SEALED_DETAIL = "Vault is temporarily unavailable (sealed) - try again shortly"
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/admin/secrets", tags=["admin", "secrets"])
@@ -42,6 +45,8 @@ async def admin_set_secret(
         vault_admin_service.set_secret(key, value)
     except vault_admin_service.SecretNotManaged:
         raise HTTPException(status_code=404, detail="Unknown secret key")
+    except VaultSealed:
+        raise HTTPException(status_code=503, detail=VAULT_SEALED_DETAIL)
     except RuntimeError as e:
         raise HTTPException(status_code=503, detail=str(e))
     except Exception:
@@ -63,6 +68,8 @@ async def admin_clear_secret(
         vault_admin_service.delete_secret(key)
     except vault_admin_service.SecretNotManaged:
         raise HTTPException(status_code=404, detail="Unknown secret key")
+    except VaultSealed:
+        raise HTTPException(status_code=503, detail=VAULT_SEALED_DETAIL)
     except RuntimeError as e:
         raise HTTPException(status_code=503, detail=str(e))
     except Exception:
