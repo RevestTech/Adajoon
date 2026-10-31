@@ -33,6 +33,11 @@ export default function useAds(videoElementRef, adContainerRef) {
   // window between mount and loader creation instead of silently losing
   // the very first ad request.
   const adsLoaderReadyRef = useRef(false);
+  // Mirrors `adsSettingResolved` synchronously, same reason as adsEnabledRef:
+  // playPreRoll() can be called before the admin's real ads_enabled setting
+  // has loaded, and must wait for it rather than reading the stale `false`
+  // closed-by-default value and bailing out immediately.
+  const adsSettingResolvedRef = useRef(false);
   // Resolves the in-flight playPreRoll() promise once the ad sequence
   // genuinely finishes (completed, skipped, or errored) - set per call so
   // we never resolve early just because the manager loaded.
@@ -51,6 +56,7 @@ export default function useAds(videoElementRef, adContainerRef) {
     // ads under the optimistic default and then immediately disable them
     // once the real value loads.
     if (!adsSettingResolved) return;
+    adsSettingResolvedRef.current = true;
 
     const shouldEnable = areAdsSupported() && shouldShowAds(user, adsEnabledGlobally);
     adsEnabledRef.current = shouldEnable;
@@ -116,6 +122,7 @@ export default function useAds(videoElementRef, adContainerRef) {
 
     return () => {
       adsLoaderReadyRef.current = false;
+      adsSettingResolvedRef.current = false;
       if (adsManagerRef.current) {
         adsManagerRef.current.destroy();
         adsManagerRef.current = null;
@@ -135,9 +142,24 @@ export default function useAds(videoElementRef, adContainerRef) {
    *
    * If ads are enabled but the IMA loader hasn't finished initializing yet
    * (the player can call this before the effect above finishes), waits up
-   * to LOADER_READY_TIMEOUT_MS rather than silently dropping the call.
+   * to LOADER_READY_TIMEOUT_MS rather than silently dropping the call. Same
+   * reasoning applies to the admin's ads_enabled setting itself: if it
+   * hasn't resolved yet, adsEnabledRef is still the closed-by-default
+   * `false` and must not be trusted until the real value is in.
    */
   const playPreRoll = useCallback(async () => {
+    if (!adsSettingResolvedRef.current) {
+      const SETTING_READY_TIMEOUT_MS = 2000;
+      const POLL_INTERVAL_MS = 50;
+      const settingDeadline = Date.now() + SETTING_READY_TIMEOUT_MS;
+      while (
+        !adsSettingResolvedRef.current &&
+        Date.now() < settingDeadline
+      ) {
+        await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+      }
+    }
+
     if (!adsEnabledRef.current) {
       return Promise.resolve();
     }
