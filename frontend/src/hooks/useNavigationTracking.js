@@ -10,18 +10,19 @@ export function useNavigationTracking({
   query,
   showFavorites,
   showAISearch,
-  showAdminDashboard,
   showLogin,
   selectedChannelId,
   selectedStationId,
   isGuest,
+  skip = false,
 }) {
   const prevScreenRef = useRef(null);
 
   useEffect(() => {
+    if (skip) return;
+
     let screen = mode || "unknown";
     if (showLogin) screen = "login";
-    else if (showAdminDashboard) screen = "admin";
     else if (showAISearch) screen = `ai_search:${mode === "map" ? mapSubMode : mode}`;
     else if (showFavorites) screen = `favorites:${mode === "map" ? mapSubMode : mode}`;
     else if (mode === "map") screen = `map:${mapSubMode || "tv"}`;
@@ -45,12 +46,12 @@ export function useNavigationTracking({
     analytics.trackScreen(screen, props);
     prevScreenRef.current = screen;
   }, [
+    skip,
     mode,
     mapSubMode,
     query,
     showFavorites,
     showAISearch,
-    showAdminDashboard,
     showLogin,
     selectedChannelId,
     selectedStationId,

@@ -11,12 +11,14 @@ import {
   shouldShowAds,
 } from '../utils/ads';
 import { useAuth } from './useAuth';
+import useSubscription from './useSubscription';
 
 export default function useAds(videoElementRef, adContainerRef) {
   const [adPlaying, setAdPlaying] = useState(false);
   const [adsEnabled, setAdsEnabled] = useState(false);
 
   const { user } = useAuth();
+  const { adsEnabled: adsEnabledGlobally, adsSettingResolved } = useSubscription();
 
   const adsLoaderRef = useRef(null);
   const adsManagerRef = useRef(null);
@@ -26,6 +28,16 @@ export default function useAds(videoElementRef, adContainerRef) {
   // current value instead of whatever `adsEnabled` was at the time its own
   // closure was created.
   const adsEnabledRef = useRef(false);
+  // True once the IMA loader for the current mount is actually ready to
+  // accept a requestAds() call - lets playPreRoll() wait out the brief
+  // window between mount and loader creation instead of silently losing
+  // the very first ad request.
+  const adsLoaderReadyRef = useRef(false);
+  // Mirrors `adsSettingResolved` synchronously, same reason as adsEnabledRef:
+  // playPreRoll() can be called before the admin's real ads_enabled setting
+  // has loaded, and must wait for it rather than reading the stale `false`
+  // closed-by-default value and bailing out immediately.
+  const adsSettingResolvedRef = useRef(false);
   // Resolves the in-flight playPreRoll() promise once the ad sequence
   // genuinely finishes (completed, skipped, or errored) - set per call so
   // we never resolve early just because the manager loaded.
@@ -39,7 +51,14 @@ export default function useAds(videoElementRef, adContainerRef) {
   }, []);
 
   useEffect(() => {
-    const shouldEnable = areAdsSupported() && shouldShowAds(user);
+    // Don't flip ads on (or off) until the admin's real ads_enabled setting
+    // has actually resolved - otherwise a fast player mount could enable
+    // ads under the optimistic default and then immediately disable them
+    // once the real value loads.
+    if (!adsSettingResolved) return;
+    adsSettingResolvedRef.current = true;
+
+    const shouldEnable = areAdsSupported() && shouldShowAds(user, adsEnabledGlobally);
     adsEnabledRef.current = shouldEnable;
     setAdsEnabled(shouldEnable);
 
@@ -56,6 +75,7 @@ export default function useAds(videoElementRef, adContainerRef) {
     if (!adsLoader) return;
 
     adsLoaderRef.current = adsLoader;
+    adsLoaderReadyRef.current = true;
 
     adsLoader.addEventListener(
       google.ima.AdsManagerLoadedEvent.Type.ADS_MANAGER_LOADED,
@@ -101,6 +121,8 @@ export default function useAds(videoElementRef, adContainerRef) {
     );
 
     return () => {
+      adsLoaderReadyRef.current = false;
+      adsSettingResolvedRef.current = false;
       if (adsManagerRef.current) {
         adsManagerRef.current.destroy();
         adsManagerRef.current = null;
@@ -111,15 +133,47 @@ export default function useAds(videoElementRef, adContainerRef) {
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [videoElementRef, adContainerRef, user, finishPreRoll]);
+  }, [videoElementRef, adContainerRef, user, adsEnabledGlobally, adsSettingResolved, finishPreRoll]);
 
   /**
    * Request and play a pre-roll ad before content. Resolves once the ad
    * sequence completes, is skipped, errors, or 10s pass with no response -
    * never resolves early just because the ads manager finished loading.
+   *
+   * If ads are enabled but the IMA loader hasn't finished initializing yet
+   * (the player can call this before the effect above finishes), waits up
+   * to LOADER_READY_TIMEOUT_MS rather than silently dropping the call. Same
+   * reasoning applies to the admin's ads_enabled setting itself: if it
+   * hasn't resolved yet, adsEnabledRef is still the closed-by-default
+   * `false` and must not be trusted until the real value is in.
    */
-  const playPreRoll = useCallback(() => {
-    if (!adsEnabledRef.current || !adsLoaderRef.current || !adDisplayContainerRef.current) {
+  const playPreRoll = useCallback(async () => {
+    if (!adsSettingResolvedRef.current) {
+      const SETTING_READY_TIMEOUT_MS = 2000;
+      const POLL_INTERVAL_MS = 50;
+      const settingDeadline = Date.now() + SETTING_READY_TIMEOUT_MS;
+      while (
+        !adsSettingResolvedRef.current &&
+        Date.now() < settingDeadline
+      ) {
+        await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+      }
+    }
+
+    if (!adsEnabledRef.current) {
+      return Promise.resolve();
+    }
+
+    if (!adsLoaderReadyRef.current) {
+      const LOADER_READY_TIMEOUT_MS = 2000;
+      const POLL_INTERVAL_MS = 50;
+      const deadline = Date.now() + LOADER_READY_TIMEOUT_MS;
+      while (!adsLoaderReadyRef.current && Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+      }
+    }
+
+    if (!adsLoaderRef.current || !adDisplayContainerRef.current) {
       return Promise.resolve();
     }
 

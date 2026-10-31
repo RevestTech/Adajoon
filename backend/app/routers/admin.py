@@ -5,8 +5,9 @@ Admin-only API endpoints for statistics and management.
 import logging
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, Depends, Query
-from sqlalchemy import Integer, func, select, text
+from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
+from sqlalchemy import Integer, func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.csrf import verify_csrf_token
@@ -16,16 +17,26 @@ from app.models import (
     AnalyticsEvent,
     Channel,
     Playlist,
+    PricingTier,
     RadioStation,
     User,
     UserFavorite,
     UserVote,
     WatchHistory,
 )
+from app.redis_client import cache_delete
 from app.redis_client import health_check as redis_health_check
+from app.services import settings_service
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 logger = logging.getLogger(__name__)
+
+
+def _ilike_pattern(raw: str) -> str:
+    """Escape ILIKE wildcard/escape characters in user input so a search for
+    literal `%`, `_`, or `\\` doesn't act as a wildcard."""
+    escaped = raw.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return f"%{escaped}%"
 
 
 @router.get("/stats/overview")
@@ -94,8 +105,10 @@ async def get_stats_overview(
     )
     recent_watches = recent_watches_query.scalar() or 0
 
-    # System health
+    # System health - db is implicitly healthy if we got this far (every
+    # query above already required a working connection)
     redis_healthy = await redis_health_check()
+    last_sync_at = await settings_service.get_setting(db, "last_sync_at")
 
     return {
         "users": {
@@ -117,6 +130,8 @@ async def get_stats_overview(
         },
         "system": {
             "redis_healthy": redis_healthy,
+            "db_healthy": True,
+            "last_sync_at": last_sync_at,
             "timestamp": datetime.utcnow().isoformat(),
         },
     }
@@ -441,6 +456,327 @@ async def revoke_user_admin(
         "email": target_user.email,
         "is_admin": False,
     }
+
+
+@router.get("/users")
+async def list_users(
+    q: str | None = Query(default=None, description="Search by email or name"),
+    tier: str | None = Query(default=None),
+    admin_only: bool = Query(default=False),
+    page: int = Query(default=1, ge=1),
+    per_page: int = Query(default=25, ge=1, le=100),
+    admin_user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Search/list users for support and account management."""
+    stmt = select(User)
+    count_stmt = select(func.count(User.id))
+
+    if q:
+        pattern = _ilike_pattern(q)
+        cond = or_(
+            User.email.ilike(pattern, escape="\\"),
+            User.name.ilike(pattern, escape="\\"),
+        )
+        stmt = stmt.where(cond)
+        count_stmt = count_stmt.where(cond)
+    if tier:
+        stmt = stmt.where(User.subscription_tier == tier)
+        count_stmt = count_stmt.where(User.subscription_tier == tier)
+    if admin_only:
+        stmt = stmt.where(User.is_admin.is_(True))
+        count_stmt = count_stmt.where(User.is_admin.is_(True))
+
+    total = (await db.execute(count_stmt)).scalar() or 0
+    stmt = (
+        stmt.order_by(User.created_at.desc())
+        .offset((page - 1) * per_page)
+        .limit(per_page)
+    )
+    users = (await db.execute(stmt)).scalars().all()
+
+    return {
+        "users": [
+            {
+                "id": u.id,
+                "email": u.email,
+                "name": u.name,
+                "is_admin": u.is_admin,
+                "subscription_tier": u.subscription_tier,
+                "subscription_status": u.subscription_status,
+                "subscription_ends_at": (
+                    u.subscription_ends_at.isoformat()
+                    if u.subscription_ends_at
+                    else None
+                ),
+                "stripe_customer_id": u.stripe_customer_id or "",
+                "kids_mode_enabled": u.kids_mode_enabled,
+                "has_parental_pin": bool(u.parental_pin_hash),
+                "created_at": u.created_at.isoformat() if u.created_at else None,
+                "last_login_at": (
+                    u.last_login_at.isoformat() if u.last_login_at else None
+                ),
+            }
+            for u in users
+        ],
+        "total": total,
+        "page": page,
+        "per_page": per_page,
+    }
+
+
+class UserAdminUpdate(BaseModel):
+    subscription_tier: str | None = None
+    subscription_status: str | None = None
+    subscription_ends_at: datetime | None = None
+    clear_parental_pin: bool = False
+
+
+@router.patch("/users/{user_id}")
+async def admin_update_user(
+    user_id: int,
+    payload: UserAdminUpdate,
+    admin_user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+    _csrf: None = Depends(verify_csrf_token),
+):
+    """Comp/revoke a subscription or clear a locked-out parental PIN.
+
+    Writes directly to the User row rather than Stripe - for manual grants
+    (press, partners, support goodwill) and support overrides, not for
+    managing a real paid subscription (use the Stripe dashboard for that;
+    the existing webhook handler keeps real subscriptions in sync with
+    these same fields).
+    """
+    result = await db.execute(select(User).where(User.id == user_id))
+    target = result.scalar_one_or_none()
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if payload.subscription_tier is not None:
+        if payload.subscription_tier != "free":
+            tier_exists = (
+                await db.execute(
+                    select(PricingTier.key).where(
+                        PricingTier.key == payload.subscription_tier
+                    )
+                )
+            ).scalar_one_or_none()
+            if not tier_exists:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Unknown subscription_tier: {payload.subscription_tier!r}",
+                )
+        target.subscription_tier = payload.subscription_tier
+    if payload.subscription_status is not None:
+        target.subscription_status = payload.subscription_status
+    if payload.subscription_ends_at is not None:
+        target.subscription_ends_at = payload.subscription_ends_at
+    if payload.clear_parental_pin:
+        target.parental_pin_hash = ""
+        target.kids_mode_enabled = False
+
+    await db.commit()
+    logger.info("Admin %s updated user %s", admin_user.email, target.email)
+    return {"success": True}
+
+
+@router.get("/subscriptions")
+async def list_subscriptions(
+    admin_user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Everyone with a non-free tier or a subscription status - comped
+    accounts included. Stripe stays the source of truth for billing;
+    this is a read view plus the comp/revoke actions on /users/{id}."""
+    result = await db.execute(
+        select(User)
+        .where(or_(User.subscription_tier != "free", User.subscription_status != ""))
+        .order_by(User.subscription_ends_at.desc().nulls_last())
+    )
+    users = result.scalars().all()
+    return [
+        {
+            "id": u.id,
+            "email": u.email,
+            "name": u.name,
+            "tier": u.subscription_tier,
+            "status": u.subscription_status,
+            "ends_at": (
+                u.subscription_ends_at.isoformat() if u.subscription_ends_at else None
+            ),
+            "stripe_customer_id": u.stripe_customer_id or "",
+        }
+        for u in users
+    ]
+
+
+@router.get("/revenue")
+async def get_revenue_summary(
+    admin_user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Rough current MRR: active/comped subscribers per tier times that
+    tier's current price. Not a Stripe reconciliation - just enough signal
+    for a tiny team to see if the business is moving."""
+    result = await db.execute(
+        select(
+            User.subscription_tier,
+            func.count(User.id).label("count"),
+        )
+        .where(User.subscription_tier != "free")
+        .where(User.subscription_status == "active")
+        .group_by(User.subscription_tier)
+    )
+    counts_by_tier = {row.subscription_tier: row.count for row in result.all()}
+
+    tiers_result = await db.execute(select(PricingTier))
+    tiers = tiers_result.scalars().all()
+
+    breakdown = []
+    mrr_cents = 0
+    for t in tiers:
+        count = counts_by_tier.get(t.key, 0)
+        tier_mrr_cents = count * t.monthly_price_cents
+        mrr_cents += tier_mrr_cents
+        if count:
+            breakdown.append(
+                {
+                    "tier": t.key,
+                    "subscribers": count,
+                    "mrr": tier_mrr_cents / 100,
+                }
+            )
+
+    return {"mrr": mrr_cents / 100, "breakdown": breakdown}
+
+
+# ===========================================================================
+# CONTENT MODERATION (hide a broken/inappropriate channel or station - the
+# IPTV/radio sync jobs overwrite is_active/last_check_ok every run, so that
+# can't be used as a manual override; admin_hidden is separate and sticky)
+# ===========================================================================
+
+
+@router.get("/channels/search")
+async def admin_search_channels(
+    q: str = Query(..., min_length=1),
+    page: int = Query(default=1, ge=1),
+    per_page: int = Query(default=25, ge=1, le=100),
+    admin_user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    pattern = _ilike_pattern(q)
+    cond = Channel.name.ilike(pattern, escape="\\")
+    total = (await db.execute(select(func.count(Channel.id)).where(cond))).scalar() or 0
+    result = await db.execute(
+        select(Channel)
+        .where(cond)
+        .order_by(Channel.name, Channel.id)
+        .offset((page - 1) * per_page)
+        .limit(per_page)
+    )
+    channels = result.scalars().all()
+    return {
+        "channels": [
+            {
+                "id": c.id,
+                "name": c.name,
+                "country_code": c.country_code,
+                "health_status": c.health_status,
+                "admin_hidden": c.admin_hidden,
+            }
+            for c in channels
+        ],
+        "total": total,
+        "page": page,
+        "per_page": per_page,
+    }
+
+
+@router.patch("/channels/{channel_id}/hidden")
+async def admin_set_channel_hidden(
+    channel_id: str,
+    hidden: bool,
+    admin_user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+    _csrf: None = Depends(verify_csrf_token),
+):
+    result = await db.execute(select(Channel).where(Channel.id == channel_id))
+    channel = result.scalar_one_or_none()
+    if not channel:
+        raise HTTPException(status_code=404, detail="Channel not found")
+    channel.admin_hidden = hidden
+    await db.commit()
+    # Categories/countries/stats are cached (see routers/categories.py) and
+    # their counts depend on admin_hidden - force a re-fetch on next read
+    # instead of waiting out the TTL.
+    for key in ("categories", "countries", "stats"):
+        await cache_delete(key)
+    logger.info(
+        "Admin %s set channel %s admin_hidden=%s", admin_user.email, channel_id, hidden
+    )
+    return {"success": True, "admin_hidden": hidden}
+
+
+@router.get("/radio/search")
+async def admin_search_radio(
+    q: str = Query(..., min_length=1),
+    page: int = Query(default=1, ge=1),
+    per_page: int = Query(default=25, ge=1, le=100),
+    admin_user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    pattern = _ilike_pattern(q)
+    cond = RadioStation.name.ilike(pattern, escape="\\")
+    total = (
+        await db.execute(select(func.count(RadioStation.id)).where(cond))
+    ).scalar() or 0
+    result = await db.execute(
+        select(RadioStation)
+        .where(cond)
+        .order_by(RadioStation.name, RadioStation.id)
+        .offset((page - 1) * per_page)
+        .limit(per_page)
+    )
+    stations = result.scalars().all()
+    return {
+        "stations": [
+            {
+                "id": s.id,
+                "name": s.name,
+                "country_code": s.country_code,
+                "health_status": s.health_status,
+                "admin_hidden": s.admin_hidden,
+            }
+            for s in stations
+        ],
+        "total": total,
+        "page": page,
+        "per_page": per_page,
+    }
+
+
+@router.patch("/radio/{station_id}/hidden")
+async def admin_set_radio_hidden(
+    station_id: str,
+    hidden: bool,
+    admin_user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+    _csrf: None = Depends(verify_csrf_token),
+):
+    result = await db.execute(select(RadioStation).where(RadioStation.id == station_id))
+    station = result.scalar_one_or_none()
+    if not station:
+        raise HTTPException(status_code=404, detail="Station not found")
+    station.admin_hidden = hidden
+    await db.commit()
+    for key in ("radio_countries", "stats"):
+        await cache_delete(key)
+    logger.info(
+        "Admin %s set station %s admin_hidden=%s", admin_user.email, station_id, hidden
+    )
+    return {"success": True, "admin_hidden": hidden}
 
 
 # ===========================================================================

@@ -7,6 +7,7 @@ the admin dashboard instead of editing hardcoded values in subscriptions.py.
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.csrf import verify_csrf_token
@@ -24,10 +25,41 @@ from app.schemas import (
     PricingTierOut,
     PricingTierUpdate,
 )
-from app.services import pricing_service
+from app.services import pricing_service, settings_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/admin/pricing", tags=["admin", "pricing"])
+
+
+# ---------------------------------------------------------------------------
+# Monetization settings (ads kill switch)
+# ---------------------------------------------------------------------------
+
+
+class AdsSettingUpdate(BaseModel):
+    ads_enabled: bool
+
+
+@router.get("/settings")
+async def admin_get_pricing_settings(
+    admin_user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    return {
+        "ads_enabled": await settings_service.get_bool_setting(db, "ads_enabled", True)
+    }
+
+
+@router.patch("/settings")
+async def admin_update_pricing_settings(
+    payload: AdsSettingUpdate,
+    admin_user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+    _csrf: None = Depends(verify_csrf_token),
+):
+    await settings_service.set_bool_setting(db, "ads_enabled", payload.ads_enabled)
+    logger.info("Admin %s set ads_enabled=%s", admin_user.email, payload.ads_enabled)
+    return {"ads_enabled": payload.ads_enabled}
 
 
 # ---------------------------------------------------------------------------

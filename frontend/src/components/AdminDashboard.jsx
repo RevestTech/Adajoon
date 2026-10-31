@@ -3,6 +3,26 @@ import { authenticatedFetch } from "../utils/csrf";
 import { WHATS_NEW, formatReleaseDate } from "../data/whatsNew";
 import PricingManager from "./PricingManager";
 import MovieManager from "./MovieManager";
+import UserManager from "./UserManager";
+import SubscriptionManager from "./SubscriptionManager";
+import ContentModeration from "./ContentModeration";
+
+const TAB_TITLES = {
+  overview: "Overview",
+  users: "Users",
+  content: "Content",
+  activity: "Activity",
+  analytics: "Analytics",
+  pricing: "Pricing",
+  movies: "Movies",
+  subscriptions: "Subscriptions",
+  releases: "Releases",
+};
+
+function tabFromPath() {
+  const seg = window.location.pathname.split("/")[2];
+  return TAB_TITLES[seg] ? seg : "overview";
+}
 
 export default function AdminDashboard({ onClose }) {
   const [loading, setLoading] = useState(true);
@@ -12,8 +32,24 @@ export default function AdminDashboard({ onClose }) {
   const [contentStats, setContentStats] = useState(null);
   const [activityStats, setActivityStats] = useState(null);
   const [analyticsStats, setAnalyticsStats] = useState(null);
-  const [activeTab, setActiveTab] = useState("overview");
+  const [activeTab, setActiveTabState] = useState(tabFromPath);
   const [timePeriod, setTimePeriod] = useState(30);
+
+  const setActiveTab = useCallback((tab) => {
+    setActiveTabState(tab);
+    history.pushState(null, "", `/admin/${tab}`);
+    document.title = `Admin · ${TAB_TITLES[tab]} - Adajoon`;
+  }, []);
+
+  useEffect(() => {
+    document.title = `Admin · ${TAB_TITLES[activeTab]} - Adajoon`;
+  }, [activeTab]);
+
+  useEffect(() => {
+    const onPopState = () => setActiveTabState(tabFromPath());
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
 
   const loadOverview = useCallback(async () => {
     setLoading(true);
@@ -111,45 +147,59 @@ export default function AdminDashboard({ onClose }) {
 
   if (loading && !overview) {
     return (
-      <div className="admin-modal-overlay">
-        <div className="admin-modal">
-          <div className="admin-loading">Loading admin dashboard...</div>
-        </div>
+      <div className="admin-page">
+        <div className="admin-loading">Loading admin dashboard...</div>
       </div>
     );
   }
 
-  if (error && !overview) {
+  if (error && !overview && activeTab === "overview") {
     return (
-      <div className="admin-modal-overlay">
-        <div className="admin-modal">
-          <div className="admin-error">
-            <p>Error loading admin dashboard: {error}</p>
-            {error.includes("403") && (
-              <p className="admin-error-hint">You do not have admin access.</p>
-            )}
-            <button onClick={onClose}>Close</button>
-          </div>
+      <div className="admin-page">
+        <div className="admin-error">
+          <p>Error loading admin dashboard: {error}</p>
+          {error.includes("403") && (
+            <p className="admin-error-hint">You do not have admin access.</p>
+          )}
+          <button onClick={onClose}>Back to Adajoon</button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="admin-modal-overlay">
-      <div className="admin-modal">
-        <div className="admin-header">
-          <h1>Admin Dashboard</h1>
-          <button className="admin-close" onClick={onClose}>×</button>
-        </div>
+    <div className="admin-page">
+      <div className="admin-header">
+        <button className="admin-back-link" onClick={onClose}>
+          ← Back to Adajoon
+        </button>
+        <h1>Admin · {TAB_TITLES[activeTab]}</h1>
+      </div>
 
-        <div className="admin-tabs">
+      <div className="admin-tabs">
+        <div className="admin-tab-group">
+          <span className="admin-tab-group-label">Insights</span>
           <button
             className={`admin-tab ${activeTab === "overview" ? "active" : ""}`}
             onClick={() => setActiveTab("overview")}
           >
             Overview
           </button>
+          <button
+            className={`admin-tab ${activeTab === "activity" ? "active" : ""}`}
+            onClick={() => setActiveTab("activity")}
+          >
+            Activity
+          </button>
+          <button
+            className={`admin-tab ${activeTab === "analytics" ? "active" : ""}`}
+            onClick={() => setActiveTab("analytics")}
+          >
+            Analytics
+          </button>
+        </div>
+        <div className="admin-tab-group">
+          <span className="admin-tab-group-label">Manage</span>
           <button
             className={`admin-tab ${activeTab === "users" ? "active" : ""}`}
             onClick={() => setActiveTab("users")}
@@ -163,16 +213,10 @@ export default function AdminDashboard({ onClose }) {
             Content
           </button>
           <button
-            className={`admin-tab ${activeTab === "activity" ? "active" : ""}`}
-            onClick={() => setActiveTab("activity")}
+            className={`admin-tab ${activeTab === "subscriptions" ? "active" : ""}`}
+            onClick={() => setActiveTab("subscriptions")}
           >
-            Activity
-          </button>
-          <button
-            className={`admin-tab ${activeTab === "analytics" ? "active" : ""}`}
-            onClick={() => setActiveTab("analytics")}
-          >
-            Analytics
+            Subscriptions
           </button>
           <button
             className={`admin-tab ${activeTab === "pricing" ? "active" : ""}`}
@@ -193,6 +237,7 @@ export default function AdminDashboard({ onClose }) {
             Releases
           </button>
         </div>
+      </div>
 
         {(activeTab === "users" || activeTab === "activity" || activeTab === "analytics") && (
           <div className="admin-period-selector">
@@ -278,6 +323,16 @@ export default function AdminDashboard({ onClose }) {
                     <span className="admin-health-icon">{overview.system.redis_healthy ? "✓" : "✗"}</span>
                     <span>Redis: {overview.system.redis_healthy ? "Healthy" : "Unhealthy"}</span>
                   </div>
+                  <div className={`admin-health-item ${overview.system.db_healthy ? "healthy" : "unhealthy"}`}>
+                    <span className="admin-health-icon">{overview.system.db_healthy ? "✓" : "✗"}</span>
+                    <span>Database: {overview.system.db_healthy ? "Healthy" : "Unhealthy"}</span>
+                  </div>
+                  <div className="admin-health-time">
+                    Last catalog sync:{" "}
+                    {overview.system.last_sync_at
+                      ? new Date(overview.system.last_sync_at).toLocaleString()
+                      : "Unavailable"}
+                  </div>
                   <div className="admin-health-time">
                     Last updated: {new Date(overview.system.timestamp).toLocaleString()}
                   </div>
@@ -286,145 +341,157 @@ export default function AdminDashboard({ onClose }) {
             </div>
           )}
 
-          {activeTab === "users" && userStats && (
+          {activeTab === "users" && (
             <div className="admin-users">
-              <div className="admin-section">
-                <h2>Users by Provider</h2>
-                <div className="admin-chart-simple">
-                  {userStats.users_by_provider.map((item) => (
-                    <div key={item.provider} className="admin-chart-bar">
-                      <span className="admin-chart-label">{item.provider}</span>
-                      <div className="admin-chart-bar-fill" style={{ width: `${(item.count / overview.users.total) * 100}%` }}>
-                        <span className="admin-chart-value">{item.count}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="admin-section">
-                <h2>Users by Subscription Tier</h2>
-                <div className="admin-chart-simple">
-                  {userStats.users_by_tier.map((item) => (
-                    <div key={item.tier} className="admin-chart-bar">
-                      <span className="admin-chart-label">{item.tier}</span>
-                      <div className="admin-chart-bar-fill" style={{ width: `${(item.count / overview.users.total) * 100}%` }}>
-                        <span className="admin-chart-value">{item.count}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="admin-section">
-                <h2>Most Active Users</h2>
-                <div className="admin-table">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Email</th>
-                        <th>Name</th>
-                        <th>Joined</th>
-                        <th>Last Accessed</th>
-                        <th>Favorites</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {userStats.most_active_users.map((user, idx) => (
-                        <tr key={idx}>
-                          <td>{user.email}</td>
-                          <td>{user.name || "—"}</td>
-                          <td>{user.joined ? new Date(user.joined).toLocaleDateString() : "—"}</td>
-                          <td>{user.last_accessed ? new Date(user.last_accessed).toLocaleDateString() : "—"}</td>
-                          <td>{user.favorites_count}</td>
-                        </tr>
+              {userStats && overview && (
+                <>
+                  <div className="admin-section">
+                    <h2>Users by Provider</h2>
+                    <div className="admin-chart-simple">
+                      {userStats.users_by_provider.map((item) => (
+                        <div key={item.provider} className="admin-chart-bar">
+                          <span className="admin-chart-label">{item.provider}</span>
+                          <div className="admin-chart-bar-fill" style={{ width: `${(item.count / overview.users.total) * 100}%` }}>
+                            <span className="admin-chart-value">{item.count}</span>
+                          </div>
+                        </div>
                       ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+                    </div>
+                  </div>
+
+                  <div className="admin-section">
+                    <h2>Users by Subscription Tier</h2>
+                    <div className="admin-chart-simple">
+                      {userStats.users_by_tier.map((item) => (
+                        <div key={item.tier} className="admin-chart-bar">
+                          <span className="admin-chart-label">{item.tier}</span>
+                          <div className="admin-chart-bar-fill" style={{ width: `${(item.count / overview.users.total) * 100}%` }}>
+                            <span className="admin-chart-value">{item.count}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="admin-section">
+                    <h2>Most Active Users</h2>
+                    <div className="admin-table">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>Email</th>
+                            <th>Name</th>
+                            <th>Joined</th>
+                            <th>Last Accessed</th>
+                            <th>Favorites</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {userStats.most_active_users.map((user, idx) => (
+                            <tr key={idx}>
+                              <td>{user.email}</td>
+                              <td>{user.name || "—"}</td>
+                              <td>{user.joined ? new Date(user.joined).toLocaleDateString() : "—"}</td>
+                              <td>{user.last_accessed ? new Date(user.last_accessed).toLocaleDateString() : "—"}</td>
+                              <td>{user.favorites_count}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              <UserManager />
             </div>
           )}
 
-          {activeTab === "content" && contentStats && (
+          {activeTab === "content" && (
             <div className="admin-content-stats">
-              <div className="admin-section">
-                <h2>Most Favorited TV Channels</h2>
-                <div className="admin-table">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Channel</th>
-                        <th>Favorites</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {contentStats.most_favorited_tv.map((item, idx) => (
-                        <tr key={idx}>
-                          <td>
-                            {item.logo && <img src={item.logo} alt="" className="admin-table-logo" />}
-                            {item.name}
-                          </td>
-                          <td>{item.favorites}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              <div className="admin-section">
-                <h2>Most Favorited Radio Stations</h2>
-                <div className="admin-table">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Station</th>
-                        <th>Favorites</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {contentStats.most_favorited_radio.map((item, idx) => (
-                        <tr key={idx}>
-                          <td>
-                            {item.favicon && <img src={item.favicon} alt="" className="admin-table-logo" />}
-                            {item.name}
-                          </td>
-                          <td>{item.favorites}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              <div className="admin-section">
-                <h2>Channel Health Status</h2>
-                <div className="admin-chart-simple">
-                  {contentStats.channels_by_health.map((item) => (
-                    <div key={item.status} className="admin-chart-bar">
-                      <span className="admin-chart-label">{item.status}</span>
-                      <div className="admin-chart-bar-fill" style={{ width: `${(item.count / overview.content.tv_channels) * 100}%` }}>
-                        <span className="admin-chart-value">{item.count}</span>
-                      </div>
+              {contentStats && overview && (
+                <>
+                  <div className="admin-section">
+                    <h2>Most Favorited TV Channels</h2>
+                    <div className="admin-table">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>Channel</th>
+                            <th>Favorites</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {contentStats.most_favorited_tv.map((item, idx) => (
+                            <tr key={idx}>
+                              <td>
+                                {item.logo && <img src={item.logo} alt="" className="admin-table-logo" />}
+                                {item.name}
+                              </td>
+                              <td>{item.favorites}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
-                  ))}
-                </div>
-              </div>
+                  </div>
 
-              <div className="admin-section">
-                <h2>Radio Station Health Status</h2>
-                <div className="admin-chart-simple">
-                  {contentStats.radio_by_health.map((item) => (
-                    <div key={item.status} className="admin-chart-bar">
-                      <span className="admin-chart-label">{item.status}</span>
-                      <div className="admin-chart-bar-fill" style={{ width: `${(item.count / overview.content.radio_stations) * 100}%` }}>
-                        <span className="admin-chart-value">{item.count}</span>
-                      </div>
+                  <div className="admin-section">
+                    <h2>Most Favorited Radio Stations</h2>
+                    <div className="admin-table">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>Station</th>
+                            <th>Favorites</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {contentStats.most_favorited_radio.map((item, idx) => (
+                            <tr key={idx}>
+                              <td>
+                                {item.favicon && <img src={item.favicon} alt="" className="admin-table-logo" />}
+                                {item.name}
+                              </td>
+                              <td>{item.favorites}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
-                  ))}
-                </div>
-              </div>
+                  </div>
+
+                  <div className="admin-section">
+                    <h2>Channel Health Status</h2>
+                    <div className="admin-chart-simple">
+                      {contentStats.channels_by_health.map((item) => (
+                        <div key={item.status} className="admin-chart-bar">
+                          <span className="admin-chart-label">{item.status}</span>
+                          <div className="admin-chart-bar-fill" style={{ width: `${(item.count / overview.content.tv_channels) * 100}%` }}>
+                            <span className="admin-chart-value">{item.count}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="admin-section">
+                    <h2>Radio Station Health Status</h2>
+                    <div className="admin-chart-simple">
+                      {contentStats.radio_by_health.map((item) => (
+                        <div key={item.status} className="admin-chart-bar">
+                          <span className="admin-chart-label">{item.status}</span>
+                          <div className="admin-chart-bar-fill" style={{ width: `${(item.count / overview.content.radio_stations) * 100}%` }}>
+                            <span className="admin-chart-value">{item.count}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+
+              <ContentModeration />
             </div>
           )}
 
@@ -669,6 +736,7 @@ export default function AdminDashboard({ onClose }) {
             </div>
           )}
 
+          {activeTab === "subscriptions" && <SubscriptionManager />}
           {activeTab === "pricing" && <PricingManager />}
           {activeTab === "movies" && <MovieManager />}
 
@@ -691,6 +759,5 @@ export default function AdminDashboard({ onClose }) {
           )}
         </div>
       </div>
-    </div>
   );
 }

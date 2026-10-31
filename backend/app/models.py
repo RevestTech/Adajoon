@@ -239,6 +239,9 @@ class Channel(Base):
     health_status = Column(String(20), default="unknown")
     health_checked_at = Column(DateTime(timezone=True), nullable=True)
     last_validated_at = Column(DateTime(timezone=True), nullable=True)
+    # Admin override, independent of is_active (which the IPTV catalog sync
+    # overwrites every run). A hidden channel stays hidden across syncs.
+    admin_hidden = Column(Boolean, server_default="false", index=True)
 
     category = relationship("Category", back_populates="channels")
 
@@ -271,6 +274,9 @@ class RadioStation(Base):
     health_checked_at = Column(DateTime(timezone=True), nullable=True)
     geo_lat = Column(String(50), default="")
     geo_long = Column(String(50), default="")
+    # Admin override, independent of last_check_ok (which the sync job
+    # overwrites). A hidden station stays hidden across syncs.
+    admin_hidden = Column(Boolean, server_default="false", index=True)
 
     __table_args__ = (
         Index("ix_radio_name", "name"),
@@ -440,3 +446,15 @@ class Movie(Base):
     sort_order = Column(Integer, server_default="0")
     is_active = Column(Boolean, server_default="true", index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class AppSetting(Base):
+    """A small admin-editable key/value store for simple on/off switches
+    (e.g. the ads kill switch) - not a generic feature-flag platform, just
+    somewhere for toggles to live without a bespoke column/table each."""
+
+    __tablename__ = "app_settings"
+
+    key = Column(String(100), primary_key=True)
+    value = Column(Text, nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now())
