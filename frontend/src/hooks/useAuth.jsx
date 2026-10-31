@@ -87,7 +87,7 @@ export function AuthProvider({ children }) {
     if (!optRes.ok) throw new Error("Failed to get registration options");
     const { options, challenge_token } = await optRes.json();
 
-    const credential = await startRegistration(options);
+    const credential = await startRegistration({ optionsJSON: options });
 
     const verRes = await authenticatedFetch(`${API_BASE}/passkey/register`, {
       method: "POST",
@@ -111,7 +111,7 @@ export function AuthProvider({ children }) {
       }
       const { options, challenge_token } = await optRes.json();
 
-      const credential = await startAuthentication(options);
+      const credential = await startAuthentication({ optionsJSON: options });
 
       const verRes = await authenticatedFetch(`${API_BASE}/passkey/login`, {
         method: "POST",
