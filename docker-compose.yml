@@ -40,6 +40,11 @@ services:
       CORS_ORIGINS: http://localhost:7350
       WEBAUTHN_ORIGIN: http://localhost:7350
       WEBAUTHN_RP_ID: localhost
+      # Local dev has no vault (VAULT_URL unset), so config.py's secrets fall
+      # back to env vars - set TMDB_API_KEY in a gitignored .env file (see
+      # .env.example) rather than here, docker compose picks it up for
+      # substitution automatically.
+      TMDB_API_KEY: ${TMDB_API_KEY:-}
     ports:
       - "7351:8000"
     depends_on:
