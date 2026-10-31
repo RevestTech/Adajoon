@@ -5307,6 +5307,19 @@ body {
   background: rgba(233, 69, 96, 0.1);
 }
 
+.user-login-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.user-login-btn--dev {
+  border-style: dashed;
+  font-size: 11px;
+  padding: 6px 10px;
+  opacity: 0.8;
+}
+
 .user-menu {
   position: relative;
   flex-shrink: 0;

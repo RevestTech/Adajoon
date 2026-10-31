@@ -79,6 +79,27 @@ export function AuthProvider({ children }) {
     }
   }, [_saveSession]);
 
+  // --- Dev login (local testing only; backend 404s outside ENV=dev) ---
+  const loginWithDev = useCallback(async (email, admin = false) => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (email) params.set("email", email);
+      if (admin) params.set("admin", "true");
+      const res = await authenticatedFetch(`${API_BASE}/dev-login?${params}`, {
+        method: "POST",
+      });
+      if (!res.ok) {
+        const err = new Error("Dev login failed");
+        err.status = res.status;
+        throw err;
+      }
+      return _saveSession(await res.json());
+    } finally {
+      setLoading(false);
+    }
+  }, [_saveSession]);
+
   // --- Passkey registration (user must be logged in) ---
   const registerPasskey = useCallback(async (name) => {
     const optRes = await authenticatedFetch(`${API_BASE}/passkey/register-options`, {
@@ -217,6 +238,7 @@ export function AuthProvider({ children }) {
     loading,
     loginWithGoogle,
     loginWithApple,
+    loginWithDev,
     loginWithPasskey,
     registerPasskey,
     logout,
@@ -224,7 +246,7 @@ export function AuthProvider({ children }) {
     addFavorite,
     removeFavorite,
     syncFavorites,
-  }), [user, loading, loginWithGoogle, loginWithApple, loginWithPasskey, registerPasskey, logout, fetchFavorites, addFavorite, removeFavorite, syncFavorites]);
+  }), [user, loading, loginWithGoogle, loginWithApple, loginWithDev, loginWithPasskey, registerPasskey, logout, fetchFavorites, addFavorite, removeFavorite, syncFavorites]);
 
   return (
     <AuthContext.Provider value={value}>
