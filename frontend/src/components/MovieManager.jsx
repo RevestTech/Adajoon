@@ -3,6 +3,7 @@ import {
   createAdminMovie,
   deleteAdminMovie,
   fetchAdminMovies,
+  searchTmdbMovies,
   updateAdminMovie,
 } from "../api/adminMovies";
 
@@ -42,6 +43,12 @@ export default function MovieManager() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [submitting, setSubmitting] = useState(false);
   const latestRequest = useRef(0);
+
+  const [tmdbQuery, setTmdbQuery] = useState("");
+  const [tmdbResults, setTmdbResults] = useState([]);
+  const [tmdbLoading, setTmdbLoading] = useState(false);
+  const [tmdbError, setTmdbError] = useState("");
+  const tmdbRequest = useRef(0);
 
   const load = () => {
     const requestId = ++latestRequest.current;
@@ -95,6 +102,42 @@ export default function MovieManager() {
     }
   };
 
+  const handleTmdbSearch = (e) => {
+    e.preventDefault();
+    if (!tmdbQuery.trim()) return;
+    const requestId = ++tmdbRequest.current;
+    setTmdbLoading(true);
+    setTmdbError("");
+    searchTmdbMovies(tmdbQuery.trim())
+      .then((results) => {
+        if (requestId !== tmdbRequest.current) return;
+        setTmdbResults(results);
+      })
+      .catch((err) => {
+        if (requestId === tmdbRequest.current) {
+          setTmdbError(err.message);
+          setTmdbResults([]);
+        }
+      })
+      .finally(() => {
+        if (requestId === tmdbRequest.current) setTmdbLoading(false);
+      });
+  };
+
+  const applyTmdbResult = (result) => {
+    setForm((prev) => ({
+      ...prev,
+      title: result.title || prev.title,
+      poster_url: result.poster_url || prev.poster_url,
+      synopsis: result.synopsis || prev.synopsis,
+      genres: result.genres || prev.genres,
+      year: result.year ? String(result.year) : prev.year,
+      source: prev.source || "TMDb",
+    }));
+    setTmdbResults([]);
+    setTmdbQuery("");
+  };
+
   return (
     <div className="pricing-manager">
       <div className="pricing-section-header">
@@ -103,10 +146,52 @@ export default function MovieManager() {
           Syndicated titles - Adajoon doesn't host video. Each entry's stream URL
           points at a syndication partner's (or other licensed source's)
           already-hosted, already-playable stream, the same model as a TV channel.
+          A youtube.com/youtu.be URL plays through YouTube's own embedded
+          player instead (e.g. one of YouTube's free, ad-supported movies).
         </p>
       </div>
 
       {error && <p className="pricing-save-status pricing-save-status--error">{error}</p>}
+
+      <div className="admin-section">
+        <h4>Look up poster art / metadata (TMDb)</h4>
+        <form className="pricing-add-feature-row" onSubmit={handleTmdbSearch}>
+          <input
+            className="pricing-input"
+            placeholder="Search a movie title…"
+            value={tmdbQuery}
+            onChange={(e) => setTmdbQuery(e.target.value)}
+          />
+          <button type="submit" disabled={tmdbLoading}>
+            {tmdbLoading ? "Searching…" : "Search TMDb"}
+          </button>
+        </form>
+        {tmdbError && (
+          <p className="pricing-save-status pricing-save-status--error">{tmdbError}</p>
+        )}
+        {tmdbResults.length > 0 && (
+          <div className="tmdb-results">
+            {tmdbResults.map((r) => (
+              <button
+                key={r.tmdb_id}
+                type="button"
+                className="tmdb-result-card"
+                onClick={() => applyTmdbResult(r)}
+                title="Use this result"
+              >
+                {r.poster_url ? (
+                  <img src={r.poster_url} alt="" className="tmdb-result-poster" />
+                ) : (
+                  <span className="tmdb-result-poster tmdb-result-poster--empty" />
+                )}
+                <span className="tmdb-result-title">
+                  {r.title} {r.year ? `(${r.year})` : ""}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
 
       <form className="pricing-add-feature-row" onSubmit={handleSubmit}>
         <input

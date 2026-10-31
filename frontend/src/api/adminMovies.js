@@ -28,3 +28,6 @@ export const updateAdminMovie = (id, data) =>
 
 export const deleteAdminMovie = (id) =>
   authenticatedFetch(`${BASE}/${id}`, { method: "DELETE" }).then(parseOrThrow);
+
+export const searchTmdbMovies = (q) =>
+  authenticatedFetch(`${BASE}/tmdb-search?q=${encodeURIComponent(q)}`).then(parseOrThrow);

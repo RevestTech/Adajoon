@@ -118,6 +118,11 @@ class Settings(BaseSettings):
     stripe_webhook_secret: str = _get_secret("stripe_webhook_secret")
     stripe_publishable_key: str = _get_secret("stripe_publishable_key")
 
+    # TMDb (The Movie Database) - free API, used only for admin-side poster
+    # art/metadata lookup when adding a syndicated movie. Get a free key at
+    # https://www.themoviedb.org/settings/api
+    tmdb_api_key: str = _get_secret("tmdb_api_key")
+
     @property
     def cors_origins(self) -> list[str]:
         """Parse CORS origins from env var or use defaults."""

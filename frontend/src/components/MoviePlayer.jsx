@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import useAds from "../hooks/useAds";
+import { getYoutubeVideoId, getYoutubeStartSeconds } from "../utils/youtube";
 
 export default function MoviePlayer({ movie, onClose }) {
   const videoRef = useRef(null);
@@ -8,8 +9,20 @@ export default function MoviePlayer({ movie, onClose }) {
   const hlsRef = useRef(null);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState("");
+  // A syndicated YouTube link plays through YouTube's own iframe embed -
+  // YouTube serves no raw video/HLS URL a <video> tag could play, and it
+  // runs its own ads, so the HLS/pre-roll pipeline below is skipped
+  // entirely for these.
+  const youtubeId = getYoutubeVideoId(movie?.stream_url);
+  const youtubeStart = getYoutubeStartSeconds(movie?.stream_url);
 
   useEffect(() => {
+    if (youtubeId) {
+      setIsLoading(false);
+      setErrorMsg("");
+      return;
+    }
+
     const video = videoRef.current;
     if (!video || !movie?.stream_url) return;
 
@@ -76,7 +89,7 @@ export default function MoviePlayer({ movie, onClose }) {
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [movie?.id]);
+  }, [movie?.id, youtubeId]);
 
   return (
     <div className="modal-overlay movie-player-modal" role="dialog" aria-modal="true" aria-labelledby="movie-player-title">
@@ -90,6 +103,14 @@ export default function MoviePlayer({ movie, onClose }) {
             <div className="no-stream channel-modal-no-stream--error">
               <p>{errorMsg}</p>
             </div>
+          ) : youtubeId ? (
+            <iframe
+              className="movie-player-youtube-frame"
+              src={`https://www.youtube.com/embed/${youtubeId}?autoplay=1${youtubeStart ? `&start=${youtubeStart}` : ""}`}
+              title={movie.title}
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+            />
           ) : (
             <>
               {isLoading && (

@@ -8,7 +8,7 @@ up, titles are added here by hand.
 
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.csrf import verify_csrf_token
@@ -16,10 +16,30 @@ from app.database import get_db
 from app.middleware.admin_required import require_admin
 from app.models import User
 from app.schemas import MovieCreate, MovieOut, MovieUpdate
-from app.services import movie_service
+from app.services import movie_service, tmdb_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/admin/movies", tags=["admin", "movies"])
+
+
+@router.get("/tmdb-search")
+async def admin_tmdb_search(
+    q: str = Query(..., min_length=1),
+    admin_user: User = Depends(require_admin),
+):
+    """Look up poster art/metadata candidates from TMDb for the add-movie
+    form. Never used at playback time - purely an admin convenience."""
+    try:
+        return await tmdb_service.search_movies(q)
+    except tmdb_service.TmdbNotConfigured:
+        raise HTTPException(
+            status_code=503,
+            detail="TMDB_API_KEY is not configured - get a free key at "
+            "https://www.themoviedb.org/settings/api",
+        )
+    except Exception:
+        logger.exception("TMDb search failed for query %r", q)
+        raise HTTPException(status_code=502, detail="TMDb lookup failed")
 
 
 @router.get("", response_model=list[MovieOut])
