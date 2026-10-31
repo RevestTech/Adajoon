@@ -190,7 +190,10 @@ async def get_categories_with_counts(db: AsyncSession):
             func.count(case((verified_cond, Channel.id))).label("verified_count"),
         )
         .outerjoin(
-            Channel, (Channel.category_id == Category.id) & (Channel.is_nsfw.is_(False))
+            Channel,
+            (Channel.category_id == Category.id)
+            & (Channel.is_nsfw.is_(False))
+            & (Channel.admin_hidden.is_(False)),
         )
         .where(~func.lower(Category.id).in_(_HIDDEN_CATEGORIES))
         .group_by(Category.id, Category.name)
@@ -213,7 +216,9 @@ async def get_countries_with_counts(db: AsyncSession):
         )
         .outerjoin(
             Channel,
-            (Channel.country_code == Country.code) & (Channel.is_nsfw.is_(False)),
+            (Channel.country_code == Country.code)
+            & (Channel.is_nsfw.is_(False))
+            & (Channel.admin_hidden.is_(False)),
         )
         .group_by(Country.code, Country.name, Country.flag)
         .having(func.count(Channel.id) > 0)
@@ -227,11 +232,11 @@ async def get_stats(db: AsyncSession):
 
     row = (await db.execute(text("""
         SELECT
-            (SELECT count(*) FROM channels WHERE is_nsfw = false) AS ch,
+            (SELECT count(*) FROM channels WHERE is_nsfw = false AND admin_hidden = false) AS ch,
             (SELECT count(*) FROM categories WHERE lower(id) != 'xxx') AS cat,
             (SELECT count(*) FROM countries) AS co,
             (SELECT count(*) FROM streams) AS st,
-            (SELECT count(*) FROM radio_stations) AS rs
+            (SELECT count(*) FROM radio_stations WHERE admin_hidden = false) AS rs
     """))).one()
     return {
         "total_channels": row[0],

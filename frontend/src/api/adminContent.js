@@ -8,10 +8,12 @@ async function parseOrThrow(res) {
   return res.json();
 }
 
-export const searchAdminChannels = (q) =>
-  authenticatedFetch(`/api/admin/channels/search?q=${encodeURIComponent(q)}`).then(
-    parseOrThrow
-  );
+export const searchAdminChannels = (q, page = 1) =>
+  authenticatedFetch(
+    `/api/admin/channels/search?q=${encodeURIComponent(q)}&page=${page}`
+  )
+    .then(parseOrThrow)
+    .then((data) => data.channels);
 
 export const setChannelHidden = (channelId, hidden) =>
   authenticatedFetch(
@@ -19,10 +21,10 @@ export const setChannelHidden = (channelId, hidden) =>
     { method: "PATCH" }
   ).then(parseOrThrow);
 
-export const searchAdminRadio = (q) =>
-  authenticatedFetch(`/api/admin/radio/search?q=${encodeURIComponent(q)}`).then(
-    parseOrThrow
-  );
+export const searchAdminRadio = (q, page = 1) =>
+  authenticatedFetch(`/api/admin/radio/search?q=${encodeURIComponent(q)}&page=${page}`)
+    .then(parseOrThrow)
+    .then((data) => data.stations);
 
 export const setRadioHidden = (stationId, hidden) =>
   authenticatedFetch(

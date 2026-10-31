@@ -27,6 +27,9 @@ MIGRATIONS = [
 ]
 
 
+_PHASE_FAILED = object()
+
+
 async def _phase(name: str, coro):
     t0 = time.monotonic()
     logger.info("Phase start: %s", name)
@@ -38,24 +41,35 @@ async def _phase(name: str, coro):
     except Exception as e:
         elapsed = time.monotonic() - t0
         logger.exception("Phase failed: %s after %.1fs: %s", name, elapsed, e)
-        return None
+        return _PHASE_FAILED
 
 
-async def run_cycle():
-    async with async_session() as db:
-        await _phase("validate_all_channels", validate_all_channels(db))
-
-    async with async_session() as db:
-        await _phase("validate_all_radio", validate_all_radio(db))
+async def run_cycle() -> bool:
+    """Runs every sync phase. Returns True only if every phase succeeded, so
+    callers can tell a real sync from one where every phase quietly failed."""
+    ok = True
 
     async with async_session() as db:
-        await _phase("iptv_full_sync", full_sync(db))
+        if await _phase("validate_all_channels", validate_all_channels(db)) is _PHASE_FAILED:
+            ok = False
 
     async with async_session() as db:
-        await _phase("sync_radio_stations", sync_radio_stations(db))
+        if await _phase("validate_all_radio", validate_all_radio(db)) is _PHASE_FAILED:
+            ok = False
 
     async with async_session() as db:
-        await _phase("sync_epg", sync_epg(db))
+        if await _phase("iptv_full_sync", full_sync(db)) is _PHASE_FAILED:
+            ok = False
+
+    async with async_session() as db:
+        if await _phase("sync_radio_stations", sync_radio_stations(db)) is _PHASE_FAILED:
+            ok = False
+
+    async with async_session() as db:
+        if await _phase("sync_epg", sync_epg(db)) is _PHASE_FAILED:
+            ok = False
+
+    return ok
 
 
 async def _run_migrations():
@@ -79,8 +93,9 @@ async def main():
     while True:
         cycle_t0 = time.monotonic()
         logger.info("=== Validation cycle started ===")
+        cycle_ok = False
         try:
-            await run_cycle()
+            cycle_ok = await run_cycle()
         except Exception as e:
             logger.exception("Cycle error (continuing): %s", e)
 
@@ -90,13 +105,16 @@ async def main():
             cycle_elapsed,
             SLEEP_SECONDS,
         )
-        try:
-            async with async_session() as db:
-                await set_setting(
-                    db, "last_sync_at", datetime.now(timezone.utc).isoformat()
-                )
-        except Exception as e:
-            logger.warning("Failed to record last_sync_at: %s", e)
+        if cycle_ok:
+            try:
+                async with async_session() as db:
+                    await set_setting(
+                        db, "last_sync_at", datetime.now(timezone.utc).isoformat()
+                    )
+            except Exception as e:
+                logger.warning("Failed to record last_sync_at: %s", e)
+        else:
+            logger.warning("Skipping last_sync_at update: cycle had phase failures")
         try:
             await asyncio.sleep(SLEEP_SECONDS)
         except asyncio.CancelledError:

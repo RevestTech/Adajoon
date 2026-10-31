@@ -318,7 +318,7 @@ async def get_radio_countries(db: AsyncSession):
             RadioStation.country_code,
             func.count(RadioStation.id).label("station_count"),
         )
-        .where(RadioStation.country != "")
+        .where(RadioStation.country != "", RadioStation.admin_hidden.is_(False))
         .group_by(RadioStation.country, RadioStation.country_code)
         .having(func.count(RadioStation.id) > 0)
         .order_by(func.count(RadioStation.id).desc())
@@ -327,11 +327,18 @@ async def get_radio_countries(db: AsyncSession):
 
 
 async def get_radio_stats(db: AsyncSession):
-    total = (await db.execute(select(func.count(RadioStation.id)))).scalar() or 0
+    total = (
+        await db.execute(
+            select(func.count(RadioStation.id)).where(
+                RadioStation.admin_hidden.is_(False)
+            )
+        )
+    ).scalar() or 0
     working = (
         await db.execute(
             select(func.count(RadioStation.id)).where(
-                RadioStation.last_check_ok.is_(True)
+                RadioStation.last_check_ok.is_(True),
+                RadioStation.admin_hidden.is_(False),
             )
         )
     ).scalar() or 0

@@ -12,7 +12,11 @@ export default function useSubscription() {
   const [endsAt, setEndsAt] = useState(null);
   const [loading, setLoading] = useState(true);
   const [tiers, setTiers] = useState({});
-  const [adsEnabled, setAdsEnabled] = useState(true);
+  // Starts closed (false) rather than optimistically open - until the real
+  // admin setting is known, we'd rather under-show ads than show them to a
+  // user the admin just turned them off for.
+  const [adsEnabled, setAdsEnabled] = useState(false);
+  const [adsSettingResolved, setAdsSettingResolved] = useState(false);
 
   /**
    * Load available tiers (and the global ads on/off switch, which rides
@@ -28,6 +32,8 @@ export default function useSubscription() {
       }
     } catch (error) {
       console.error('Failed to load tiers:', error);
+    } finally {
+      setAdsSettingResolved(true);
     }
   };
 
@@ -122,10 +128,14 @@ export default function useSubscription() {
   };
 
   /**
-   * Check if user has premium access.
+   * Check if user has premium access. A comped tier with an expiry in the
+   * past no longer counts, even if status is still "active" - the admin
+   * grant endpoint sets an end date rather than flipping status back itself.
    */
   const isPremium = () => {
-    return tier !== 'free' && status === 'active';
+    if (tier === 'free' || status !== 'active') return false;
+    if (endsAt && new Date(endsAt) < new Date()) return false;
+    return true;
   };
 
   /**
@@ -151,6 +161,7 @@ export default function useSubscription() {
     loading,
     tiers,
     adsEnabled,
+    adsSettingResolved,
     checkout,
     openPortal,
     isPremium,

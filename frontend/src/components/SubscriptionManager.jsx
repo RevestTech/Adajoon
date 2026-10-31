@@ -1,28 +1,55 @@
-import { useEffect, useState } from "react";
-import { fetchAdminRevenue, fetchAdminSubscriptions, updateAdminUser } from "../api/adminUsers";
-
-const TIER_OPTIONS = ["free", "plus", "pro", "family"];
+import { useEffect, useRef, useState } from "react";
+import {
+  fetchAdminRevenue,
+  fetchAdminSubscriptions,
+  fetchSubscriptionTiers,
+  oneMonthFromNow,
+  updateAdminUser,
+} from "../api/adminUsers";
 
 export default function SubscriptionManager() {
   const [subs, setSubs] = useState([]);
   const [revenue, setRevenue] = useState(null);
+  const [tierOptions, setTierOptions] = useState(["free"]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [revenueError, setRevenueError] = useState("");
   const [busyId, setBusyId] = useState(null);
+  const latestRequest = useRef(0);
 
   const load = () => {
+    const requestId = ++latestRequest.current;
     setLoading(true);
     setError("");
-    Promise.all([fetchAdminSubscriptions(), fetchAdminRevenue()])
-      .then(([subsData, revenueData]) => {
-        setSubs(subsData);
-        setRevenue(revenueData);
+    setRevenueError("");
+
+    fetchAdminSubscriptions()
+      .then((data) => {
+        if (requestId === latestRequest.current) setSubs(data);
       })
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false));
+      .catch((err) => {
+        if (requestId === latestRequest.current) setError(err.message);
+      })
+      .finally(() => {
+        if (requestId === latestRequest.current) setLoading(false);
+      });
+
+    fetchAdminRevenue()
+      .then((data) => {
+        if (requestId === latestRequest.current) setRevenue(data);
+      })
+      .catch((err) => {
+        if (requestId === latestRequest.current) setRevenueError(err.message);
+      });
   };
 
   useEffect(load, []);
+
+  useEffect(() => {
+    fetchSubscriptionTiers()
+      .then((data) => setTierOptions(["free", ...Object.keys(data.tiers || {})]))
+      .catch(() => {});
+  }, []);
 
   const handleComp = async (userId, tier) => {
     setBusyId(userId);
@@ -31,6 +58,7 @@ export default function SubscriptionManager() {
       await updateAdminUser(userId, {
         subscription_tier: tier,
         subscription_status: tier === "free" ? "" : "active",
+        subscription_ends_at: tier === "free" ? null : oneMonthFromNow(),
       });
       load();
     } catch (err) {
@@ -64,6 +92,11 @@ export default function SubscriptionManager() {
             </div>
           ))}
         </div>
+      )}
+      {revenueError && (
+        <p className="pricing-save-status pricing-save-status--error">
+          Revenue unavailable: {revenueError}
+        </p>
       )}
 
       {error && <p className="pricing-save-status pricing-save-status--error">{error}</p>}
@@ -109,7 +142,7 @@ export default function SubscriptionManager() {
                       value={s.tier}
                       onChange={(e) => handleComp(s.id, e.target.value)}
                     >
-                      {TIER_OPTIONS.map((t) => (
+                      {tierOptions.map((t) => (
                         <option key={t} value={t}>
                           {t}
                         </option>

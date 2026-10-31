@@ -441,12 +441,16 @@ export default function App() {
   }, [radioSearch, activeTags, activeRadioCountries, activeRadioQualities, radioPage, showRadioFavorites]);
 
   useEffect(() => {
+    if (onAdminPage) return;
     loadMeta();
     const interval = setInterval(loadMeta, 30000);
     return () => clearInterval(interval);
-  }, [loadMeta]);
+  }, [loadMeta, onAdminPage]);
 
-  useEffect(() => { loadChannels(); }, [loadChannels]);
+  useEffect(() => {
+    if (onAdminPage) return;
+    loadChannels();
+  }, [loadChannels, onAdminPage]);
 
   useEffect(() => {
     const key = JSON.stringify({
@@ -467,12 +471,14 @@ export default function App() {
   }, [search, activeCategories, activeCountries, showFavorites, activeQualities]);
 
   useEffect(() => {
+    if (onAdminPage) return;
     if (mode === "radio" || mode === "map") loadRadioMeta();
-  }, [mode, loadRadioMeta]);
+  }, [mode, loadRadioMeta, onAdminPage]);
 
   useEffect(() => {
+    if (onAdminPage) return;
     if (mode === "radio") loadRadio();
-  }, [mode, loadRadio]);
+  }, [mode, loadRadio, onAdminPage]);
 
   useEffect(() => {
     const key = JSON.stringify({
@@ -807,6 +813,8 @@ export default function App() {
     setShowRadioFavorites(false);
   }, []);
 
+  const onAdminPage = isAdminPath(window.location.pathname);
+
   useNavigationTracking({
     mode,
     mapSubMode,
@@ -817,12 +825,13 @@ export default function App() {
     selectedChannelId: selectedChannel?.id,
     selectedStationId: selectedStation?.id,
     isGuest,
+    skip: onAdminPage,
   });
 
   // Admin is a real page, not app state - render it standalone, same pattern
   // as the guest/landing branch, and skip the rest of this component's
   // (unrelated) TV/radio rendering entirely while on it.
-  if (isAdminPath(window.location.pathname)) {
+  if (onAdminPage) {
     return (
       <Suspense fallback={null}>
         <AdminDashboard onClose={() => { window.location.href = "/"; }} />

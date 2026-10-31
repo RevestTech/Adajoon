@@ -31,6 +31,13 @@ router = APIRouter(prefix="/api/admin", tags=["admin"])
 logger = logging.getLogger(__name__)
 
 
+def _ilike_pattern(raw: str) -> str:
+    """Escape ILIKE wildcard/escape characters in user input so a search for
+    literal `%`, `_`, or `\\` doesn't act as a wildcard."""
+    escaped = raw.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return f"%{escaped}%"
+
+
 @router.get("/stats/overview")
 async def get_stats_overview(
     admin_user: User = Depends(require_admin), db: AsyncSession = Depends(get_db)
@@ -465,7 +472,7 @@ async def list_users(
     count_stmt = select(func.count(User.id))
 
     if q:
-        pattern = f"%{q}%"
+        pattern = _ilike_pattern(q)
         cond = or_(User.email.ilike(pattern), User.name.ilike(pattern))
         stmt = stmt.where(cond)
         count_stmt = count_stmt.where(cond)
@@ -543,6 +550,19 @@ async def admin_update_user(
         raise HTTPException(status_code=404, detail="User not found")
 
     if payload.subscription_tier is not None:
+        if payload.subscription_tier != "free":
+            tier_exists = (
+                await db.execute(
+                    select(PricingTier.key).where(
+                        PricingTier.key == payload.subscription_tier
+                    )
+                )
+            ).scalar_one_or_none()
+            if not tier_exists:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Unknown subscription_tier: {payload.subscription_tier!r}",
+                )
         target.subscription_tier = payload.subscription_tier
     if payload.subscription_status is not None:
         target.subscription_status = payload.subscription_status
@@ -637,24 +657,39 @@ async def get_revenue_summary(
 @router.get("/channels/search")
 async def admin_search_channels(
     q: str = Query(..., min_length=1),
+    page: int = Query(default=1, ge=1),
+    per_page: int = Query(default=25, ge=1, le=100),
     admin_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    pattern = f"%{q}%"
+    pattern = _ilike_pattern(q)
+    cond = Channel.name.ilike(pattern)
+    total = (
+        await db.execute(select(func.count(Channel.id)).where(cond))
+    ).scalar() or 0
     result = await db.execute(
-        select(Channel).where(Channel.name.ilike(pattern)).limit(25)
+        select(Channel)
+        .where(cond)
+        .order_by(Channel.name, Channel.id)
+        .offset((page - 1) * per_page)
+        .limit(per_page)
     )
     channels = result.scalars().all()
-    return [
-        {
-            "id": c.id,
-            "name": c.name,
-            "country_code": c.country_code,
-            "health_status": c.health_status,
-            "admin_hidden": c.admin_hidden,
-        }
-        for c in channels
-    ]
+    return {
+        "channels": [
+            {
+                "id": c.id,
+                "name": c.name,
+                "country_code": c.country_code,
+                "health_status": c.health_status,
+                "admin_hidden": c.admin_hidden,
+            }
+            for c in channels
+        ],
+        "total": total,
+        "page": page,
+        "per_page": per_page,
+    }
 
 
 @router.patch("/channels/{channel_id}/hidden")
@@ -680,24 +715,39 @@ async def admin_set_channel_hidden(
 @router.get("/radio/search")
 async def admin_search_radio(
     q: str = Query(..., min_length=1),
+    page: int = Query(default=1, ge=1),
+    per_page: int = Query(default=25, ge=1, le=100),
     admin_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    pattern = f"%{q}%"
+    pattern = _ilike_pattern(q)
+    cond = RadioStation.name.ilike(pattern)
+    total = (
+        await db.execute(select(func.count(RadioStation.id)).where(cond))
+    ).scalar() or 0
     result = await db.execute(
-        select(RadioStation).where(RadioStation.name.ilike(pattern)).limit(25)
+        select(RadioStation)
+        .where(cond)
+        .order_by(RadioStation.name, RadioStation.id)
+        .offset((page - 1) * per_page)
+        .limit(per_page)
     )
     stations = result.scalars().all()
-    return [
-        {
-            "id": s.id,
-            "name": s.name,
-            "country_code": s.country_code,
-            "health_status": s.health_status,
-            "admin_hidden": s.admin_hidden,
-        }
-        for s in stations
-    ]
+    return {
+        "stations": [
+            {
+                "id": s.id,
+                "name": s.name,
+                "country_code": s.country_code,
+                "health_status": s.health_status,
+                "admin_hidden": s.admin_hidden,
+            }
+            for s in stations
+        ],
+        "total": total,
+        "page": page,
+        "per_page": per_page,
+    }
 
 
 @router.patch("/radio/{station_id}/hidden")

@@ -43,7 +43,8 @@ def upgrade() -> None:
         "ALTER TABLE radio_stations ADD COLUMN IF NOT EXISTS admin_hidden BOOLEAN DEFAULT FALSE"
     )
     op.execute(
-        "CREATE INDEX IF NOT EXISTS ix_radio_admin_hidden ON radio_stations (admin_hidden)"
+        "CREATE INDEX IF NOT EXISTS ix_radio_stations_admin_hidden "
+        "ON radio_stations (admin_hidden)"
     )
     op.execute(
         "UPDATE radio_stations SET admin_hidden = FALSE WHERE admin_hidden IS NULL"
@@ -51,7 +52,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.execute("DROP INDEX IF EXISTS ix_radio_admin_hidden")
+    op.execute("DROP INDEX IF EXISTS ix_radio_stations_admin_hidden")
     op.execute("ALTER TABLE radio_stations DROP COLUMN IF EXISTS admin_hidden")
     op.execute("DROP INDEX IF EXISTS ix_channels_admin_hidden")
     op.execute("ALTER TABLE channels DROP COLUMN IF EXISTS admin_hidden")

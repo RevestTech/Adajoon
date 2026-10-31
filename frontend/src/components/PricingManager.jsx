@@ -346,18 +346,17 @@ export default function PricingManager() {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [adsEnabled, setAdsEnabled] = useState(true);
   const [adsSaving, setAdsSaving] = useState(false);
+  const [adsError, setAdsError] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [tiersData, discountsData, settingsData] = await Promise.all([
+      const [tiersData, discountsData] = await Promise.all([
         fetchAdminTiers(),
         fetchAdminDiscounts(),
-        fetchAdminPricingSettings(),
       ]);
       setTiers(tiersData);
       setDiscounts(discountsData);
-      setAdsEnabled(settingsData.ads_enabled);
       setError(null);
     } catch (err) {
       setError(err.message);
@@ -366,9 +365,20 @@ export default function PricingManager() {
     }
   }, []);
 
+  const loadAdsSetting = useCallback(async () => {
+    try {
+      const settingsData = await fetchAdminPricingSettings();
+      setAdsEnabled(settingsData.ads_enabled);
+      setAdsError(null);
+    } catch (err) {
+      setAdsError(err.message);
+    }
+  }, []);
+
   useEffect(() => {
     load();
-  }, [load]);
+    loadAdsSetting();
+  }, [load, loadAdsSetting]);
 
   const handleAdsToggle = async () => {
     const next = !adsEnabled;
@@ -376,8 +386,9 @@ export default function PricingManager() {
     try {
       const result = await updateAdminPricingSettings({ ads_enabled: next });
       setAdsEnabled(result.ads_enabled);
+      setAdsError(null);
     } catch (err) {
-      setError(err.message);
+      setAdsError(err.message);
     } finally {
       setAdsSaving(false);
     }
@@ -508,6 +519,9 @@ export default function PricingManager() {
           Global kill switch - turn this off to stop all pre-roll ads immediately
           (e.g. an ad vendor issue), independent of per-tier eligibility below.
         </p>
+        {adsError && (
+          <p className="pricing-save-status pricing-save-status--error">{adsError}</p>
+        )}
       </div>
 
       <div className="admin-section">

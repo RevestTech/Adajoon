@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import {
   fetchAdminUsers,
+  fetchSubscriptionTiers,
   makeUserAdmin,
+  oneMonthFromNow,
   revokeUserAdmin,
   updateAdminUser,
 } from "../api/adminUsers";
@@ -13,11 +15,19 @@ export default function UserManager() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [busyId, setBusyId] = useState(null);
+  const [tierOptions, setTierOptions] = useState(["free"]);
   const latestRequest = useRef(0);
+
+  useEffect(() => {
+    fetchSubscriptionTiers()
+      .then((data) => setTierOptions(["free", ...Object.keys(data.tiers || {})]))
+      .catch(() => {});
+  }, []);
 
   const load = (query) => {
     const requestId = ++latestRequest.current;
     setLoading(true);
+    setError("");
     fetchAdminUsers({ q: query })
       .then((data) => {
         if (requestId !== latestRequest.current) return;
@@ -55,6 +65,16 @@ export default function UserManager() {
     }
   };
 
+  const handleTierChange = (userId, tier) => {
+    runAction(userId, () =>
+      updateAdminUser(userId, {
+        subscription_tier: tier,
+        subscription_status: tier === "free" ? "" : "active",
+        subscription_ends_at: tier === "free" ? null : oneMonthFromNow(),
+      })
+    );
+  };
+
   return (
     <div className="admin-section">
       <h2>Manage Users</h2>
@@ -89,7 +109,17 @@ export default function UserManager() {
               {users.map((u) => (
                 <tr key={u.id}>
                   <td>{u.email}</td>
-                  <td>{u.subscription_tier}</td>
+                  <td>
+                    <select
+                      value={u.subscription_tier || "free"}
+                      disabled={busyId === u.id}
+                      onChange={(e) => handleTierChange(u.id, e.target.value)}
+                    >
+                      {tierOptions.map((t) => (
+                        <option key={t} value={t}>{t}</option>
+                      ))}
+                    </select>
+                  </td>
                   <td>{u.is_admin ? "Yes" : "No"}</td>
                   <td>{u.has_parental_pin ? "Set" : "—"}</td>
                   <td>{u.created_at ? new Date(u.created_at).toLocaleDateString() : "—"}</td>
