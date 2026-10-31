@@ -38,6 +38,8 @@ services:
       REDIS_URL: redis://redis:6379
       JWT_SECRET: dev-jwt-secret-change-in-production-min-32-chars
       CORS_ORIGINS: http://localhost:7350
+      WEBAUTHN_ORIGIN: http://localhost:7350
+      WEBAUTHN_RP_ID: localhost
     ports:
       - "7351:8000"
     depends_on:
