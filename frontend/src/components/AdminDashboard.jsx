@@ -6,6 +6,7 @@ import MovieManager from "./MovieManager";
 import UserManager from "./UserManager";
 import SubscriptionManager from "./SubscriptionManager";
 import ContentModeration from "./ContentModeration";
+import SecretsManager from "./SecretsManager";
 
 const TAB_TITLES = {
   overview: "Overview",
@@ -16,6 +17,7 @@ const TAB_TITLES = {
   pricing: "Pricing",
   movies: "Movies",
   subscriptions: "Subscriptions",
+  secrets: "Secrets",
   releases: "Releases",
 };
 
@@ -229,6 +231,12 @@ export default function AdminDashboard({ onClose }) {
             onClick={() => setActiveTab("movies")}
           >
             Movies
+          </button>
+          <button
+            className={`admin-tab ${activeTab === "secrets" ? "active" : ""}`}
+            onClick={() => setActiveTab("secrets")}
+          >
+            Secrets
           </button>
           <button
             className={`admin-tab ${activeTab === "releases" ? "active" : ""}`}
@@ -739,6 +747,7 @@ export default function AdminDashboard({ onClose }) {
           {activeTab === "subscriptions" && <SubscriptionManager />}
           {activeTab === "pricing" && <PricingManager />}
           {activeTab === "movies" && <MovieManager />}
+          {activeTab === "secrets" && <SecretsManager />}
 
           {activeTab === "releases" && (
             <div className="admin-releases">

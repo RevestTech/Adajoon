@@ -24,6 +24,7 @@ from app.routers import (
     admin,
     admin_movies,
     admin_pricing,
+    admin_secrets,
     ai_search,
     analytics,
     categories,
@@ -158,6 +159,7 @@ app.include_router(ai_search.router)
 app.include_router(admin.router)
 app.include_router(admin_pricing.router)
 app.include_router(admin_movies.router)
+app.include_router(admin_secrets.router)
 app.include_router(movies.router)
 app.include_router(analytics.router)
 app.include_router(sitemap.router)
