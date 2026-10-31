@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { authenticatedFetch } from "../utils/csrf";
 import { WHATS_NEW, formatReleaseDate } from "../data/whatsNew";
 import PricingManager from "./PricingManager";
+import MovieManager from "./MovieManager";
 
 export default function AdminDashboard({ onClose }) {
   const [loading, setLoading] = useState(true);
@@ -178,6 +179,12 @@ export default function AdminDashboard({ onClose }) {
             onClick={() => setActiveTab("pricing")}
           >
             Pricing
+          </button>
+          <button
+            className={`admin-tab ${activeTab === "movies" ? "active" : ""}`}
+            onClick={() => setActiveTab("movies")}
+          >
+            Movies
           </button>
           <button
             className={`admin-tab ${activeTab === "releases" ? "active" : ""}`}
@@ -663,6 +670,7 @@ export default function AdminDashboard({ onClose }) {
           )}
 
           {activeTab === "pricing" && <PricingManager />}
+          {activeTab === "movies" && <MovieManager />}
 
           {activeTab === "releases" && (
             <div className="admin-releases">

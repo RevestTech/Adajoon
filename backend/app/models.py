@@ -419,3 +419,24 @@ class PricingDiscount(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     tier = relationship("PricingTier")
+
+
+class Movie(Base):
+    """A syndicated title: Adajoon hosts no video itself, `stream_url` points
+    at a syndication partner's (or other licensed source's) already-hosted,
+    already-playable stream - the same model as Channel.stream_url."""
+
+    __tablename__ = "movies"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    title = Column(String(500), nullable=False, index=True)
+    synopsis = Column(Text, server_default="")
+    poster_url = Column(Text, server_default="")
+    year = Column(Integer, nullable=True)
+    duration_minutes = Column(Integer, nullable=True)
+    genres = Column(String(500), server_default="")
+    source = Column(String(255), server_default="")
+    stream_url = Column(Text, nullable=False)
+    sort_order = Column(Integer, server_default="0")
+    is_active = Column(Boolean, server_default="true", index=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())

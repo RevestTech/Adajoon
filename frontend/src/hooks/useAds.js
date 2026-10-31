@@ -21,6 +21,11 @@ export default function useAds(videoElementRef, adContainerRef) {
   const adsLoaderRef = useRef(null);
   const adsManagerRef = useRef(null);
   const adDisplayContainerRef = useRef(null);
+  // Mirrors `adsEnabled` synchronously so playPreRoll() - which may be called
+  // from a closure captured before this effect last ran - always reads the
+  // current value instead of whatever `adsEnabled` was at the time its own
+  // closure was created.
+  const adsEnabledRef = useRef(false);
   // Resolves the in-flight playPreRoll() promise once the ad sequence
   // genuinely finishes (completed, skipped, or errored) - set per call so
   // we never resolve early just because the manager loaded.
@@ -35,6 +40,7 @@ export default function useAds(videoElementRef, adContainerRef) {
 
   useEffect(() => {
     const shouldEnable = areAdsSupported() && shouldShowAds(user);
+    adsEnabledRef.current = shouldEnable;
     setAdsEnabled(shouldEnable);
 
     if (!shouldEnable) return;
@@ -113,7 +119,7 @@ export default function useAds(videoElementRef, adContainerRef) {
    * never resolves early just because the ads manager finished loading.
    */
   const playPreRoll = useCallback(() => {
-    if (!adsEnabled || !adsLoaderRef.current || !adDisplayContainerRef.current) {
+    if (!adsEnabledRef.current || !adsLoaderRef.current || !adDisplayContainerRef.current) {
       return Promise.resolve();
     }
 
@@ -135,7 +141,7 @@ export default function useAds(videoElementRef, adContainerRef) {
         }
       }, 10000);
     });
-  }, [adsEnabled, videoElementRef, finishPreRoll]);
+  }, [videoElementRef, finishPreRoll]);
 
   return {
     adsEnabled,

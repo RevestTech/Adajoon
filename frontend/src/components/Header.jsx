@@ -104,83 +104,99 @@ export default function Header({
             </svg>
             <span className="mode-btn-label">Map</span>
           </button>
+          <button className={`mode-btn ${mode === "movies" ? "active" : ""}`} onClick={() => onModeSwitch("movies")} aria-label="Movies" title="Movies">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="2" y="3" width="20" height="18" rx="2" ry="2" />
+              <line x1="7" y1="3" x2="7" y2="21" />
+              <line x1="17" y1="3" x2="17" y2="21" />
+              <line x1="2" y1="9" x2="7" y2="9" />
+              <line x1="2" y1="15" x2="7" y2="15" />
+              <line x1="17" y1="9" x2="22" y2="9" />
+              <line x1="17" y1="15" x2="22" y2="15" />
+            </svg>
+            <span className="mode-btn-label">Movies</span>
+          </button>
         </div>
       </div>
 
       <div className="header-right">
-        {isGuest ? (
-          <button
-            type="button"
-            className="header-fav-btn header-fav-btn--guest"
-            onClick={() => onGuestNotice?.("Sign in to view and save favorites.")}
-            aria-label="Favorites — sign in required"
-            title="Sign in to use favorites"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-            </svg>
-          </button>
-        ) : (
-          <button
-            className={`header-fav-btn ${showFavorites ? "active" : ""}`}
-            onClick={onToggleFavorites}
-            aria-label="Favorites"
-            title="Favorites"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill={showFavorites ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-            </svg>
-            {favoritesCount > 0 && <span className="header-fav-count">{favoritesCount}</span>}
-          </button>
-        )}
-        <div className="header-search">
-          <svg className="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
-          </svg>
-          <input
-            ref={searchRef}
-            className="search-input"
-            type="text"
-            placeholder={mode === "tv" ? "Search channels..." : "Search stations..."}
-            value={localSearch}
-            onChange={handleChange}
-            onFocus={handleFocus}
-            onBlur={handleBlur}
-            aria-label={mode === "tv" ? "Search channels" : "Search stations"}
-          />
-          {showTrending && trending.length > 0 && (
-            <div className="trending-dropdown" role="listbox" aria-label="Trending">
-              <div className="trending-dropdown-label">Trending now</div>
-              {trending.map((item) => (
-                <button
-                  type="button"
-                  key={item.id}
-                  className="trending-dropdown-item"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => handleTrendingPick(item)}
-                >
-                  {item.logo ? (
-                    <img src={item.logo} alt="" className="trending-dropdown-logo" />
-                  ) : (
-                    <span className="trending-dropdown-logo trending-dropdown-logo--placeholder" />
-                  )}
-                  <span className="trending-dropdown-name">{item.name}</span>
-                </button>
-              ))}
+        {mode !== "movies" && (
+          <>
+            {isGuest ? (
+              <button
+                type="button"
+                className="header-fav-btn header-fav-btn--guest"
+                onClick={() => onGuestNotice?.("Sign in to view and save favorites.")}
+                aria-label="Favorites — sign in required"
+                title="Sign in to use favorites"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+                </svg>
+              </button>
+            ) : (
+              <button
+                className={`header-fav-btn ${showFavorites ? "active" : ""}`}
+                onClick={onToggleFavorites}
+                aria-label="Favorites"
+                title="Favorites"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill={showFavorites ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+                </svg>
+                {favoritesCount > 0 && <span className="header-fav-count">{favoritesCount}</span>}
+              </button>
+            )}
+            <div className="header-search">
+              <svg className="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
+              </svg>
+              <input
+                ref={searchRef}
+                className="search-input"
+                type="text"
+                placeholder={mode === "tv" ? "Search channels..." : "Search stations..."}
+                value={localSearch}
+                onChange={handleChange}
+                onFocus={handleFocus}
+                onBlur={handleBlur}
+                aria-label={mode === "tv" ? "Search channels" : "Search stations"}
+              />
+              {showTrending && trending.length > 0 && (
+                <div className="trending-dropdown" role="listbox" aria-label="Trending">
+                  <div className="trending-dropdown-label">Trending now</div>
+                  {trending.map((item) => (
+                    <button
+                      type="button"
+                      key={item.id}
+                      className="trending-dropdown-item"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => handleTrendingPick(item)}
+                    >
+                      {item.logo ? (
+                        <img src={item.logo} alt="" className="trending-dropdown-logo" />
+                      ) : (
+                        <span className="trending-dropdown-logo trending-dropdown-logo--placeholder" />
+                      )}
+                      <span className="trending-dropdown-name">{item.name}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              <button
+                type="button"
+                className="ai-search-btn ai-search-btn--inline"
+                onClick={onOpenAISearch}
+                aria-label="Search with AI instead"
+                title="Search with AI instead"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                  <path d="M12 2L14.09 8.26L20 9.27L15.55 13.97L16.91 20L12 16.9L7.09 20L8.45 13.97L4 9.27L9.91 8.26L12 2Z" fill="currentColor" />
+                </svg>
+              </button>
             </div>
-          )}
-          <button
-            type="button"
-            className="ai-search-btn ai-search-btn--inline"
-            onClick={onOpenAISearch}
-            aria-label="Search with AI instead"
-            title="Search with AI instead"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-              <path d="M12 2L14.09 8.26L20 9.27L15.55 13.97L16.91 20L12 16.9L7.09 20L8.45 13.97L4 9.27L9.91 8.26L12 2Z" fill="currentColor" />
-            </svg>
-          </button>
-        </div>
+          </>
+        )}
         <button
           type="button"
           className="pricing-nav-btn"

@@ -22,6 +22,7 @@ from app.middleware.www_redirect import WWWRedirectMiddleware
 from app.routers import auth  # whitelabel
 from app.routers import (
     admin,
+    admin_movies,
     admin_pricing,
     ai_search,
     analytics,
@@ -32,6 +33,7 @@ from app.routers import (
     healthcheck,
     history,
     languages,
+    movies,
     parental,
     playlists,
     radio,
@@ -155,6 +157,8 @@ app.include_router(redis_health.router)
 app.include_router(ai_search.router)
 app.include_router(admin.router)
 app.include_router(admin_pricing.router)
+app.include_router(admin_movies.router)
+app.include_router(movies.router)
 app.include_router(analytics.router)
 app.include_router(sitemap.router)
 
