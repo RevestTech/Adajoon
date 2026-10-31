@@ -367,6 +367,10 @@ export default function App() {
     });
   }, [auth.user]);
 
+  // Admin is a real page, not app state - computed early since several
+  // effects below need it in their dependency arrays.
+  const onAdminPage = isAdminPath(window.location.pathname);
+
   // TV: load metadata
   const loadMeta = useCallback(async () => {
     try {
@@ -812,8 +816,6 @@ export default function App() {
     setMode("radio");
     setShowRadioFavorites(false);
   }, []);
-
-  const onAdminPage = isAdminPath(window.location.pathname);
 
   useNavigationTracking({
     mode,
