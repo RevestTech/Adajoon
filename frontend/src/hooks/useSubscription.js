@@ -4,8 +4,6 @@
 import { useState, useEffect } from 'react';
 import { authenticatedFetch } from '../utils/csrf';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-
 export default function useSubscription() {
   const [tier, setTier] = useState('free');
   const [status, setStatus] = useState('');
@@ -18,7 +16,7 @@ export default function useSubscription() {
    */
   const loadTiers = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/subscriptions/tiers`);
+      const response = await fetch(`/api/subscriptions/tiers`);
       if (response.ok) {
         const data = await response.json();
         setTiers(data.tiers || {});
@@ -35,7 +33,7 @@ export default function useSubscription() {
     setLoading(true);
     
     try {
-      const response = await authenticatedFetch(`${API_URL}/api/subscriptions/status`);
+      const response = await authenticatedFetch(`/api/subscriptions/status`);
       if (response.ok) {
         const data = await response.json();
         setTier(data.tier || 'free');
@@ -57,7 +55,7 @@ export default function useSubscription() {
       const successUrl = `${window.location.origin}/subscription/success`;
       const cancelUrl = `${window.location.origin}/subscription/cancel`;
 
-      const response = await authenticatedFetch(`${API_URL}/api/subscriptions/checkout`, {
+      const response = await authenticatedFetch(`/api/subscriptions/checkout`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -94,7 +92,7 @@ export default function useSubscription() {
     try {
       const returnUrl = window.location.origin;
       
-      const response = await authenticatedFetch(`${API_URL}/api/subscriptions/portal`, {
+      const response = await authenticatedFetch(`/api/subscriptions/portal`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ return_url: returnUrl }),
