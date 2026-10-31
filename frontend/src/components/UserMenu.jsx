@@ -29,15 +29,41 @@ export default function UserMenu({ user, onLogout, onLogin, onOpenAdmin, onOpenS
     }
   };
 
+  const isLocalhost =
+    typeof window !== "undefined" &&
+    ["localhost", "127.0.0.1"].includes(window.location.hostname);
+
   if (!user) {
     return (
-      <button className="user-login-btn" onClick={onLogin} aria-label="Sign In" title="Sign In">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-          <circle cx="12" cy="7" r="4" />
-        </svg>
-        <span className="user-login-btn-label">Sign In</span>
-      </button>
+      <div className="user-login-group">
+        <button className="user-login-btn" onClick={onLogin} aria-label="Sign In" title="Sign In">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+            <circle cx="12" cy="7" r="4" />
+          </svg>
+          <span className="user-login-btn-label">Sign In</span>
+        </button>
+        {isLocalhost && (
+          <>
+            <button
+              type="button"
+              className="user-login-btn user-login-btn--dev"
+              onClick={() => auth.loginWithDev().catch(() => {})}
+              title="Local-only: log in without Google/Apple"
+            >
+              Dev Login
+            </button>
+            <button
+              type="button"
+              className="user-login-btn user-login-btn--dev"
+              onClick={() => auth.loginWithDev("dev-admin@localhost.test", true).catch(() => {})}
+              title="Local-only: log in as an admin test user"
+            >
+              Dev Login (Admin)
+            </button>
+          </>
+        )}
+      </div>
     );
   }
 

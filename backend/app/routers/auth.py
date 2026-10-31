@@ -283,6 +283,54 @@ async def google_login(
     return _user_response(user)
 
 
+# ===========================================================================
+# DEV LOGIN (local testing only - never available outside dev/development)
+# ===========================================================================
+
+
+@router.post("/dev-login")
+async def dev_login(
+    request: Request,
+    response: Response,
+    email: str = "dev@localhost.test",
+    admin: bool = False,
+    db: AsyncSession = Depends(get_db),
+):
+    """Log in as a throwaway local user, bypassing Google/Apple entirely.
+
+    For testing session/account-state locally where Google OAuth can't be
+    set up (origin not whitelisted, no client ID, etc). 404s outside
+    ENV=dev|development so this can never be reached in production.
+    """
+    if settings.env not in ("dev", "development"):
+        raise HTTPException(status_code=404)
+
+    result = await db.execute(select(User).where(User.email == email))
+    user = result.scalar_one_or_none()
+
+    if user:
+        user.last_login_at = datetime.now(timezone.utc)
+        if admin:
+            user.is_admin = True
+    else:
+        user = User(
+            email=email,
+            name=email.split("@")[0],
+            provider="dev",
+            provider_id="dev",
+            is_admin=admin,
+            last_login_at=datetime.now(timezone.utc),
+        )
+        db.add(user)
+
+    await db.commit()
+    await db.refresh(user)
+    token = create_token(user.id, user.email, user.is_admin, user.role)
+    _set_auth_cookies(response, user, token, request=request)
+    logger.info("Dev login ok user_id=%s email=%s", user.id, user.email)
+    return _user_response(user)
+
+
 APPLE_KEYS_TTL = 3600  # 1 hour
 
 
