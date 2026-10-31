@@ -13,7 +13,13 @@ function splitList(value) {
 export function isKnownPath(pathname) {
   if (pathname === "/" || pathname === "") return true;
   if (/^\/(tv\/channel|radio\/station)\/[^/]+\/?$/.test(pathname)) return true;
+  if (/^\/admin(\/[^/]+)?\/?$/.test(pathname)) return true;
   return false;
+}
+
+/** True for any /admin or /admin/:tab path. */
+export function isAdminPath(pathname) {
+  return /^\/admin(\/[^/]+)?\/?$/.test(pathname);
 }
 
 /**

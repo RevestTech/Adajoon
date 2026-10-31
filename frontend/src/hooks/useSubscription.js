@@ -12,9 +12,11 @@ export default function useSubscription() {
   const [endsAt, setEndsAt] = useState(null);
   const [loading, setLoading] = useState(true);
   const [tiers, setTiers] = useState({});
+  const [adsEnabled, setAdsEnabled] = useState(true);
 
   /**
-   * Load available tiers.
+   * Load available tiers (and the global ads on/off switch, which rides
+   * along on this same response rather than a separate endpoint).
    */
   const loadTiers = async () => {
     try {
@@ -22,6 +24,7 @@ export default function useSubscription() {
       if (response.ok) {
         const data = await response.json();
         setTiers(data.tiers || {});
+        setAdsEnabled(data.ads_enabled !== false);
       }
     } catch (error) {
       console.error('Failed to load tiers:', error);
@@ -147,6 +150,7 @@ export default function useSubscription() {
     endsAt,
     loading,
     tiers,
+    adsEnabled,
     checkout,
     openPortal,
     isPremium,

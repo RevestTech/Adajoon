@@ -15,7 +15,7 @@ from app.csrf import verify_csrf_token
 from app.database import get_db
 from app.models import User
 from app.routers.auth import require_user
-from app.services import pricing_service
+from app.services import pricing_service, settings_service
 
 
 def _is_allowed_redirect_url(url: str) -> bool:
@@ -78,7 +78,9 @@ class PortalRequest(BaseModel):
 async def get_tiers(db: AsyncSession = Depends(get_db)):
     """Get available subscription tiers, as set by an admin in the pricing manager."""
     tiers = await pricing_service.list_tiers(db, active_only=True)
+    ads_enabled = await settings_service.get_bool_setting(db, "ads_enabled", True)
     return {
+        "ads_enabled": ads_enabled,
         "tiers": {
             tier.key: {
                 "name": tier.name,
@@ -96,7 +98,7 @@ async def get_tiers(db: AsyncSession = Depends(get_db)):
                 ],
             }
             for tier in tiers
-        }
+        },
     }
 
 

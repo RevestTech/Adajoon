@@ -11,12 +11,14 @@ import {
   shouldShowAds,
 } from '../utils/ads';
 import { useAuth } from './useAuth';
+import useSubscription from './useSubscription';
 
 export default function useAds(videoElementRef, adContainerRef) {
   const [adPlaying, setAdPlaying] = useState(false);
   const [adsEnabled, setAdsEnabled] = useState(false);
 
   const { user } = useAuth();
+  const { adsEnabled: adsEnabledGlobally } = useSubscription();
 
   const adsLoaderRef = useRef(null);
   const adsManagerRef = useRef(null);
@@ -39,7 +41,7 @@ export default function useAds(videoElementRef, adContainerRef) {
   }, []);
 
   useEffect(() => {
-    const shouldEnable = areAdsSupported() && shouldShowAds(user);
+    const shouldEnable = areAdsSupported() && shouldShowAds(user, adsEnabledGlobally);
     adsEnabledRef.current = shouldEnable;
     setAdsEnabled(shouldEnable);
 
@@ -111,7 +113,7 @@ export default function useAds(videoElementRef, adContainerRef) {
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [videoElementRef, adContainerRef, user, finishPreRoll]);
+  }, [videoElementRef, adContainerRef, user, adsEnabledGlobally, finishPreRoll]);
 
   /**
    * Request and play a pre-roll ad before content. Resolves once the ad

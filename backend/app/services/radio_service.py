@@ -147,8 +147,10 @@ async def sync_radio_stations(db: AsyncSession) -> int:
 
 
 async def search_radio(db: AsyncSession, params: RadioSearchParams):
-    query = select(RadioStation)
-    count_query = select(func.count(RadioStation.id))
+    query = select(RadioStation).where(RadioStation.admin_hidden.is_(False))
+    count_query = select(func.count(RadioStation.id)).where(
+        RadioStation.admin_hidden.is_(False)
+    )
 
     if params.query:
         pattern = f"%{params.query}%"
@@ -257,7 +259,11 @@ def get_radio_tags(limit: int = 60):
 
 
 async def get_station_by_id(db: AsyncSession, station_id: str):
-    result = await db.execute(select(RadioStation).where(RadioStation.id == station_id))
+    result = await db.execute(
+        select(RadioStation).where(
+            RadioStation.id == station_id, RadioStation.admin_hidden.is_(False)
+        )
+    )
     return result.scalar_one_or_none()
 
 

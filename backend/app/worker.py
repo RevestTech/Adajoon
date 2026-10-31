@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import time
+from datetime import datetime, timezone
 
 from sqlalchemy import text
 
@@ -8,6 +9,7 @@ from app.database import Base, async_session, engine
 from app.services.epg_service import sync_epg
 from app.services.iptv_service import full_sync
 from app.services.radio_service import sync_radio_stations
+from app.services.settings_service import set_setting
 from app.services.validator_service import validate_all_channels, validate_all_radio
 
 logging.basicConfig(
@@ -88,6 +90,13 @@ async def main():
             cycle_elapsed,
             SLEEP_SECONDS,
         )
+        try:
+            async with async_session() as db:
+                await set_setting(
+                    db, "last_sync_at", datetime.now(timezone.utc).isoformat()
+                )
+        except Exception as e:
+            logger.warning("Failed to record last_sync_at: %s", e)
         try:
             await asyncio.sleep(SLEEP_SECONDS)
         except asyncio.CancelledError:

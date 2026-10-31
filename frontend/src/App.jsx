@@ -8,7 +8,6 @@ import VideoPlayer from "./components/VideoPlayer";
 import RadioPlayer from "./components/RadioPlayer";
 import MiniPlayer from "./components/MiniPlayer";
 import FloatingPlayer from "./components/FloatingPlayer";
-import AdminDashboard from "./components/AdminDashboard";
 import SettingsPage from "./components/SettingsPage";
 import PricingPage from "./components/PricingPage";
 import GuestNoticeToast from "./components/GuestNoticeToast";
@@ -37,6 +36,7 @@ import {
   pushPlayerState,
   popPlayerState,
   isKnownPath,
+  isAdminPath,
 } from "./hooks/useUrlState";
 import { fetchChannels, fetchChannel, fetchCategories, fetchCountries, fetchStats } from "./api/channels";
 import { fetchRadioStations, fetchStation, fetchRadioTags, fetchRadioCountries } from "./api/radio";
@@ -53,6 +53,7 @@ import { analytics } from "./analytics";
 
 const LandingPage = lazy(() => import("./components/LandingPage"));
 const RadioGardenMap = lazy(() => import("./components/RadioGardenMap"));
+const AdminDashboard = lazy(() => import("./components/AdminDashboard"));
 
 const GOOGLE_CLIENT_ID = "735750557405-01nak31482018qbfu1sigov94c1k4ca7.apps.googleusercontent.com";
 const APPLE_CLIENT_ID = "com.adajoon.web";
@@ -757,9 +758,6 @@ export default function App() {
   // AI Search state
   const [showAISearch, setShowAISearch] = useState(false);
 
-  // Admin dashboard state
-  const [showAdminDashboard, setShowAdminDashboard] = useState(false);
-
   // Settings page state
   const [showSettings, setShowSettings] = useState(false);
 
@@ -815,12 +813,22 @@ export default function App() {
     query: mode === "tv" ? search : radioSearch,
     showFavorites: mode === "tv" ? showFavorites : showRadioFavorites,
     showAISearch,
-    showAdminDashboard,
     showLogin,
     selectedChannelId: selectedChannel?.id,
     selectedStationId: selectedStation?.id,
     isGuest,
   });
+
+  // Admin is a real page, not app state - render it standalone, same pattern
+  // as the guest/landing branch, and skip the rest of this component's
+  // (unrelated) TV/radio rendering entirely while on it.
+  if (isAdminPath(window.location.pathname)) {
+    return (
+      <Suspense fallback={null}>
+        <AdminDashboard onClose={() => { window.location.href = "/"; }} />
+      </Suspense>
+    );
+  }
 
   return (
     <>
@@ -843,7 +851,7 @@ export default function App() {
         isGuest={isGuest}
         onGuestNotice={onGuestNotice}
         onOpenAISearch={() => setShowAISearch(true)}
-        onOpenAdmin={() => setShowAdminDashboard(true)}
+        onOpenAdmin={() => { window.location.href = "/admin"; }}
         onOpenSettings={() => setShowSettings(true)}
         onOpenPricing={() => setShowPricing(true)}
         onOpenWhatsNew={() => setShowWhatsNew(true)}
@@ -1128,11 +1136,6 @@ export default function App() {
             onClose={() => setShowAISearch(false)}
           />
         </ErrorBoundary>
-      )}
-      {showAdminDashboard && (
-        <AdminDashboard
-          onClose={() => setShowAdminDashboard(false)}
-        />
       )}
       {showSettings && (
         <ErrorBoundary compact compactMessage="Settings failed to load.">

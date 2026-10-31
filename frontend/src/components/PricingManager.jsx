@@ -11,6 +11,8 @@ import {
   createAdminDiscount,
   updateAdminDiscount,
   deleteAdminDiscount,
+  fetchAdminPricingSettings,
+  updateAdminPricingSettings,
 } from "../api/adminPricing";
 
 const centsToDollars = (cents) => (cents == null ? "" : (cents / 100).toFixed(2));
@@ -342,16 +344,20 @@ export default function PricingManager() {
   const [newTierKey, setNewTierKey] = useState("");
   const [newTierName, setNewTierName] = useState("");
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [adsEnabled, setAdsEnabled] = useState(true);
+  const [adsSaving, setAdsSaving] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [tiersData, discountsData] = await Promise.all([
+      const [tiersData, discountsData, settingsData] = await Promise.all([
         fetchAdminTiers(),
         fetchAdminDiscounts(),
+        fetchAdminPricingSettings(),
       ]);
       setTiers(tiersData);
       setDiscounts(discountsData);
+      setAdsEnabled(settingsData.ads_enabled);
       setError(null);
     } catch (err) {
       setError(err.message);
@@ -363,6 +369,19 @@ export default function PricingManager() {
   useEffect(() => {
     load();
   }, [load]);
+
+  const handleAdsToggle = async () => {
+    const next = !adsEnabled;
+    setAdsSaving(true);
+    try {
+      const result = await updateAdminPricingSettings({ ads_enabled: next });
+      setAdsEnabled(result.ads_enabled);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setAdsSaving(false);
+    }
+  };
 
   const handleTierChange = async (id, patch) => {
     try {
@@ -471,6 +490,25 @@ export default function PricingManager() {
       {error && <div className="admin-error">{error}</div>}
 
       {previewOpen && <PricingPreview tiers={tiers} onClose={() => setPreviewOpen(false)} />}
+
+      <div className="admin-section">
+        <div className="pricing-section-header">
+          <h2>Monetization</h2>
+        </div>
+        <label className="pricing-toggle">
+          <input
+            type="checkbox"
+            checked={adsEnabled}
+            disabled={adsSaving}
+            onChange={handleAdsToggle}
+          />
+          Show ads to free/guest users
+        </label>
+        <p className="settings-section-hint">
+          Global kill switch - turn this off to stop all pre-roll ads immediately
+          (e.g. an ad vendor issue), independent of per-tier eligibility below.
+        </p>
+      </div>
 
       <div className="admin-section">
         <div className="pricing-section-header">

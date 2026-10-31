@@ -13,8 +13,12 @@ FOR_YOU_MAX_LIMIT = 20
 
 
 async def search_channels(db: AsyncSession, params: ChannelSearchParams):
-    query = select(Channel).where(Channel.is_nsfw.is_(False))
-    count_query = select(func.count(Channel.id)).where(Channel.is_nsfw.is_(False))
+    query = select(Channel).where(
+        Channel.is_nsfw.is_(False), Channel.admin_hidden.is_(False)
+    )
+    count_query = select(func.count(Channel.id)).where(
+        Channel.is_nsfw.is_(False), Channel.admin_hidden.is_(False)
+    )
 
     if params.query:
         pattern = f"%{params.query}%"
@@ -155,7 +159,9 @@ async def get_for_you_channels(
 
 
 async def get_channel_by_id(db: AsyncSession, channel_id: str):
-    result = await db.execute(select(Channel).where(Channel.id == channel_id))
+    result = await db.execute(
+        select(Channel).where(Channel.id == channel_id, Channel.admin_hidden.is_(False))
+    )
     return result.scalar_one_or_none()
 
 

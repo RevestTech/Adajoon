@@ -10,6 +10,16 @@ async function parseOrThrow(res) {
   return res.json();
 }
 
+export const fetchAdminPricingSettings = () =>
+  authenticatedFetch(`${BASE}/settings`).then(parseOrThrow);
+
+export const updateAdminPricingSettings = (data) =>
+  authenticatedFetch(`${BASE}/settings`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  }).then(parseOrThrow);
+
 export const fetchAdminTiers = () => authenticatedFetch(`${BASE}/tiers`).then(parseOrThrow);
 
 export const createAdminTier = (data) =>

@@ -3,6 +3,26 @@ import { authenticatedFetch } from "../utils/csrf";
 import { WHATS_NEW, formatReleaseDate } from "../data/whatsNew";
 import PricingManager from "./PricingManager";
 import MovieManager from "./MovieManager";
+import UserManager from "./UserManager";
+import SubscriptionManager from "./SubscriptionManager";
+import ContentModeration from "./ContentModeration";
+
+const TAB_TITLES = {
+  overview: "Overview",
+  users: "Users",
+  content: "Content",
+  activity: "Activity",
+  analytics: "Analytics",
+  pricing: "Pricing",
+  movies: "Movies",
+  subscriptions: "Subscriptions",
+  releases: "Releases",
+};
+
+function tabFromPath() {
+  const seg = window.location.pathname.split("/")[2];
+  return TAB_TITLES[seg] ? seg : "overview";
+}
 
 export default function AdminDashboard({ onClose }) {
   const [loading, setLoading] = useState(true);
@@ -12,8 +32,22 @@ export default function AdminDashboard({ onClose }) {
   const [contentStats, setContentStats] = useState(null);
   const [activityStats, setActivityStats] = useState(null);
   const [analyticsStats, setAnalyticsStats] = useState(null);
-  const [activeTab, setActiveTab] = useState("overview");
+  const [activeTab, setActiveTabState] = useState(tabFromPath);
   const [timePeriod, setTimePeriod] = useState(30);
+
+  const setActiveTab = useCallback((tab) => {
+    setActiveTabState(tab);
+    history.pushState(null, "", `/admin/${tab}`);
+    document.title = `Admin · ${TAB_TITLES[tab]} - Adajoon`;
+  }, []);
+
+  useEffect(() => {
+    document.title = `Admin · ${TAB_TITLES[activeTab]} - Adajoon`;
+    const onPopState = () => setActiveTabState(tabFromPath());
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const loadOverview = useCallback(async () => {
     setLoading(true);
@@ -111,50 +145,43 @@ export default function AdminDashboard({ onClose }) {
 
   if (loading && !overview) {
     return (
-      <div className="admin-modal-overlay">
-        <div className="admin-modal">
-          <div className="admin-loading">Loading admin dashboard...</div>
-        </div>
+      <div className="admin-page">
+        <div className="admin-loading">Loading admin dashboard...</div>
       </div>
     );
   }
 
   if (error && !overview) {
     return (
-      <div className="admin-modal-overlay">
-        <div className="admin-modal">
-          <div className="admin-error">
-            <p>Error loading admin dashboard: {error}</p>
-            {error.includes("403") && (
-              <p className="admin-error-hint">You do not have admin access.</p>
-            )}
-            <button onClick={onClose}>Close</button>
-          </div>
+      <div className="admin-page">
+        <div className="admin-error">
+          <p>Error loading admin dashboard: {error}</p>
+          {error.includes("403") && (
+            <p className="admin-error-hint">You do not have admin access.</p>
+          )}
+          <button onClick={onClose}>Back to Adajoon</button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="admin-modal-overlay">
-      <div className="admin-modal">
-        <div className="admin-header">
-          <h1>Admin Dashboard</h1>
-          <button className="admin-close" onClick={onClose}>×</button>
-        </div>
+    <div className="admin-page">
+      <div className="admin-header">
+        <button className="admin-back-link" onClick={onClose}>
+          ← Back to Adajoon
+        </button>
+        <h1>Admin · {TAB_TITLES[activeTab]}</h1>
+      </div>
 
-        <div className="admin-tabs">
+      <div className="admin-tabs">
+        <div className="admin-tab-group">
+          <span className="admin-tab-group-label">Insights</span>
           <button
             className={`admin-tab ${activeTab === "overview" ? "active" : ""}`}
             onClick={() => setActiveTab("overview")}
           >
             Overview
-          </button>
-          <button
-            className={`admin-tab ${activeTab === "users" ? "active" : ""}`}
-            onClick={() => setActiveTab("users")}
-          >
-            Users
           </button>
           <button
             className={`admin-tab ${activeTab === "content" ? "active" : ""}`}
@@ -173,6 +200,21 @@ export default function AdminDashboard({ onClose }) {
             onClick={() => setActiveTab("analytics")}
           >
             Analytics
+          </button>
+        </div>
+        <div className="admin-tab-group">
+          <span className="admin-tab-group-label">Manage</span>
+          <button
+            className={`admin-tab ${activeTab === "users" ? "active" : ""}`}
+            onClick={() => setActiveTab("users")}
+          >
+            Users
+          </button>
+          <button
+            className={`admin-tab ${activeTab === "subscriptions" ? "active" : ""}`}
+            onClick={() => setActiveTab("subscriptions")}
+          >
+            Subscriptions
           </button>
           <button
             className={`admin-tab ${activeTab === "pricing" ? "active" : ""}`}
@@ -193,6 +235,7 @@ export default function AdminDashboard({ onClose }) {
             Releases
           </button>
         </div>
+      </div>
 
         {(activeTab === "users" || activeTab === "activity" || activeTab === "analytics") && (
           <div className="admin-period-selector">
@@ -278,6 +321,16 @@ export default function AdminDashboard({ onClose }) {
                     <span className="admin-health-icon">{overview.system.redis_healthy ? "✓" : "✗"}</span>
                     <span>Redis: {overview.system.redis_healthy ? "Healthy" : "Unhealthy"}</span>
                   </div>
+                  <div className={`admin-health-item ${overview.system.db_healthy ? "healthy" : "unhealthy"}`}>
+                    <span className="admin-health-icon">{overview.system.db_healthy ? "✓" : "✗"}</span>
+                    <span>Database: {overview.system.db_healthy ? "Healthy" : "Unhealthy"}</span>
+                  </div>
+                  <div className="admin-health-time">
+                    Last catalog sync:{" "}
+                    {overview.system.last_sync_at
+                      ? new Date(overview.system.last_sync_at).toLocaleString()
+                      : "Never (first cycle still running)"}
+                  </div>
                   <div className="admin-health-time">
                     Last updated: {new Date(overview.system.timestamp).toLocaleString()}
                   </div>
@@ -343,6 +396,8 @@ export default function AdminDashboard({ onClose }) {
                   </table>
                 </div>
               </div>
+
+              <UserManager />
             </div>
           )}
 
@@ -425,6 +480,8 @@ export default function AdminDashboard({ onClose }) {
                   ))}
                 </div>
               </div>
+
+              <ContentModeration />
             </div>
           )}
 
@@ -669,6 +726,7 @@ export default function AdminDashboard({ onClose }) {
             </div>
           )}
 
+          {activeTab === "subscriptions" && <SubscriptionManager />}
           {activeTab === "pricing" && <PricingManager />}
           {activeTab === "movies" && <MovieManager />}
 
@@ -691,6 +749,5 @@ export default function AdminDashboard({ onClose }) {
           )}
         </div>
       </div>
-    </div>
   );
 }
