@@ -50,7 +50,10 @@ async def run_cycle() -> bool:
     ok = True
 
     async with async_session() as db:
-        if await _phase("validate_all_channels", validate_all_channels(db)) is _PHASE_FAILED:
+        if (
+            await _phase("validate_all_channels", validate_all_channels(db))
+            is _PHASE_FAILED
+        ):
             ok = False
 
     async with async_session() as db:
@@ -62,7 +65,10 @@ async def run_cycle() -> bool:
             ok = False
 
     async with async_session() as db:
-        if await _phase("sync_radio_stations", sync_radio_stations(db)) is _PHASE_FAILED:
+        if (
+            await _phase("sync_radio_stations", sync_radio_stations(db))
+            is _PHASE_FAILED
+        ):
             ok = False
 
     async with async_session() as db:

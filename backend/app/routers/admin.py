@@ -668,9 +668,7 @@ async def admin_search_channels(
 ):
     pattern = _ilike_pattern(q)
     cond = Channel.name.ilike(pattern, escape="\\")
-    total = (
-        await db.execute(select(func.count(Channel.id)).where(cond))
-    ).scalar() or 0
+    total = (await db.execute(select(func.count(Channel.id)).where(cond))).scalar() or 0
     result = await db.execute(
         select(Channel)
         .where(cond)
