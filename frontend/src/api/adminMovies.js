@@ -31,3 +31,6 @@ export const deleteAdminMovie = (id) =>
 
 export const searchTmdbMovies = (q) =>
   authenticatedFetch(`${BASE}/tmdb-search?q=${encodeURIComponent(q)}`).then(parseOrThrow);
+
+export const searchArchiveMovies = (q) =>
+  authenticatedFetch(`${BASE}/archive-search?q=${encodeURIComponent(q)}`).then(parseOrThrow);

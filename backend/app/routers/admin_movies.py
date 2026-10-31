@@ -16,7 +16,7 @@ from app.database import get_db
 from app.middleware.admin_required import require_admin
 from app.models import User
 from app.schemas import MovieCreate, MovieOut, MovieUpdate
-from app.services import movie_service, tmdb_service
+from app.services import archive_org_service, movie_service, tmdb_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/admin/movies", tags=["admin", "movies"])
@@ -40,6 +40,22 @@ async def admin_tmdb_search(
     except Exception:
         logger.exception("TMDb search failed for query %r", q)
         raise HTTPException(status_code=502, detail="TMDb lookup failed")
+
+
+@router.get("/archive-search")
+async def admin_archive_search(
+    q: str = Query(..., min_length=1),
+    admin_user: User = Depends(require_admin),
+):
+    """Search the Internet Archive's public-domain film collection and
+    return candidates with a real, directly playable stream_url (unlike
+    tmdb-search, which only returns poster/metadata) - no API key needed,
+    archive.org's search/metadata endpoints are open."""
+    try:
+        return await archive_org_service.search_movies(q)
+    except Exception:
+        logger.exception("archive.org search failed for query %r", q)
+        raise HTTPException(status_code=502, detail="archive.org lookup failed")
 
 
 @router.get("", response_model=list[MovieOut])

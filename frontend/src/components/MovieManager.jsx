@@ -3,6 +3,7 @@ import {
   createAdminMovie,
   deleteAdminMovie,
   fetchAdminMovies,
+  searchArchiveMovies,
   searchTmdbMovies,
   updateAdminMovie,
 } from "../api/adminMovies";
@@ -49,6 +50,12 @@ export default function MovieManager() {
   const [tmdbLoading, setTmdbLoading] = useState(false);
   const [tmdbError, setTmdbError] = useState("");
   const tmdbRequest = useRef(0);
+
+  const [archiveQuery, setArchiveQuery] = useState("");
+  const [archiveResults, setArchiveResults] = useState([]);
+  const [archiveLoading, setArchiveLoading] = useState(false);
+  const [archiveError, setArchiveError] = useState("");
+  const archiveRequest = useRef(0);
 
   const load = () => {
     const requestId = ++latestRequest.current;
@@ -138,6 +145,42 @@ export default function MovieManager() {
     setTmdbQuery("");
   };
 
+  const handleArchiveSearch = (e) => {
+    e.preventDefault();
+    if (!archiveQuery.trim()) return;
+    const requestId = ++archiveRequest.current;
+    setArchiveLoading(true);
+    setArchiveError("");
+    searchArchiveMovies(archiveQuery.trim())
+      .then((results) => {
+        if (requestId !== archiveRequest.current) return;
+        setArchiveResults(results);
+      })
+      .catch((err) => {
+        if (requestId === archiveRequest.current) {
+          setArchiveError(err.message);
+          setArchiveResults([]);
+        }
+      })
+      .finally(() => {
+        if (requestId === archiveRequest.current) setArchiveLoading(false);
+      });
+  };
+
+  const applyArchiveResult = (result) => {
+    setForm((prev) => ({
+      ...prev,
+      title: result.title || prev.title,
+      stream_url: result.stream_url || prev.stream_url,
+      poster_url: result.poster_url || prev.poster_url,
+      synopsis: result.synopsis || prev.synopsis,
+      year: result.year ? String(result.year) : prev.year,
+      source: "Internet Archive (public domain)",
+    }));
+    setArchiveResults([]);
+    setArchiveQuery("");
+  };
+
   return (
     <div className="pricing-manager">
       <div className="pricing-section-header">
@@ -178,6 +221,51 @@ export default function MovieManager() {
                 className="tmdb-result-card"
                 onClick={() => applyTmdbResult(r)}
                 title="Use this result"
+              >
+                {r.poster_url ? (
+                  <img src={r.poster_url} alt="" className="tmdb-result-poster" />
+                ) : (
+                  <span className="tmdb-result-poster tmdb-result-poster--empty" />
+                )}
+                <span className="tmdb-result-title">
+                  {r.title} {r.year ? `(${r.year})` : ""}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="admin-section">
+        <h4>Import a public-domain title (Internet Archive)</h4>
+        <p className="settings-section-hint">
+          Unlike TMDb above, this fills Stream URL too - these are real,
+          directly playable files, free to redistribute since everything
+          in this search is public domain or otherwise freely licensed.
+        </p>
+        <form className="pricing-add-feature-row" onSubmit={handleArchiveSearch}>
+          <input
+            className="pricing-input"
+            placeholder="Search archive.org movie titles…"
+            value={archiveQuery}
+            onChange={(e) => setArchiveQuery(e.target.value)}
+          />
+          <button type="submit" disabled={archiveLoading}>
+            {archiveLoading ? "Searching…" : "Search Internet Archive"}
+          </button>
+        </form>
+        {archiveError && (
+          <p className="pricing-save-status pricing-save-status--error">{archiveError}</p>
+        )}
+        {archiveResults.length > 0 && (
+          <div className="tmdb-results">
+            {archiveResults.map((r) => (
+              <button
+                key={r.archive_id}
+                type="button"
+                className="tmdb-result-card"
+                onClick={() => applyArchiveResult(r)}
+                title="Use this result - fills Stream URL too"
               >
                 {r.poster_url ? (
                   <img src={r.poster_url} alt="" className="tmdb-result-poster" />
