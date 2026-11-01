@@ -22,6 +22,27 @@ VAULT_PREFIX = "adajoon:"
 # app falls back to (via _get_secret) when no vault is configured.
 MANAGED_SECRETS = [
     {
+        "key": "jwt_secret",
+        "label": "JWT Secret",
+        "description": "Signs session tokens - changing this logs every "
+        "signed-in user out immediately. Min 32 characters.",
+        "sensitive": True,
+    },
+    {
+        "key": "webauthn_rp_id",
+        "label": "WebAuthn RP ID",
+        "description": "Passkey relying-party ID - the bare domain, e.g. "
+        "adajoon.com (no scheme, no port).",
+        "sensitive": False,
+    },
+    {
+        "key": "webauthn_origin",
+        "label": "WebAuthn Origin",
+        "description": "Passkey expected origin - the exact browser origin, "
+        "e.g. https://www.adajoon.com.",
+        "sensitive": False,
+    },
+    {
         "key": "tmdb_api_key",
         "label": "TMDb API Key",
         "description": "Free key from themoviedb.org/settings/api - powers "
@@ -102,9 +123,7 @@ def get_secret_status() -> list[dict]:
             except VaultSealed:
                 source = "sealed"
             except Exception as e:
-                logger.warning(
-                    "vault.has(%s) failed: %s: %s", key, type(e).__name__, e
-                )
+                logger.warning("vault.has(%s) failed: %s: %s", key, type(e).__name__, e)
                 source = "error"
         if source == "unconfigured" and os.getenv(key.upper()):
             source = "env"
