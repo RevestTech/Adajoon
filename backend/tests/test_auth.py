@@ -1,11 +1,13 @@
 """Test authentication endpoints."""
 
+from unittest.mock import patch
+
 import pytest
-from unittest.mock import patch, MagicMock
 from httpx import AsyncClient
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import User, UserFavorite, UserVote
+from app.models import User, UserVote
 from app.routers.auth import create_token
 
 
@@ -75,6 +77,7 @@ async def test_google_login_invalid_token(client: AsyncClient):
 async def test_jwt_creation_and_validation(test_user):
     """Test JWT token creation and decoding."""
     from jose import jwt
+
     from app.config import settings
 
     token = create_token(test_user.id, test_user.email)
@@ -116,13 +119,16 @@ async def test_favorites_crud(client: AsyncClient, test_user, test_db: AsyncSess
     token = create_token(test_user.id, test_user.email)
     headers = {"Authorization": f"Bearer {token}"}
 
-    # Add favorite
+    # Add favorite (item_data is a dict per FavoriteRequest, not a JSON string)
     response = await client.post(
         "/api/auth/favorites",
         json={
             "item_type": "tv",
             "item_id": "channel_123",
-            "item_data": '{"name": "Test Channel", "logo": "https://example.com/logo.png"}',
+            "item_data": {
+                "name": "Test Channel",
+                "logo": "https://example.com/logo.png",
+            },
         },
         headers=headers,
     )
@@ -136,10 +142,9 @@ async def test_favorites_crud(client: AsyncClient, test_user, test_db: AsyncSess
     assert len(favorites) == 1
     assert favorites[0]["item_id"] == "channel_123"
 
-    # Remove favorite
+    # Remove favorite (path params, not query params)
     response = await client.delete(
-        "/api/auth/favorites",
-        params={"item_type": "tv", "item_id": "channel_123"},
+        "/api/auth/favorites/tv/channel_123",
         headers=headers,
     )
     assert response.status_code == 200
@@ -153,45 +158,51 @@ async def test_favorites_crud(client: AsyncClient, test_user, test_db: AsyncSess
 
 @pytest.mark.unit
 async def test_voting_logic(client: AsyncClient, test_user, test_db: AsyncSession):
-    """Test voting up/down functionality."""
+    """Test voting functionality: POST /api/auth/votes is a toggle (valid
+    vote_type values are like/dislike/works/broken/slow/bad_quality, not
+    upvote/downvote; posting the same vote_type again removes it - there's
+    no separate delete endpoint)."""
     token = create_token(test_user.id, test_user.email)
     headers = {"Authorization": f"Bearer {token}"}
 
-    # Upvote
+    # Like
     response = await client.post(
-        "/api/auth/vote",
-        json={"item_type": "tv", "item_id": "channel_456", "vote_type": "upvote"},
+        "/api/auth/votes",
+        json={"item_type": "tv", "item_id": "channel_456", "vote_type": "like"},
         headers=headers,
     )
     assert response.status_code == 200
+    assert response.json()["status"] == "added"
 
     # Check vote was recorded
     result = await test_db.execute(
-        test_db.query(UserVote).filter_by(
-            user_id=test_user.id,
-            item_type="tv",
-            item_id="channel_456",
+        select(UserVote).where(
+            UserVote.user_id == test_user.id,
+            UserVote.item_type == "tv",
+            UserVote.item_id == "channel_456",
         )
     )
     vote = result.scalar_one_or_none()
     assert vote is not None
-    assert vote.vote_type == "upvote"
+    assert vote.vote_type == "like"
 
-    # Change to downvote
+    # A different vote_type on the same item is a second, independent vote
     response = await client.post(
-        "/api/auth/vote",
-        json={"item_type": "tv", "item_id": "channel_456", "vote_type": "downvote"},
+        "/api/auth/votes",
+        json={"item_type": "tv", "item_id": "channel_456", "vote_type": "works"},
         headers=headers,
     )
     assert response.status_code == 200
+    assert response.json()["status"] == "added"
 
-    # Remove vote
-    response = await client.delete(
-        "/api/auth/vote",
-        params={"item_type": "tv", "item_id": "channel_456"},
+    # Posting the same vote_type again toggles it off
+    response = await client.post(
+        "/api/auth/votes",
+        json={"item_type": "tv", "item_id": "channel_456", "vote_type": "like"},
         headers=headers,
     )
     assert response.status_code == 200
+    assert response.json()["status"] == "removed"
 
 
 @pytest.mark.unit
