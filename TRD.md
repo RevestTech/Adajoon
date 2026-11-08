@@ -1,8 +1,8 @@
 # Technical Reference
 
 ## Stack & versions
-- **Backend**: FastAPI 0.115, SQLAlchemy 2.0 (async), asyncpg/psycopg2, Alembic 1.14, Pydantic 2.10, Redis 5.0 (`hiredis`), Stripe SDK 8.2, APScheduler (sync worker), `python-jose`/`webauthn`/`bcrypt`/`itsdangerous` (auth/CSRF), `slowapi` (rate limiting), `prometheus-fastapi-instrumentator`. Full list: `backend/requirements.txt`.
-- **Frontend**: React 18.3, Vite 6, react-router-dom 7 (present as a dependency but the app otherwise uses manual `pushState` routing — see PR #71's rationale for not adopting it more broadly), `hls.js` (video), `maplibre-gl` (radio/TV map), `@simplewebauthn/browser` (passkeys), Vitest. Full list: `frontend/package.json`.
+- **Backend**: FastAPI 0.135, SQLAlchemy 2.0 (async), asyncpg 0.30/psycopg2-binary 2.9 (two drivers pinned — see Known tech debt in `MASTER_PLAN.md`), Alembic 1.18, Pydantic 2.12, Redis 5.0 (`hiredis`), Stripe SDK 8.2, APScheduler (sync worker), `python-jose`/`webauthn`/`bcrypt`/`itsdangerous` (auth/CSRF), `slowapi` (rate limiting), `prometheus-fastapi-instrumentator`, pytest 9 + pytest-asyncio 1.4. Full list: `backend/requirements.txt`.
+- **Frontend**: React 18.3, Vite 8 + `@vitejs/plugin-react` 6 (Babel-free, Oxc-based React Refresh — these two must move together), react-router-dom 7 (present as a dependency but the app otherwise uses manual `pushState` routing — see PR #71's rationale for not adopting it more broadly), `hls.js` (video), `maplibre-gl` (radio/TV map), `@simplewebauthn/browser` (passkeys), Vitest 4 + happy-dom 20.9. Full list: `frontend/package.json`.
 - **Deploy**: Railway, dual-service (backend serves the public domain + proxies to an internal-only frontend/nginx service). See `docs/RAILWAY_MONITORING.md`.
 
 ## Data model (`backend/app/models.py`, 20 tables)
