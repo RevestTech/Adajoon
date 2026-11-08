@@ -16,8 +16,8 @@ webauthn>=2.0.0
 slowapi
 python-json-logger
 prometheus-fastapi-instrumentator
-pytest==8.0.0
-pytest-asyncio==0.23.5
+pytest==9.0.2
+pytest-asyncio==1.4.1.post1
 pytest-cov==4.1.0
 respx==0.21.1
 faker==24.0.0
