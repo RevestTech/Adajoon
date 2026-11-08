@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.7.1] - 2026-11-08
+
+### Fixed
+- **Site-down incident**: production database was missing migrations since at least #018, causing `/api/categories` and every channel-listing endpoint to 500 with `column channels.admin_hidden does not exist`. `start.sh` now runs `alembic upgrade head` on every boot so this can't drift silently again.
+- **Backend CI wasn't actually validating tests**: the test step swallowed its own exit code, and `conftest.py`'s test-database-URL derivation was broken two different ways. Both fixed; 8 real pre-existing test failures this uncovered are now fixed too (stale field names, wrong endpoint assumptions, stale assertions against already-shipped behavior).
+- **Frontend Docker image build** was failing on every push to `main` since before this release (build context mismatch between the Dockerfile and CI workflow).
+- **Rate limiting silently broke under horizontal scaling**: several routers each created their own in-process rate limiter instead of sharing the app's Redis-backed one, undermining the parental-PIN brute-force protection the moment more than one backend instance runs. All routers now share one Redis-backed limiter.
+- **DB connection pool was undersized**: raised to match the app's actual configured concurrency, so requests no longer queue and time out under real load.
+- **Stripe checkout/portal endpoints had no rate limiting** - added.
+- `ChannelGrid` was re-rendering every visible channel card on any single state change (a favorite toggle, an EPG tick); fixed with proper memoization.
+- `admin.py`'s make-admin/revoke-admin returned errors as HTTP 200 instead of a real error status - fixed, and the frontend workaround for it removed.
+- Dependency bumps: fastapi, pytest/pytest-asyncio, vite, @vitejs/plugin-react, happy-dom, node, uvicorn, alembic, pydantic.
+
+### Changed
+- `admin.py` (1,123 lines) split into `admin_users.py`, `admin_content.py`, and `admin_analytics.py`, matching the per-domain router pattern already used elsewhere.
+- `App.jsx`'s duplicated TV/radio browsing state consolidated into a single `useCatalogList` hook.
+- Removed confirmed-dead code: `whitelabel.py` (imported a model that doesn't exist), the unused `psycopg2-binary` and `react-router-dom` dependencies, and 12 frontend files with zero references.
+- Replaced 15 stale root-level docs/scripts with `CLAUDE.md`, `PRD.md`, `TRD.md`, and `MASTER_PLAN.md` for faster AI/developer onboarding.
+
 ## [2.6.2] - 2026-10-24
 
 ### Fixed
