@@ -502,14 +502,25 @@ await db.commit()
 - Single public domain simplifies SSL/DNS
 - Centralized logging and rate limiting
 
-#### Environment Variables
+#### Secrets: Vault (AppRole), not plain env vars
 
-**Backend**:
+As of the AppRole migration (commits `f591f0c`, `95a5d8d`), app secrets live in
+`RevestTech/revest-vault`, not Railway env vars. `backend/app/config.py`'s
+`_get_secret()` reads `adajoon:<key>` from Vault first (via `VAULT_ADDR` /
+`VAULT_ROLE_ID` / `VAULT_SECRET_ID` — a one-time AppRole enrollment, never a
+static long-lived token), falling back to an env var of the same name only if
+Vault has no value or isn't configured (e.g. local dev). All 11 secrets the
+app reads this way — including `jwt_secret`, `webauthn_rp_id`,
+`webauthn_origin` — are editable from Admin → Secrets
+(`backend/app/services/vault_admin_service.py`'s `MANAGED_SECRETS`), which
+calls `get_vault()` to write/clear keys directly.
+
+**Backend env vars (non-secret / fallback only)**:
 ```bash
-DATABASE_URL=postgresql+asyncpg://...
-REDIS_URL=redis://...
+DATABASE_URL=postgresql+asyncpg://...   # Railway service reference, not a vault secret
+REDIS_URL=redis://...                   # Railway service reference, not a vault secret
 FRONTEND_URL=https://frontend-production-xyz.up.railway.app  # Internal
-JWT_SECRET=<64+ character random string>
+VAULT_ADDR=... VAULT_ROLE_ID=... VAULT_SECRET_ID=...  # AppRole enrollment (see revest-vault/examples/enroll.py)
 JSON_LOGS=true  # Production
 LOG_LEVEL=INFO
 CORS_ORIGINS=["https://adajoon.com"]
@@ -521,11 +532,7 @@ BACKEND_URL=https://backend-production-xyz.up.railway.app  # Internal
 PORT=80
 ```
 
-**⚠️ Critical**: When deploying multiple Python services (backend, worker), ensure ALL have shared env vars:
-- `JWT_SECRET` (same across all services)
-- `DATABASE_URL`
-- `REDIS_URL`
-- `ENVIRONMENT`
+**⚠️ Critical**: When deploying multiple Python services (backend, worker), ensure ALL have the same `VAULT_ADDR`/`VAULT_ROLE_ID`/`VAULT_SECRET_ID` (so they resolve the same secrets) plus `DATABASE_URL`, `REDIS_URL`, `ENVIRONMENT`.
 
 #### Docker Multi-Stage Build (Backend)
 ```dockerfile
@@ -997,6 +1004,6 @@ Use your editor's search (Cmd/Ctrl+F) to find:
 ## Version
 
 Created for Adajoon v2.3.0 (April 2026)
-Last updated: 2026-07-21 (v2.6.0 — radio map + TV EPG, auth funnel/path analytics, login cookie fixes)
+Last updated: 2026-11-08 (secrets section corrected to AppRole Vault, superseding the plain-env-var JWT_SECRET description from 2026-04-07)
 
 Skills are continuously improved through the [Skill Improvement](#skill-improvement) process.
