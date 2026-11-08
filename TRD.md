@@ -5,7 +5,7 @@
 - **Frontend**: React 18.3, Vite 6, react-router-dom 7 (present as a dependency but the app otherwise uses manual `pushState` routing — see PR #71's rationale for not adopting it more broadly), `hls.js` (video), `maplibre-gl` (radio/TV map), `@simplewebauthn/browser` (passkeys), Vitest. Full list: `frontend/package.json`.
 - **Deploy**: Railway, dual-service (backend serves the public domain + proxies to an internal-only frontend/nginx service). See `docs/RAILWAY_MONITORING.md`.
 
-## Data model (`backend/app/models.py`, 19 tables)
+## Data model (`backend/app/models.py`, 20 tables)
 `User`, `UserFavorite`, `UserVote`, `WatchHistory`, `Playlist`, `PlaylistItem`, `Passkey`, `Category`, `Language`, `Country`, `Channel`, `RadioStation`, `Stream`, `AnalyticsEvent`, `EpgProgramme`, `PricingTier`, `PricingFeature`, `PricingDiscount`, `Movie`, `AppSetting`.
 
 Migrations: `backend/alembic/versions/`, currently at `018_add_app_settings_and_admin_hidden.py`. Always add a new Alembic migration for schema changes — `Base.metadata.create_all()` (used for fresh local/test DBs) must stay in sync with migration history, or endpoints that assume migration-applied types (e.g. `AnalyticsEvent.properties` as `JSONB`) will 500 on a fresh DB. See migration `017` for a past instance of this class of bug.
