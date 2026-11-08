@@ -157,8 +157,14 @@ jobs:
     
     strategy:
       matrix:
-        component: [backend, frontend]
-    
+        include:
+          - component: backend
+            context: ./backend
+            dockerfile: ./backend/Dockerfile
+          - component: frontend
+            context: .
+            dockerfile: ./frontend/Dockerfile
+
     steps:
       - uses: actions/checkout@v4
       
@@ -188,7 +194,8 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v7
         with:
-          context: ./${{ matrix.component }}
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
