@@ -19,7 +19,6 @@ from app.limiter import limiter
 from app.logging_config import RequestLoggingMiddleware, setup_logging
 from app.middleware.security_headers import SecurityHeadersMiddleware
 from app.middleware.www_redirect import WWWRedirectMiddleware
-from app.routers import auth  # whitelabel
 from app.routers import (
     admin,
     admin_movies,
@@ -27,6 +26,7 @@ from app.routers import (
     admin_secrets,
     ai_search,
     analytics,
+    auth,
     categories,
     channels,
     csrf,
@@ -146,7 +146,6 @@ app.include_router(recommendations.router)
 app.include_router(playlists.router)
 app.include_router(parental.router)
 app.include_router(subscriptions.router)
-# app.include_router(whitelabel.router)  # TODO: Implement Tenant model first
 app.include_router(redis_health.router)
 app.include_router(ai_search.router)
 app.include_router(admin.router)

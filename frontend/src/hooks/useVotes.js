@@ -3,6 +3,12 @@ import { authenticatedFetch } from "../utils/csrf";
 
 const API = "/api/auth";
 
+// Stable singleton for "no votes yet" so getSummaryFor doesn't hand out a
+// fresh object every call for unvoted items (which is most items) - that
+// would defeat downstream React.memo on every render regardless of what
+// else changed.
+const EMPTY_SUMMARY = {};
+
 export function useVotes() {
   const [myVotes, setMyVotes] = useState({});
   const [summaries, setSummaries] = useState({});
@@ -81,7 +87,7 @@ export function useVotes() {
   }, [myVotes]);
 
   const getSummaryFor = useCallback((itemType, itemId) => {
-    return summaries[`${itemType}:${itemId}`] || {};
+    return summaries[`${itemType}:${itemId}`] || EMPTY_SUMMARY;
   }, [summaries]);
 
   const resetLoaded = useCallback(() => {
