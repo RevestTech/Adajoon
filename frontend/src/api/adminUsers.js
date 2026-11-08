@@ -5,13 +5,7 @@ async function parseOrThrow(res) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.detail || `HTTP ${res.status}`);
   }
-  const body = await res.json();
-  // make-admin/revoke-admin return {error: "..."} with HTTP 200 on failure
-  // (user not found, self-demotion) instead of raising an HTTPException.
-  if (body && typeof body === "object" && body.error) {
-    throw new Error(body.error);
-  }
-  return body;
+  return res.json();
 }
 
 export const fetchAdminUsers = ({ q = "", tier = "", adminOnly = false, page = 1 } = {}) => {
