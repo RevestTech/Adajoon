@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback, memo } from "react";
 import ViewToggle from "./ViewToggle";
 import VoteIndicator from "./VoteIndicator";
 import QuickFilters from "./QuickFilters";
@@ -182,6 +182,25 @@ export default function ChannelGrid({
   const [epgNow, setEpgNow] = useState({});
   const [showEpgGrid, setShowEpgGrid] = useState(false);
   const visibleIdsKey = visibleChannels.map((ch) => ch.id).join(",");
+
+  const countryByCode = useMemo(
+    () => new Map(countryList.map((c) => [c.code, c])),
+    [countryList]
+  );
+
+  const handleSelectChannel = useCallback((ch) => onSelect(ch), [onSelect]);
+
+  const handleToggleFavoriteChannel = useCallback(
+    (e, ch) => {
+      e.stopPropagation();
+      if (isGuest) {
+        onGuestNotice?.("Sign in to save favorites.");
+      } else {
+        onToggleFavorite(ch);
+      }
+    },
+    [isGuest, onGuestNotice, onToggleFavorite]
+  );
   useEffect(() => {
     let cancelled = false;
     const ids = visibleIdsKey ? visibleIdsKey.split(",") : [];
@@ -453,20 +472,15 @@ export default function ChannelGrid({
           <>
             <div className={viewMode === "list" ? "channel-list" : viewMode === "thumb" ? "thumb-grid" : "channel-grid"}>
               {visibleChannels.map((ch) => {
-                const countryObj = countryList.find(c => c.code === ch.country_code);
+                const countryObj = countryByCode.get(ch.country_code);
                 const countryName = countryObj ? countryObj.name : ch.country_code;
 
                 const props = {
                   key: ch.id,
                   channel: ch,
-                  onClick: () => onSelect(ch),
+                  onSelectChannel: handleSelectChannel,
                   favorited: !isGuest && isFavorite(ch.id),
-                  onToggleFavorite: isGuest
-                    ? (e) => {
-                        e.stopPropagation();
-                        onGuestNotice?.("Sign in to save favorites.");
-                      }
-                    : (e) => { e.stopPropagation(); onToggleFavorite(ch); },
+                  onToggleFavoriteChannel: handleToggleFavoriteChannel,
                   isGuest,
                   voteSummary: getVoteSummary ? getVoteSummary(ch.id) : {},
                   countryName,
@@ -522,9 +536,14 @@ function GuestBanner({ onLogin, total, type }) {
   );
 }
 
-function ChannelCard({ channel, onClick, favorited, onToggleFavorite, isGuest, voteSummary, countryName, nowProgramme }) {
+const ChannelCard = memo(function ChannelCard({ channel, onSelectChannel, favorited, onToggleFavoriteChannel, isGuest, voteSummary, countryName, nowProgramme }) {
   const cats = channel.categories ? channel.categories.split(";").filter(Boolean) : [];
   const streamStatus = channel.stream_url ? getTvStreamStatus(channel.health_status) : null;
+  const onClick = useCallback(() => onSelectChannel(channel), [onSelectChannel, channel]);
+  const onToggleFavorite = useCallback(
+    (e) => onToggleFavoriteChannel(e, channel),
+    [onToggleFavoriteChannel, channel]
+  );
 
   return (
     <div
@@ -599,11 +618,16 @@ function ChannelCard({ channel, onClick, favorited, onToggleFavorite, isGuest, v
       </div>
     </div>
   );
-}
+});
 
-function ChannelRow({ channel, onClick, favorited, onToggleFavorite, isGuest, voteSummary, countryName, showCountry, nowProgramme }) {
+const ChannelRow = memo(function ChannelRow({ channel, onSelectChannel, favorited, onToggleFavoriteChannel, isGuest, voteSummary, countryName, showCountry, nowProgramme }) {
   const cats = channel.categories ? channel.categories.split(";").filter(Boolean) : [];
   const streamStatus = channel.stream_url ? getTvStreamStatus(channel.health_status) : null;
+  const onClick = useCallback(() => onSelectChannel(channel), [onSelectChannel, channel]);
+  const onToggleFavorite = useCallback(
+    (e) => onToggleFavoriteChannel(e, channel),
+    [onToggleFavoriteChannel, channel]
+  );
 
   return (
     <div
@@ -683,11 +707,16 @@ function ChannelRow({ channel, onClick, favorited, onToggleFavorite, isGuest, vo
       </div>
     </div>
   );
-}
+});
 
-function ChannelThumb({ channel, onClick, favorited, onToggleFavorite, isGuest, voteSummary, countryName, nowProgramme }) {
+const ChannelThumb = memo(function ChannelThumb({ channel, onSelectChannel, favorited, onToggleFavoriteChannel, isGuest, voteSummary, countryName, nowProgramme }) {
   const cats = channel.categories ? channel.categories.split(";").filter(Boolean) : [];
   const streamStatus = channel.stream_url ? getTvStreamStatus(channel.health_status) : null;
+  const onClick = useCallback(() => onSelectChannel(channel), [onSelectChannel, channel]);
+  const onToggleFavorite = useCallback(
+    (e) => onToggleFavoriteChannel(e, channel),
+    [onToggleFavoriteChannel, channel]
+  );
 
   return (
     <div
@@ -760,4 +789,4 @@ function ChannelThumb({ channel, onClick, favorited, onToggleFavorite, isGuest, 
       </div>
     </div>
   );
-}
+});
