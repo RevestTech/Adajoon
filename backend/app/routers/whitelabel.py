@@ -5,18 +5,16 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from pydantic import BaseModel
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.limiter import limiter
 from app.models import Channel, RadioStation, Tenant
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/whitelabel", tags=["whitelabel"])
-limiter = Limiter(key_func=get_remote_address)
 
 
 # ---------------------------------------------------------------------------

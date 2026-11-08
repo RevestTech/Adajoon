@@ -3,17 +3,15 @@
 import bcrypt
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.csrf import verify_csrf_token
 from app.database import get_db
+from app.limiter import limiter
 from app.models import User
 from app.routers.auth import require_user
 
 router = APIRouter(prefix="/api/parental", tags=["parental"])
-limiter = Limiter(key_func=get_remote_address)
 
 
 # ---------------------------------------------------------------------------

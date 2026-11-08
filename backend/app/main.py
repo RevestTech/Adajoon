@@ -7,15 +7,15 @@ import httpx
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
-from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
-from slowapi.util import get_remote_address
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.middleware.gzip import GZipMiddleware
 
 from app.config import settings
 from app.database import Base, async_session, engine, get_db
+from app.limiter import limiter
 from app.logging_config import RequestLoggingMiddleware, setup_logging
 from app.middleware.security_headers import SecurityHeadersMiddleware
 from app.middleware.www_redirect import WWWRedirectMiddleware
@@ -61,13 +61,6 @@ try:
 except ImportError:
     PROMETHEUS_AVAILABLE = False
     logger.warning("prometheus-fastapi-instrumentator not installed, metrics disabled")
-
-# Rate limiting with Redis storage for distributed limiting
-limiter = Limiter(
-    key_func=get_remote_address,
-    default_limits=["100/minute"],
-    storage_uri=settings.redis_url,
-)
 
 # All database migrations are managed by Alembic.
 # Run `alembic upgrade head` to apply migrations.
