@@ -4,17 +4,15 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 from sqlalchemy import Integer, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.limiter import limiter
 from app.models import Channel, RadioStation, UserVote
 from app.redis_client import cache_get, cache_set
 
 router = APIRouter(prefix="/api/recommendations", tags=["recommendations"])
-limiter = Limiter(key_func=get_remote_address)
 
 CACHE_TTL = 300
 POSITIVE_VOTE_TYPES = ("like", "works")

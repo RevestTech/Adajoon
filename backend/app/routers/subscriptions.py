@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.csrf import verify_csrf_token
 from app.database import get_db
+from app.limiter import limiter
 from app.models import User
 from app.routers.auth import require_user
 from app.services import pricing_service, settings_service
@@ -118,8 +119,10 @@ async def get_subscription_status(
 
 
 @router.post("/checkout")
+@limiter.limit("10/minute")
 async def create_checkout_session(
-    request: CheckoutRequest,
+    request: Request,
+    checkout_request: CheckoutRequest,
     user: User = Depends(require_user),
     db: AsyncSession = Depends(get_db),
     _csrf: None = Depends(verify_csrf_token),
@@ -129,8 +132,8 @@ async def create_checkout_session(
         raise HTTPException(status_code=501, detail="Stripe not configured")
 
     # Validate tier
-    tier = await pricing_service.get_tier_by_key(db, request.tier)
-    if not tier or not tier.is_active or request.tier == "free":
+    tier = await pricing_service.get_tier_by_key(db, checkout_request.tier)
+    if not tier or not tier.is_active or checkout_request.tier == "free":
         raise HTTPException(status_code=400, detail="Invalid tier")
     if not tier.stripe_price_id_monthly:
         raise HTTPException(
@@ -138,9 +141,9 @@ async def create_checkout_session(
         )
 
     discount_ids: list[dict] = []
-    if request.promo_code:
+    if checkout_request.promo_code:
         discount = await pricing_service.get_active_discount_by_code(
-            db, request.promo_code
+            db, checkout_request.promo_code
         )
         if not discount or (discount.tier_id and discount.tier_id != tier.id):
             raise HTTPException(status_code=400, detail="Invalid or expired promo code")
@@ -172,18 +175,18 @@ async def create_checkout_session(
                 }
             ],
             "mode": "subscription",
-            "success_url": request.success_url,
-            "cancel_url": request.cancel_url,
+            "success_url": checkout_request.success_url,
+            "cancel_url": checkout_request.cancel_url,
             "metadata": {
                 "user_id": str(user.id),
-                "tier": request.tier,
+                "tier": checkout_request.tier,
             },
         }
         if discount_ids:
             session_kwargs["discounts"] = discount_ids
         session = stripe.checkout.Session.create(**session_kwargs)
 
-        if request.promo_code and discount_ids:
+        if checkout_request.promo_code and discount_ids:
             await pricing_service.record_discount_redemption(db, discount)
 
         return {"checkout_url": session.url, "session_id": session.id}
@@ -194,8 +197,10 @@ async def create_checkout_session(
 
 
 @router.post("/portal")
+@limiter.limit("10/minute")
 async def create_portal_session(
-    request: PortalRequest,
+    request: Request,
+    portal_request: PortalRequest,
     user: User = Depends(require_user),
     _csrf: None = Depends(verify_csrf_token),
 ):
@@ -209,7 +214,7 @@ async def create_portal_session(
     try:
         session = stripe.billing_portal.Session.create(
             customer=user.stripe_customer_id,
-            return_url=request.return_url,
+            return_url=portal_request.return_url,
         )
 
         return {"portal_url": session.url}

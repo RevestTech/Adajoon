@@ -71,9 +71,13 @@ class Settings(BaseSettings):
     database_url: str = ""
     redis_url: str = "redis://localhost:6379"
 
-    # Database pool settings
-    db_pool_size: int = 5
-    db_max_overflow: int = 10
+    # Database pool settings. uvicorn runs with --limit-concurrency 500 (see
+    # Dockerfile); a pool far below that starves under real concurrent load
+    # instead of queuing gracefully. These remain env-overridable per deploy
+    # tier - raise further for a bigger instance, or set explicitly if this
+    # app ever runs multiple workers/processes per container.
+    db_pool_size: int = 20
+    db_max_overflow: int = 30
     db_pool_timeout: int = 30
 
     def get_async_url(self) -> str:
