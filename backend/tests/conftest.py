@@ -2,6 +2,7 @@
 
 import asyncio
 from typing import AsyncGenerator, Generator
+from urllib.parse import urlsplit, urlunsplit
 import pytest
 from httpx import AsyncClient, ASGITransport
 from sqlalchemy import event, create_engine
@@ -12,8 +13,21 @@ from app.main import app
 from app.database import Base, get_db
 from app.config import settings
 
+
+def _test_database_url(database_url: str) -> str:
+    """Point at the '_test'-suffixed database, replacing only the db-name
+    path component - a plain string .replace("/retv", "/retv_test") also
+    matches "/retv" inside "://retv:..." (mangling the username) and inside
+    an already-"_test"-suffixed path (double-appending "_test")."""
+    parts = urlsplit(database_url)
+    db_name = parts.path.lstrip("/")
+    if not db_name.endswith("_test"):
+        db_name += "_test"
+    return urlunsplit(parts._replace(path=f"/{db_name}"))
+
+
 # Test database URL (use separate test DB)
-TEST_DATABASE_URL = settings.database_url.replace("/retv", "/retv_test")
+TEST_DATABASE_URL = _test_database_url(settings.database_url)
 
 
 @pytest.fixture(scope="session")
