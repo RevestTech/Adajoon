@@ -1,43 +1,44 @@
 import asyncio
-import json
 import base64
+import json
 import logging
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status, Cookie
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+import httpx
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
 from fastapi.responses import HTMLResponse
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from google.auth.transport import requests as google_requests
+from google.oauth2 import id_token
+from jose import JWTError, jwt
+from pydantic import BaseModel, Field
 from slowapi import Limiter
 from slowapi.util import get_remote_address
-from sqlalchemy import select, delete, exists, func, case
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import case, delete, exists, func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
-from jose import jwt, JWTError
-from google.oauth2 import id_token
-from google.auth.transport import requests as google_requests
-from pydantic import BaseModel, Field
-import httpx
-
+from sqlalchemy.ext.asyncio import AsyncSession
 from webauthn import (
-    generate_registration_options,
-    verify_registration_response,
     generate_authentication_options,
-    verify_authentication_response,
+    generate_registration_options,
     options_to_json,
+    verify_authentication_response,
+    verify_registration_response,
 )
+from webauthn.helpers import base64url_to_bytes, bytes_to_base64url
 from webauthn.helpers.structs import (
     AuthenticatorSelectionCriteria,
+    AuthenticatorTransport,
+    PublicKeyCredentialDescriptor,
     ResidentKeyRequirement,
     UserVerificationRequirement,
-    PublicKeyCredentialDescriptor,
-    AuthenticatorTransport,
 )
-from webauthn.helpers import bytes_to_base64url, base64url_to_bytes
 
-from app.database import get_db
 from app.config import settings
-from app.models import User, UserFavorite, UserVote, Passkey
 from app.csrf import generate_csrf_token, verify_csrf_token
+from app.database import get_db
+from app.models import Channel, Passkey, RadioStation, User, UserFavorite, UserVote
+from app.redis_client import cache_get, cache_set
+from app.services.analytics_service import log_auth_event
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +53,10 @@ APPLE_ISSUER = "https://appleid.apple.com"
 # JWT helpers
 # ---------------------------------------------------------------------------
 
-def create_token(user_id: int, email: str, is_admin: bool = False, role: str = "user") -> str:
+
+def create_token(
+    user_id: int, email: str, is_admin: bool = False, role: str = "user"
+) -> str:
     payload = {
         "sub": str(user_id),
         "email": email,
@@ -72,36 +76,52 @@ def create_challenge_token(challenge: bytes) -> str:
 
 
 def decode_challenge_token(token: str) -> bytes:
-    payload = jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
+    payload = jwt.decode(
+        token, settings.jwt_secret, algorithms=[settings.jwt_algorithm]
+    )
     return base64.urlsafe_b64decode(payload["ch"])
 
 
-def _set_auth_cookies(response: Response, user: User, token: str) -> None:
+def _cookie_domain_for_host(host: str | None) -> str | None:
+    """Use shared .adajoon.com cookies only on adajoon hosts; else host-only cookies."""
+    if settings.env != "production":
+        return None
+    h = (host or "").split(":")[0].lower()
+    if h == "adajoon.com" or h.endswith(".adajoon.com"):
+        return ".adajoon.com"
+    return None
+
+
+def _set_auth_cookies(
+    response: Response,
+    user: User,
+    token: str,
+    *,
+    request: Request | None = None,
+) -> None:
     """Set authentication cookies (httpOnly JWT + CSRF token)."""
-    # Determine cookie domain - use adajoon.com for both www and non-www
-    cookie_domain = ".adajoon.com" if settings.env == "production" else None
-    
-    # Set JWT in httpOnly cookie (XSS-safe)
+    host = request.headers.get("host") if request is not None else None
+    cookie_domain = _cookie_domain_for_host(host)
+
     response.set_cookie(
         key="auth_token",
         value=token,
         httponly=True,
-        secure=True,  # HTTPS only in production
+        secure=True,
         samesite="lax",
         max_age=settings.jwt_expiry_days * 24 * 60 * 60,
         path="/",
         domain=cookie_domain,
     )
-    
-    # Set CSRF token in readable cookie for frontend
+
     csrf_token = generate_csrf_token()
     response.set_cookie(
         key="csrf_token",
         value=csrf_token,
-        httponly=False,  # Frontend needs to read this
+        httponly=False,
         secure=True,
         samesite="lax",
-        max_age=3600,  # 1 hour
+        max_age=3600,
         path="/",
         domain=cookie_domain,
     )
@@ -123,6 +143,7 @@ def _user_response(user: User) -> dict:
 # Auth dependencies
 # ---------------------------------------------------------------------------
 
+
 async def get_current_user(
     auth_token: str | None = Cookie(default=None),
     creds: HTTPAuthorizationCredentials = Depends(security),
@@ -133,7 +154,9 @@ async def get_current_user(
     if not token:
         return None
     try:
-        payload = jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
+        payload = jwt.decode(
+            token, settings.jwt_secret, algorithms=[settings.jwt_algorithm]
+        )
         user_id = int(payload["sub"])
     except (JWTError, KeyError, ValueError):
         return None
@@ -145,7 +168,9 @@ async def require_user(
     user: User | None = Depends(get_current_user),
 ) -> User:
     if not user:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated"
+        )
     return user
 
 
@@ -153,22 +178,27 @@ async def require_user(
 # Pydantic models
 # ---------------------------------------------------------------------------
 
+
 class GoogleTokenRequest(BaseModel):
     credential: str
+
 
 class AppleTokenRequest(BaseModel):
     id_token: str
     user_name: str = ""
+
 
 class FavoriteRequest(BaseModel):
     item_type: str = Field(..., max_length=10)
     item_id: str = Field(..., max_length=255)
     item_data: dict = {}
 
+
 class PasskeyRegisterBody(BaseModel):
     credential: dict
     challenge_token: str
     name: str = "Passkey"
+
 
 class PasskeyLoginBody(BaseModel):
     credential: dict
@@ -179,9 +209,17 @@ class PasskeyLoginBody(BaseModel):
 # GOOGLE SIGN-IN
 # ===========================================================================
 
+
 @router.post("/google")
 @limiter.limit("10/minute")
-async def google_login(request: Request, response: Response, body: GoogleTokenRequest, db: AsyncSession = Depends(get_db)):
+async def google_login(
+    request: Request,
+    response: Response,
+    body: GoogleTokenRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    await log_auth_event(db, "Auth Login Attempted", properties={"method": "google"})
+
     try:
         idinfo = await asyncio.to_thread(
             id_token.verify_oauth2_token,
@@ -191,7 +229,22 @@ async def google_login(request: Request, response: Response, body: GoogleTokenRe
         )
     except Exception as e:
         logger.error("Google token verification failed: %s", e)
+        await log_auth_event(
+            db,
+            "Auth Login Failed",
+            properties={"method": "google", "error": str(e)[:300]},
+        )
         raise HTTPException(status_code=400, detail="Invalid Google token")
+
+    if not idinfo.get("email_verified"):
+        await log_auth_event(
+            db,
+            "Auth Login Failed",
+            properties={"method": "google", "error": "email_not_verified"},
+        )
+        raise HTTPException(
+            status_code=400, detail="Google account email is not verified"
+        )
 
     email = idinfo.get("email", "")
     name = idinfo.get("name", "")
@@ -207,41 +260,91 @@ async def google_login(request: Request, response: Response, body: GoogleTokenRe
         user.last_login_at = datetime.now(timezone.utc)
     else:
         user = User(
-            email=email, 
-            name=name, 
-            picture=picture, 
-            provider="google", 
+            email=email,
+            name=name,
+            picture=picture,
+            provider="google",
             provider_id=google_id,
-            last_login_at=datetime.now(timezone.utc)
+            last_login_at=datetime.now(timezone.utc),
         )
         db.add(user)
 
     await db.commit()
     await db.refresh(user)
     token = create_token(user.id, user.email, user.is_admin, user.role)
-    _set_auth_cookies(response, user, token)
+    _set_auth_cookies(response, user, token, request=request)
+    logger.info("Google login ok user_id=%s", user.id)
+    await log_auth_event(
+        db,
+        "User Logged In",
+        user_id=user.id,
+        properties={"method": "google", "user_id": user.id},
+    )
     return _user_response(user)
 
 
 # ===========================================================================
-# APPLE SIGN-IN
+# DEV LOGIN (local testing only - never available outside dev/development)
 # ===========================================================================
 
-from app.redis_client import cache_get, cache_set
+
+@router.post("/dev-login")
+async def dev_login(
+    request: Request,
+    response: Response,
+    email: str = "dev@localhost.test",
+    admin: bool = False,
+    db: AsyncSession = Depends(get_db),
+):
+    """Log in as a throwaway local user, bypassing Google/Apple entirely.
+
+    For testing session/account-state locally where Google OAuth can't be
+    set up (origin not whitelisted, no client ID, etc). 404s outside
+    ENV=dev|development so this can never be reached in production.
+    """
+    if settings.env not in ("dev", "development"):
+        raise HTTPException(status_code=404)
+
+    result = await db.execute(select(User).where(User.email == email))
+    user = result.scalar_one_or_none()
+
+    if user:
+        user.last_login_at = datetime.now(timezone.utc)
+        if admin:
+            user.is_admin = True
+    else:
+        user = User(
+            email=email,
+            name=email.split("@")[0],
+            provider="dev",
+            provider_id="dev",
+            is_admin=admin,
+            last_login_at=datetime.now(timezone.utc),
+        )
+        db.add(user)
+
+    await db.commit()
+    await db.refresh(user)
+    token = create_token(user.id, user.email, user.is_admin, user.role)
+    _set_auth_cookies(response, user, token, request=request)
+    logger.info("Dev login ok user_id=%s email=%s", user.id, user.email)
+    return _user_response(user)
+
 
 APPLE_KEYS_TTL = 3600  # 1 hour
+
 
 async def _get_apple_keys() -> list:
     """Fetch Apple JWKS with Redis caching (1 hour TTL)."""
     cached = await cache_get("apple_public_keys")
     if cached:
         return cached
-    
+
     async with httpx.AsyncClient(timeout=10) as client:
         resp = await client.get(APPLE_KEYS_URL)
         resp.raise_for_status()
         keys = resp.json()["keys"]
-    
+
     await cache_set("apple_public_keys", keys, APPLE_KEYS_TTL)
     return keys
 
@@ -271,8 +374,8 @@ async def apple_callback(request: Request, response: Response):
         form = await request.form()
         id_token = form.get("id_token", "")
         user_raw = form.get("user", "")
-        origin = settings.webauthn_origin
-        
+        origin = settings.webauthn_origins
+
         # Safely encode data for JavaScript embedding (XSS prevention)
         safe_id_token = json.dumps(id_token)
         safe_user_data = "null"
@@ -283,19 +386,26 @@ async def apple_callback(request: Request, response: Response):
                 safe_user_data = json.dumps(parsed)
             except (json.JSONDecodeError, ValueError):
                 safe_user_data = "null"
-        safe_origin = json.dumps(origin)
-        
+        # postMessage target must be a single origin (not a comma-joined list)
+        primary_origin = origin[0] if origin else "https://www.adajoon.com"
+        safe_origins = json.dumps(origin)
+        safe_primary = json.dumps(primary_origin)
+
         # No COOP header — defaults to unsafe-none, allowing popup postMessage back to opener
-        
+
         html_content = f"""<!DOCTYPE html><html><head><title>Signing in...</title></head>
 <body><p>Completing sign-in...</p><script>
 try {{
   var data = {{ type:"apple-signin", idToken:{safe_id_token}, userData:{safe_user_data} }};
-  if (window.opener) {{ window.opener.postMessage(data, {safe_origin}); window.close(); }}
-  else {{ window.location.href = {safe_origin}; }}
-}} catch(e) {{ window.location.href = {safe_origin}; }}
+  var allowed = {safe_origins};
+  var target = (window.opener && allowed.indexOf(window.location.origin) >= 0)
+    ? window.location.origin
+    : {safe_primary};
+  if (window.opener) {{ window.opener.postMessage(data, target); window.close(); }}
+  else {{ window.location.href = target; }}
+}} catch(e) {{ window.location.href = {safe_primary}; }}
 </script></body></html>"""
-        
+
         return HTMLResponse(content=html_content)
     except Exception as e:
         logger.error(f"Apple callback error: {e}", exc_info=True)
@@ -304,14 +414,31 @@ try {{
 
 @router.post("/apple")
 @limiter.limit("10/minute")
-async def apple_login(request: Request, response: Response, body: AppleTokenRequest, db: AsyncSession = Depends(get_db)):
+async def apple_login(
+    request: Request,
+    response: Response,
+    body: AppleTokenRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    await log_auth_event(db, "Auth Login Attempted", properties={"method": "apple"})
+
     if not settings.apple_client_id:
+        await log_auth_event(
+            db,
+            "Auth Login Failed",
+            properties={"method": "apple", "error": "Apple Sign-In not configured"},
+        )
         raise HTTPException(status_code=501, detail="Apple Sign-In not configured")
 
     try:
         payload = await _verify_apple_identity_token(body.id_token)
     except Exception as e:
         logger.error("Apple token verification failed: %s", e)
+        await log_auth_event(
+            db,
+            "Auth Login Failed",
+            properties={"method": "apple", "error": str(e)[:300]},
+        )
         raise HTTPException(status_code=400, detail="Invalid Apple token")
 
     apple_id = payload.get("sub", "")
@@ -327,37 +454,48 @@ async def apple_login(request: Request, response: Response, body: AppleTokenRequ
         user.last_login_at = datetime.now(timezone.utc)
     else:
         user = User(
-            email=email, 
-            name=name, 
-            picture="", 
-            provider="apple", 
+            email=email,
+            name=name,
+            picture="",
+            provider="apple",
             provider_id=apple_id,
-            last_login_at=datetime.now(timezone.utc)
+            last_login_at=datetime.now(timezone.utc),
         )
         db.add(user)
 
     await db.commit()
     await db.refresh(user)
     token = create_token(user.id, user.email, user.is_admin, user.role)
-    _set_auth_cookies(response, user, token)
+    _set_auth_cookies(response, user, token, request=request)
+    logger.info("Apple login ok user_id=%s", user.id)
+    await log_auth_event(
+        db,
+        "User Logged In",
+        user_id=user.id,
+        properties={"method": "apple", "user_id": user.id},
+    )
     return _user_response(user)
 
-
-# ===========================================================================
-# PASSKEY / WEBAUTHN
-# ===========================================================================
 
 @router.post("/passkey/register-options")
 @limiter.limit("10/minute")
 async def passkey_register_options(
-    request: Request,user: User = Depends(require_user), db: AsyncSession = Depends(get_db)):
+    request: Request,
+    user: User = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+    _csrf: None = Depends(verify_csrf_token),
+):
     result = await db.execute(select(Passkey).where(Passkey.user_id == user.id))
     existing = result.scalars().all()
 
     exclude = [
         PublicKeyCredentialDescriptor(
             id=base64url_to_bytes(pk.credential_id),
-            transports=[AuthenticatorTransport(t) for t in json.loads(pk.transports or "[]") if t],
+            transports=[
+                AuthenticatorTransport(t)
+                for t in json.loads(pk.transports or "[]")
+                if t
+            ],
         )
         for pk in existing
     ]
@@ -383,7 +521,12 @@ async def passkey_register_options(
 
 
 @router.post("/passkey/register")
-async def passkey_register(body: PasskeyRegisterBody, user: User = Depends(require_user), db: AsyncSession = Depends(get_db)):
+async def passkey_register(
+    body: PasskeyRegisterBody,
+    user: User = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+    _csrf: None = Depends(verify_csrf_token),
+):
     try:
         expected_challenge = decode_challenge_token(body.challenge_token)
     except Exception:
@@ -394,7 +537,7 @@ async def passkey_register(body: PasskeyRegisterBody, user: User = Depends(requi
             credential=body.credential,
             expected_challenge=expected_challenge,
             expected_rp_id=settings.webauthn_rp_id,
-            expected_origin=settings.webauthn_origin,
+            expected_origin=settings.webauthn_origins,
         )
     except Exception as e:
         logger.error("Passkey registration verification failed: %s", e)
@@ -434,18 +577,37 @@ async def passkey_login_options():
 
 
 @router.post("/passkey/login")
-async def passkey_login(body: PasskeyLoginBody, response: Response, db: AsyncSession = Depends(get_db)):
+async def passkey_login(
+    body: PasskeyLoginBody,
+    request: Request,
+    response: Response,
+    db: AsyncSession = Depends(get_db),
+):
+    await log_auth_event(db, "Auth Login Attempted", properties={"method": "passkey"})
+
     try:
         expected_challenge = decode_challenge_token(body.challenge_token)
     except Exception:
+        await log_auth_event(
+            db,
+            "Auth Login Failed",
+            properties={"method": "passkey", "error": "Invalid or expired challenge"},
+        )
         raise HTTPException(status_code=400, detail="Invalid or expired challenge")
 
     cred_response = body.credential
     cred_id_b64 = cred_response.get("id", "")
 
-    result = await db.execute(select(Passkey).where(Passkey.credential_id == cred_id_b64))
+    result = await db.execute(
+        select(Passkey).where(Passkey.credential_id == cred_id_b64)
+    )
     passkey = result.scalar_one_or_none()
     if not passkey:
+        await log_auth_event(
+            db,
+            "Auth Login Failed",
+            properties={"method": "passkey", "error": "Passkey not found"},
+        )
         raise HTTPException(status_code=400, detail="Passkey not found")
 
     try:
@@ -453,31 +615,52 @@ async def passkey_login(body: PasskeyLoginBody, response: Response, db: AsyncSes
             credential=cred_response,
             expected_challenge=expected_challenge,
             expected_rp_id=settings.webauthn_rp_id,
-            expected_origin=settings.webauthn_origin,
+            expected_origin=settings.webauthn_origins,
             credential_public_key=base64url_to_bytes(passkey.public_key),
             credential_current_sign_count=passkey.sign_count,
         )
     except Exception as e:
         logger.error("Passkey login verification failed: %s", e)
-        raise HTTPException(status_code=400, detail="Authentication verification failed")
+        await log_auth_event(
+            db,
+            "Auth Login Failed",
+            properties={"method": "passkey", "error": str(e)[:300]},
+        )
+        raise HTTPException(
+            status_code=400, detail="Authentication verification failed"
+        )
 
     passkey.sign_count = verification.new_sign_count
 
     user_result = await db.execute(select(User).where(User.id == passkey.user_id))
     user = user_result.scalar_one_or_none()
     if not user:
+        await log_auth_event(
+            db,
+            "Auth Login Failed",
+            properties={"method": "passkey", "error": "User not found"},
+        )
         raise HTTPException(status_code=400, detail="User not found")
 
     user.last_login_at = datetime.now(timezone.utc)
     await db.commit()
 
     token = create_token(user.id, user.email, user.is_admin, user.role)
-    _set_auth_cookies(response, user, token)
+    _set_auth_cookies(response, user, token, request=request)
+    logger.info("Passkey login ok user_id=%s", user.id)
+    await log_auth_event(
+        db,
+        "User Logged In",
+        user_id=user.id,
+        properties={"method": "passkey", "user_id": user.id},
+    )
     return _user_response(user)
 
 
 @router.get("/passkeys")
-async def list_passkeys(user: User = Depends(require_user), db: AsyncSession = Depends(get_db)):
+async def list_passkeys(
+    user: User = Depends(require_user), db: AsyncSession = Depends(get_db)
+):
     result = await db.execute(select(Passkey).where(Passkey.user_id == user.id))
     passkeys = result.scalars().all()
     return [
@@ -490,11 +673,14 @@ async def list_passkeys(user: User = Depends(require_user), db: AsyncSession = D
 # USER PROFILE
 # ===========================================================================
 
+
 @router.get("/me")
-async def get_me(user: User = Depends(require_user), db: AsyncSession = Depends(get_db)):
-    has_passkey = (await db.execute(
-        select(exists().where(Passkey.user_id == user.id))
-    )).scalar()
+async def get_me(
+    user: User = Depends(require_user), db: AsyncSession = Depends(get_db)
+):
+    has_passkey = (
+        await db.execute(select(exists().where(Passkey.user_id == user.id)))
+    ).scalar()
     return {
         "id": user.id,
         "email": user.email,
@@ -510,12 +696,21 @@ async def get_me(user: User = Depends(require_user), db: AsyncSession = Depends(
 # FAVORITES
 # ===========================================================================
 
+
 @router.get("/favorites")
-async def get_favorites(user: User = Depends(require_user), db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(UserFavorite).where(UserFavorite.user_id == user.id))
+async def get_favorites(
+    user: User = Depends(require_user), db: AsyncSession = Depends(get_db)
+):
+    result = await db.execute(
+        select(UserFavorite).where(UserFavorite.user_id == user.id)
+    )
     favs = result.scalars().all()
     return [
-        {"item_type": f.item_type, "item_id": f.item_id, "item_data": json.loads(f.item_data) if f.item_data else {}}
+        {
+            "item_type": f.item_type,
+            "item_id": f.item_id,
+            "item_data": json.loads(f.item_data) if f.item_data else {},
+        }
         for f in favs
     ]
 
@@ -525,12 +720,18 @@ async def add_favorite(
     body: FavoriteRequest,
     user: User = Depends(require_user),
     db: AsyncSession = Depends(get_db),
-    _csrf: None = Depends(verify_csrf_token)
+    _csrf: None = Depends(verify_csrf_token),
 ):
-    stmt = pg_insert(UserFavorite).values(
-        user_id=user.id, item_type=body.item_type,
-        item_id=body.item_id, item_data=json.dumps(body.item_data),
-    ).on_conflict_do_nothing(index_elements=["user_id", "item_type", "item_id"])
+    stmt = (
+        pg_insert(UserFavorite)
+        .values(
+            user_id=user.id,
+            item_type=body.item_type,
+            item_id=body.item_id,
+            item_data=json.dumps(body.item_data),
+        )
+        .on_conflict_do_nothing(index_elements=["user_id", "item_type", "item_id"])
+    )
     result = await db.execute(stmt)
     await db.commit()
     return {"status": "added" if result.rowcount else "already_exists"}
@@ -542,7 +743,7 @@ async def remove_favorite(
     item_id: str,
     user: User = Depends(require_user),
     db: AsyncSession = Depends(get_db),
-    _csrf: None = Depends(verify_csrf_token)
+    _csrf: None = Depends(verify_csrf_token),
 ):
     await db.execute(
         delete(UserFavorite).where(
@@ -560,22 +761,34 @@ async def sync_favorites(
     favorites: list[FavoriteRequest],
     user: User = Depends(require_user),
     db: AsyncSession = Depends(get_db),
-    _csrf: None = Depends(verify_csrf_token)
+    _csrf: None = Depends(verify_csrf_token),
 ):
     if len(favorites) > 500:
         raise HTTPException(status_code=400, detail="Too many favorites (max 500)")
     for fav in favorites:
-        stmt = pg_insert(UserFavorite).values(
-            user_id=user.id, item_type=fav.item_type,
-            item_id=fav.item_id, item_data=json.dumps(fav.item_data),
-        ).on_conflict_do_nothing(index_elements=["user_id", "item_type", "item_id"])
+        stmt = (
+            pg_insert(UserFavorite)
+            .values(
+                user_id=user.id,
+                item_type=fav.item_type,
+                item_id=fav.item_id,
+                item_data=json.dumps(fav.item_data),
+            )
+            .on_conflict_do_nothing(index_elements=["user_id", "item_type", "item_id"])
+        )
         await db.execute(stmt)
     await db.commit()
 
-    result = await db.execute(select(UserFavorite).where(UserFavorite.user_id == user.id))
+    result = await db.execute(
+        select(UserFavorite).where(UserFavorite.user_id == user.id)
+    )
     favs = result.scalars().all()
     return [
-        {"item_type": f.item_type, "item_id": f.item_id, "item_data": json.loads(f.item_data) if f.item_data else {}}
+        {
+            "item_type": f.item_type,
+            "item_id": f.item_id,
+            "item_data": json.loads(f.item_data) if f.item_data else {},
+        }
         for f in favs
     ]
 
@@ -598,10 +811,13 @@ async def submit_vote(
     req: VoteRequest,
     user: User = Depends(require_user),
     db: AsyncSession = Depends(get_db),
-    _csrf: None = Depends(verify_csrf_token)
+    _csrf: None = Depends(verify_csrf_token),
 ):
     if req.vote_type not in VALID_VOTE_TYPES:
-        raise HTTPException(status_code=400, detail=f"Invalid vote_type. Must be one of: {', '.join(sorted(VALID_VOTE_TYPES))}")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid vote_type. Must be one of: {', '.join(sorted(VALID_VOTE_TYPES))}",
+        )
     if req.item_type not in ("tv", "radio"):
         raise HTTPException(status_code=400, detail="item_type must be 'tv' or 'radio'")
 
@@ -625,19 +841,27 @@ async def submit_vote(
         await db.commit()
         return {"status": "removed", "vote_type": req.vote_type}
 
-    stmt = pg_insert(UserVote).values(
-        user_id=user.id,
-        item_type=req.item_type,
-        item_id=req.item_id,
-        vote_type=req.vote_type,
-    ).on_conflict_do_nothing()
+    stmt = (
+        pg_insert(UserVote)
+        .values(
+            user_id=user.id,
+            item_type=req.item_type,
+            item_id=req.item_id,
+            vote_type=req.vote_type,
+        )
+        .on_conflict_do_nothing()
+    )
     await db.execute(stmt)
     await db.commit()
     return {"status": "added", "vote_type": req.vote_type}
 
 
 @router.get("/votes/me")
-async def get_my_votes(item_type: str, user: User = Depends(require_user), db: AsyncSession = Depends(get_db)):
+async def get_my_votes(
+    item_type: str,
+    user: User = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+):
     result = await db.execute(
         select(UserVote.item_id, UserVote.vote_type).where(
             UserVote.user_id == user.id,
@@ -651,7 +875,9 @@ async def get_my_votes(item_type: str, user: User = Depends(require_user), db: A
 
 
 @router.get("/votes/summary")
-async def get_vote_summary(item_type: str, item_ids: str, db: AsyncSession = Depends(get_db)):
+async def get_vote_summary(
+    item_type: str, item_ids: str, db: AsyncSession = Depends(get_db)
+):
     """Public endpoint — returns aggregate vote counts for a batch of items."""
     ids = [i.strip() for i in item_ids.split(",") if i.strip()][:100]
     if not ids:
@@ -671,3 +897,48 @@ async def get_vote_summary(item_type: str, item_ids: str, db: AsyncSession = Dep
     for item_id, vote_type, cnt in result:
         summary.setdefault(item_id, {})[vote_type] = cnt
     return summary
+
+
+TRENDING_LIMIT = 10
+POSITIVE_VOTE_TYPES = {"like", "works"}
+NEGATIVE_VOTE_TYPES = {"dislike", "broken"}
+
+
+@router.get("/votes/trending")
+async def get_trending(
+    item_type: str, limit: int = TRENDING_LIMIT, db: AsyncSession = Depends(get_db)
+):
+    """Top items by net vote score (like + works - dislike - broken), for
+    the search box's trending/default-state suggestions. Public endpoint."""
+    if item_type not in ("tv", "radio"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="item_type must be 'tv' or 'radio'",
+        )
+    limit = max(1, min(limit, 20))
+
+    score = func.sum(
+        case(
+            (UserVote.vote_type.in_(POSITIVE_VOTE_TYPES), 1),
+            (UserVote.vote_type.in_(NEGATIVE_VOTE_TYPES), -1),
+            else_=0,
+        )
+    ).label("score")
+    ranked = (
+        select(UserVote.item_id, score)
+        .where(UserVote.item_type == item_type)
+        .group_by(UserVote.item_id)
+        .having(score > 0)
+        .order_by(score.desc())
+        .limit(limit)
+    ).subquery()
+
+    model = Channel if item_type == "tv" else RadioStation
+    logo_col = model.logo if item_type == "tv" else model.favicon
+    stmt = (
+        select(model.id, model.name, logo_col.label("logo"), ranked.c.score)
+        .join(ranked, model.id == ranked.c.item_id)
+        .order_by(ranked.c.score.desc())
+    )
+    result = await db.execute(stmt)
+    return [{"id": row.id, "name": row.name, "logo": row.logo or ""} for row in result]

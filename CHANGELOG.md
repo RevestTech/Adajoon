@@ -7,43 +7,63 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.6.2] - 2026-10-24
+
+### Fixed
+- **Guest mode didn't persist**: added a cookie-backed fallback alongside localStorage for the guest-skip flag (Safari ITP purges script-writable storage after ~7 days); guest state now fails open instead of closed on a storage read error
+- **Silent playback failures**: TV and radio players now show a loading spinner while connecting, a visible error with Retry on failure, auto-fallback across untried stream URLs, and a 15s stall timeout for streams that hang with no error event
+- **"AI Search" wasn't surfaced as non-AI**: a notice now shows when the backend falls back to basic keyword search
+- **Mobile header overflow**: TV/Radio/Map and Sign In labels collapse to icon-only at ≤640px instead of overflowing the viewport
+- **Channel/radio deep links didn't open the player**: `/tv/channel/:id` and `/radio/station/:id` URLs were parsed on load but never consumed; added the missing `GET /api/radio/stations/{id}` endpoint and wired both up to open the player on mount
+- **No 404 page**: unknown routes now show a proper not-found view instead of silently falling back to the default grid
+- **Duplicate Google Sign-In button**: render is now idempotent per mount, closing a race between the initial render call and its polling retry
+- **Map country filter flashed stale results**: list/count now shows a loading state immediately when a country filter is applied, instead of briefly showing the previous unfiltered data
+- Deep-link lookups no longer race a user's own, faster selection, and now show 404 (not a silent fallback) when the linked channel/station no longer exists
+- VideoPlayer: fixed stale stream lists leaking across channel switches, a failure declared too early when alternates were still loading, and Retry not restarting a single-stream channel
+- RadioPlayer: cleared a stale error message left behind after a late recovery
+- Backend: fixed a `logger` used-before-assignment bug in `main.py`, plus a full flake8/black/isort cleanup
+
+## [2.6.1] - 2026-10-24
+
+### Fixed
+- **CSRF double-submit**: cookie no longer unchecked against the header token; Bearer-authenticated requests bypass the cookie check since that auth path isn't CSRF-exploitable
+- **JWT secret validation**: dev default now rejected outside `development`/`dev` env, not just exactly `production`
+- **Google login**: now requires `email_verified`, closing an account-takeover path
+- **Admin/passkey endpoints**: added missing CSRF checks on promote/revoke-admin and passkey registration
+- **`/api/recommendations/similar`**: was completely broken - referenced nonexistent `Channel.country`/`upvotes`/`downvotes` columns, used Postgres `position()` with invalid comma-call syntax, and split categories on the wrong separator. Fixed, switched to the indexed `country_code` column, added caching and rate limiting
+- **Hourly validator worker**: `health_checked_at` is a timestamptz column but was compared against ISO-format strings - Postgres rejects that outright, so the worker has likely never completed a validation cycle. Fixed to use real datetimes
+- **`POST /api/healthcheck/{id}`**: same timestamptz-vs-string bug on the write side; also stopped its own 404 getting swallowed into a 500
+- **Unauthenticated cache-clear**: `POST /api/redis/cache/clear/{key}` now requires admin auth + CSRF
+- **History endpoints**: now 401 cleanly on missing auth instead of a 500
+- **Frontend build**: Docker image now installs from the committed lockfile (`npm ci`) instead of re-resolving dependencies fresh on every build, which had started failing against the current npm registry state
+- Deduplicated channel/radio status-filter logic, TV/radio AI-search fallback scoring, and the channel/radio batch validator loop
+- Backend container now runs as a non-root user
+- CSP no longer needs `unsafe-inline` for scripts; COOP/COEP relaxation for OAuth now scoped to the HTML page only, not API responses
+
+## [2.6.0] - 2026-07-21
+
 ### Added
+- **Radio world map**: MapLibre explorer (Map → Radio Stations) with bbox clusters/pins, Take a ride, geo sync from Radio Browser
+- **TV EPG**: `epg_programmes` table, worker XMLTV ingest, `/api/epg/now` + channel schedule APIs, VideoPlayer now/next strip
+- **AI on-now sports**: Keyword/AI TV search merges EPG programmes airing now for soccer/football/fifa-style queries
+- **Radio browser-window pop-out**: Desktop “Open in new window” opens a dedicated popup player (`RadioPopoutWindow`)
+- **Auth funnel + path analytics**: Client and server emit login attempt/success/failure/session-lost; screen + navigation tracking; Admin Analytics shows funnel, recent failures, top screens/navigations (`/api/admin/analytics/auth-funnel`, `/paths`)
+- See `docs/RADIO_MAP_EPG.md`, `docs/FLOATING_PLAYER.md`, `docs/CUSTOM_ANALYTICS.md`
+
+### Fixed
+- **Login / cookie reliability**: Adaptive cookie domain (Railway host vs `.adajoon.com`); WebAuthn multi-origin list; Apple `postMessage` single origin; CSRF header attached on authenticated fetches; softer `/me` logout
+- **Channel schema 500s**: Coerce ORM `None`/`datetime` timestamps on `ChannelOut` / `RadioStationOut`
+- **CSP for IPTV + MapLibre**: `media-src` allows `http:`; `worker-src blob:` and OpenFreeMap hosts for the radio map
+- **Map bbox at world zoom**: Clamp longitudes outside ±180 instead of returning 400
+- **Dark map contrast**: Lighten OpenFreeMap dark basemap paints; stub missing style sprites (`circle-11`)
+
+### Added (carried from earlier unreleased)
 - **Floating Player (Desktop Only)**: Pop-out player for TV channels and radio stations
-  - Draggable window that stays on top while browsing
-  - Resizable from 280x160 to 800x600 pixels
-  - Dock back to main player with one click
-  - Position and size preferences saved locally
-  - Keyboard shortcut support (Escape to close)
-  - Only available on desktop devices (not mobile/TV)
-  - Accessible via "Pop Out" button in video/radio player controls
-
-- **Custom Self-Hosted Analytics**: Full replacement of Mixpanel with database-backed tracking
-  - All events stored in PostgreSQL (`analytics_events` table)
-  - No third-party dependencies or data sharing
-  - Session tracking (total, active, idle time with 60s heartbeats)
-  - Playback tracking (30s heartbeats per channel/station)
-  - User action tracking (searches, favorites, votes, shares)
-  - Admin API endpoints for analytics queries (`/api/admin/analytics/*`)
-  - Batch event submission for performance (5s intervals)
-  - JSONB properties for flexible event data
-  - See `docs/CUSTOM_ANALYTICS.md` for full reference
-
-- **Admin Dashboard**: Real-time statistics and user management
-  - User counts by provider (Google, Apple, Passkey)
-  - Active users (24h, 7d, 30d)
-  - System health monitoring (database, Redis, uptime)
-  - Content statistics (channels, stations, categories)
-  - Recent activity timeline
-  - User management (promote/revoke admin)
-  - Only visible to admin users (`is_admin` flag)
-  - Accessible via user avatar dropdown menu
+- **Custom Self-Hosted Analytics**: PostgreSQL-backed tracking (sessions, playback, actions); Admin `/api/admin/analytics/*`
+- **Admin Dashboard**: User/content/activity stats; admin-only via avatar menu
 
 ### Removed
-- **Mixpanel Integration**: Removed third-party analytics service
-  - Removed `mixpanel-browser` dependency
-  - Removed PostHog integration
-  - Replaced with custom self-hosted analytics
-  - All existing event tracking migrated to new system
+- **Mixpanel / PostHog**: Replaced by self-hosted analytics (`docs/CUSTOM_ANALYTICS.md`)
 
 ## [2.5.2] - 2026-04-07
 

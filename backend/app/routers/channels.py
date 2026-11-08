@@ -5,10 +5,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.schemas import (
-    ChannelOut, ChannelSearchParams, PaginatedChannels, StreamOut
+    ChannelOut,
+    ChannelSearchParams,
+    ForYouResponse,
+    PaginatedChannels,
+    StreamOut,
 )
 from app.services.channel_service import (
-    search_channels, get_channel_by_id, get_channel_streams
+    get_channel_by_id,
+    get_channel_streams,
+    get_for_you_channels,
+    search_channels,
 )
 
 router = APIRouter(prefix="/api/channels", tags=["channels"])
@@ -21,15 +28,22 @@ async def list_channels(
     country: str | None = Query(None),
     language: str | None = Query(None),
     live_only: bool = Query(False, description="Only show channels with a stream"),
-    status: str | None = Query(None, description="Filter by health status: verified, live, or hide_offline"),
+    status: str | None = Query(
+        None, description="Filter by health status: verified, live, or hide_offline"
+    ),
     page: int = Query(1, ge=1),
     per_page: int = Query(40, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
 ):
     params = ChannelSearchParams(
-        query=query, category=category, country=country,
-        language=language, live_only=live_only, status=status,
-        page=page, per_page=per_page,
+        query=query,
+        category=category,
+        country=country,
+        language=language,
+        live_only=live_only,
+        status=status,
+        page=page,
+        per_page=per_page,
     )
     channels, total = await search_channels(db, params)
     return PaginatedChannels(
@@ -38,6 +52,20 @@ async def list_channels(
         page=page,
         per_page=per_page,
         total_pages=math.ceil(total / per_page) if total else 0,
+    )
+
+
+@router.get("/for-you", response_model=ForYouResponse)
+async def for_you(
+    session_id: str = Query(..., description="Client analytics session id"),
+    limit: int = Query(10, ge=1, le=20),
+    db: AsyncSession = Depends(get_db),
+):
+    """Channels in the category this browser session watches the most, for
+    a "For You" row - no login required."""
+    channels, category = await get_for_you_channels(db, session_id, limit=limit)
+    return ForYouResponse(
+        channels=[ChannelOut.model_validate(c) for c in channels], category=category
     )
 
 

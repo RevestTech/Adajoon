@@ -39,7 +39,6 @@ export default function FeedbackBar({
   summary = {},
   onVote,
   isGuest,
-  onLogin,
   onGuestNotice,
 }) {
   const handleClick = (voteType) => {
@@ -49,7 +48,6 @@ export default function FeedbackBar({
           ? "Sign in to rate channels."
           : "Sign in to rate stations.";
       onGuestNotice?.(msg);
-      onLogin?.();
       return;
     }
     onVote?.(itemType, itemId, voteType);

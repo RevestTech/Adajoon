@@ -40,11 +40,12 @@ if settings.env == "production":
     csp_directives = [
         "default-src 'self'",
         "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://accounts.google.com https://appleid.cdn-apple.com https://www.gstatic.com https://imasdk.googleapis.com",
+        "worker-src 'self' blob:",  # MapLibre GL web workers
         "style-src 'self' 'unsafe-inline' https://accounts.google.com https://appleid.cdn-apple.com https://fonts.googleapis.com",
-        "img-src 'self' data: https:",
-        "media-src 'self' blob: https:",
-        "connect-src 'self' https://iptv-org.github.io https://de1.api.radio-browser.info https://raw.githubusercontent.com https://accounts.google.com https://appleid.apple.com https://fonts.googleapis.com https://fonts.gstatic.com https://imasdk.googleapis.com https://www.gstatic.com",
-        "font-src 'self' data: https://fonts.gstatic.com",
+        "img-src 'self' data: blob: https:",
+        "media-src 'self' blob: https: http:",  # IPTV may use http:// HLS
+        "connect-src 'self' https://tiles.openfreemap.org https://iptv-org.github.io https://de1.api.radio-browser.info https://raw.githubusercontent.com https://accounts.google.com https://appleid.apple.com https://fonts.googleapis.com https://fonts.gstatic.com https://imasdk.googleapis.com https://www.gstatic.com",
+        "font-src 'self' data: https://fonts.gstatic.com https://tiles.openfreemap.org",
         "object-src 'none'",
         "base-uri 'self'",
         "form-action 'self' https://accounts.google.com https://appleid.apple.com",
@@ -75,8 +76,18 @@ All authentication cookies MUST use secure attributes.
 ### JWT Authentication Cookie
 
 ```python
-def _set_auth_cookies(response: Response, user: User, token: str) -> None:
-    cookie_domain = ".adajoon.com" if settings.env == "production" else None
+def _cookie_domain_for_host(host: str | None) -> str | None:
+    # Prefer host-only cookies on Railway preview hosts; use .adajoon.com on production domains
+    if not host:
+        return None
+    h = host.split(":")[0].lower()
+    if h.endswith("adajoon.com"):
+        return ".adajoon.com"
+    return None
+
+def _set_auth_cookies(response: Response, user: User, token: str, request: Request | None = None) -> None:
+    host = request.headers.get("host") if request else None
+    cookie_domain = _cookie_domain_for_host(host)
     
     response.set_cookie(
         key="auth_token",
@@ -106,6 +117,8 @@ def _set_auth_cookies(response: Response, user: User, token: str) -> None:
 ```
 
 **Cookie Requirements:**
+- Never hardcode `Domain=.adajoon.com` for all production hosts — Railway frontend URLs reject that domain
+- Prefer `www.adajoon.com` so shared `.adajoon.com` cookies work across apex/www
 - `httponly=True` for sensitive tokens (prevents XSS)
 - `secure=True` always (HTTPS only)
 - `samesite="lax"` for CSRF protection

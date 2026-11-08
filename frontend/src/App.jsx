@@ -3,18 +3,24 @@ import Header from "./components/Header";
 import Sidebar from "./components/Sidebar";
 import ChannelGrid from "./components/ChannelGrid";
 import RadioGrid from "./components/RadioGrid";
+import MoviesView from "./components/MoviesView";
 import VideoPlayer from "./components/VideoPlayer";
 import RadioPlayer from "./components/RadioPlayer";
 import MiniPlayer from "./components/MiniPlayer";
 import FloatingPlayer from "./components/FloatingPlayer";
-import AdminDashboard from "./components/AdminDashboard";
+import SettingsPage from "./components/SettingsPage";
+import PricingPage from "./components/PricingPage";
 import GuestNoticeToast from "./components/GuestNoticeToast";
 import FavoritesView from "./components/FavoritesView";
 import RecentlyPlayed from "./components/RecentlyPlayed";
+import ForYouRow from "./components/ForYouRow";
 import BackToTop from "./components/BackToTop";
+import InstallPrompt from "./components/InstallPrompt";
 import AISearchModal from "./components/AISearchModal";
+import WhatsNewModal from "./components/WhatsNewModal";
 import WorldMap from "./components/WorldMap";
 import TVDebugInfo from "./components/TVDebugInfo";
+import ErrorBoundary from "./components/ErrorBoundary";
 import useFavorites, { useRadioFavorites } from "./hooks/useFavorites";
 import useRecentlyPlayed from "./hooks/useRecentlyPlayed";
 import { useAuth } from "./hooks/useAuth";
@@ -22,16 +28,32 @@ import { useVotes } from "./hooks/useVotes";
 import { useDevice } from "./hooks/useDevice";
 import { useTVNavigation } from "./hooks/useTVNavigation";
 import { useSessionTracking } from "./hooks/useSessionTracking";
+import { useNavigationTracking } from "./hooks/useNavigationTracking";
+import useTheme from "./hooks/useTheme";
 import {
   readUrlParams,
   writeUrlParams,
   pushPlayerState,
   popPlayerState,
+  isKnownPath,
+  isAdminPath,
 } from "./hooks/useUrlState";
+import { fetchChannels, fetchChannel, fetchCategories, fetchCountries, fetchStats } from "./api/channels";
+import { fetchRadioStations, fetchStation, fetchRadioTags, fetchRadioCountries } from "./api/radio";
+import { recordWatchHistory } from "./api/history";
+import { openRadioPopoutWindow } from "./utils/radioPopout";
+import {
+  hasSkippedGuestLogin,
+  setSkippedGuestLogin,
+  clearSkippedGuestLogin,
+} from "./utils/guestSession";
+import { hasUnseenWhatsNew, markWhatsNewSeen } from "./utils/whatsNewSeen";
+import { LATEST_VERSION } from "./data/whatsNew";
+import { analytics } from "./analytics";
 
 const LandingPage = lazy(() => import("./components/LandingPage"));
-import { fetchChannels, fetchCategories, fetchCountries, fetchStats } from "./api/channels";
-import { fetchRadioStations, fetchRadioTags, fetchRadioCountries } from "./api/radio";
+const RadioGardenMap = lazy(() => import("./components/RadioGardenMap"));
+const AdminDashboard = lazy(() => import("./components/AdminDashboard"));
 
 const GOOGLE_CLIENT_ID = "735750557405-01nak31482018qbfu1sigov94c1k4ca7.apps.googleusercontent.com";
 const APPLE_CLIENT_ID = "com.adajoon.web";
@@ -103,12 +125,29 @@ export default function App() {
     }
   }, [sidebarRailCollapsed]);
 
+  // Set once on load: an unrecognized path (e.g. a stale/mistyped link)
+  // shows a "page not found" message instead of silently falling back to
+  // the default channel grid with no indication the link was broken.
+  const [notFound, setNotFound] = useState(() => {
+    try {
+      return !isKnownPath(window.location.pathname);
+    } catch {
+      return false;
+    }
+  });
+
   const [showLogin, setShowLogin] = useState(() => {
-    try { return !localStorage.getItem("adajoon_user") && !localStorage.getItem("adajoon_guest_skip"); } catch { return true; }
+    // Default to NOT gating on a storage-read failure - a returning guest
+    // should never be blocked by an error we can't diagnose; worst case
+    // they see the normal browse screen instead of a login wall.
+    let hasUser = false;
+    try { hasUser = Boolean(localStorage.getItem("adajoon_user")); } catch { /* ignore */ }
+    return !hasUser && !hasSkippedGuestLogin();
   });
 
   const auth = useAuth();
   const isGuest = !auth.user;
+  const { theme, toggleTheme } = useTheme();
 
   useSessionTracking();
 
@@ -154,6 +193,9 @@ export default function App() {
   const [floatingRadio, setFloatingRadio] = useState(false);
   const radioAudioRef = useRef(null);
   const videoRef = useRef(null);
+  // Set by any explicit channel/station selection so a slow initial deep-link
+  // lookup can't clobber a selection the user already made before it resolved.
+  const deepLinkSupersededRef = useRef(false);
   const [showRadioFavorites, setShowRadioFavorites] = useState(IU.showRadioFavorites);
 
   const nowPlaying =
@@ -236,12 +278,31 @@ export default function App() {
     if (selectedChannel) {
       setTvModalOpen(true);
       addRecent("tv", selectedChannel);
+      if (auth.user) {
+        recordWatchHistory({
+          itemType: "tv",
+          itemId: selectedChannel.id,
+          itemName: selectedChannel.name,
+          itemLogo: selectedChannel.logo || "",
+        }).catch(() => {});
+      }
+      analytics.trackPlay("tv", selectedChannel);
     }
-  }, [selectedChannel, addRecent]);
+  }, [selectedChannel, addRecent, auth.user]);
 
   useEffect(() => {
-    if (selectedStation) addRecent("radio", selectedStation);
-  }, [selectedStation, addRecent]);
+    if (selectedStation) {
+      addRecent("radio", selectedStation);
+      if (auth.user) {
+        recordWatchHistory({
+          itemType: "radio",
+          itemId: selectedStation.id,
+          itemName: selectedStation.name,
+          itemLogo: selectedStation.favicon || "",
+        }).catch(() => {});
+      }
+    }
+  }, [selectedStation, addRecent, auth.user]);
 
   useEffect(() => {
     if (auth.user) {
@@ -292,7 +353,7 @@ export default function App() {
 
   const handleLogout = useCallback(() => {
     auth.logout();
-    localStorage.removeItem("adajoon_guest_skip");
+    clearSkippedGuestLogin();
     setShowLogin(true);
   }, [auth]);
 
@@ -305,6 +366,10 @@ export default function App() {
       }
     });
   }, [auth.user]);
+
+  // Admin is a real page, not app state - computed early since several
+  // effects below need it in their dependency arrays.
+  const onAdminPage = isAdminPath(window.location.pathname);
 
   // TV: load metadata
   const loadMeta = useCallback(async () => {
@@ -321,7 +386,11 @@ export default function App() {
   // TV: load channels
   const loadChannels = useCallback(async () => {
     if (showFavorites) return;
-    if (channels.length === 0) setLoading(true);
+    // Always show the loading state while a fetch is in flight, even when
+    // channels are already populated - otherwise a filter change (e.g.
+    // selecting a country on the map) renders the stale, now-mismatched
+    // list/count for a frame before the new data arrives.
+    setLoading(true);
     setError(null);
     try {
       const data = await fetchChannels({
@@ -355,7 +424,7 @@ export default function App() {
   // Radio: load stations
   const loadRadio = useCallback(async () => {
     if (showRadioFavorites) return;
-    if (radioStations.length === 0) setRadioLoading(true);
+    setRadioLoading(true);
     setRadioError(null);
     try {
       const data = await fetchRadioStations({
@@ -376,12 +445,16 @@ export default function App() {
   }, [radioSearch, activeTags, activeRadioCountries, activeRadioQualities, radioPage, showRadioFavorites]);
 
   useEffect(() => {
+    if (onAdminPage) return;
     loadMeta();
     const interval = setInterval(loadMeta, 30000);
     return () => clearInterval(interval);
-  }, [loadMeta]);
+  }, [loadMeta, onAdminPage]);
 
-  useEffect(() => { loadChannels(); }, [loadChannels]);
+  useEffect(() => {
+    if (onAdminPage) return;
+    loadChannels();
+  }, [loadChannels, onAdminPage]);
 
   useEffect(() => {
     const key = JSON.stringify({
@@ -402,12 +475,14 @@ export default function App() {
   }, [search, activeCategories, activeCountries, showFavorites, activeQualities]);
 
   useEffect(() => {
+    if (onAdminPage) return;
     if (mode === "radio" || mode === "map") loadRadioMeta();
-  }, [mode, loadRadioMeta]);
+  }, [mode, loadRadioMeta, onAdminPage]);
 
   useEffect(() => {
+    if (onAdminPage) return;
     if (mode === "radio") loadRadio();
-  }, [mode, loadRadio]);
+  }, [mode, loadRadio, onAdminPage]);
 
   useEffect(() => {
     const key = JSON.stringify({
@@ -490,10 +565,25 @@ export default function App() {
 
   const openTvPlayer = useCallback((ch) => {
     if (!ch) return;
+    deepLinkSupersededRef.current = true;
     pushPlayerState("tv", ch.id);
     setSelectedStation(null);
     setSelectedChannel(ch);
   }, []);
+
+  const handleChannelStep = useCallback((direction) => {
+    setSelectedChannel((current) => {
+      if (!current) return current;
+      const list = channels;
+      const index = list.findIndex((ch) => ch.id === current.id);
+      if (index === -1 || list.length < 2) return current;
+      const nextIndex = (index + direction + list.length) % list.length;
+      const next = list[nextIndex];
+      deepLinkSupersededRef.current = true;
+      pushPlayerState("tv", next.id);
+      return next;
+    });
+  }, [channels]);
 
   const closeTvPlayer = useCallback(() => {
     setSelectedChannel(null);
@@ -525,9 +615,27 @@ export default function App() {
   }, []);
 
   const handlePopOutRadio = useCallback(() => {
-    setFloatingRadio(true);
-    setRadioModalOpen(false);
-  }, []);
+    if (!selectedStation) return;
+
+    const popup = openRadioPopoutWindow(selectedStation);
+    if (!popup) {
+      // Popup blocked — keep in-app floating player
+      setFloatingRadio(true);
+      setRadioModalOpen(false);
+      return;
+    }
+
+    const a = radioAudioRef.current;
+    if (a) {
+      a.pause();
+      a.removeAttribute("src");
+      a.load();
+    }
+    setSelectedStation(null);
+    setFloatingRadio(false);
+    setRadioModalOpen(true);
+    popPlayerState();
+  }, [selectedStation]);
 
   const handleDockRadio = useCallback(() => {
     setFloatingRadio(false);
@@ -536,10 +644,50 @@ export default function App() {
 
   const handleSelectStation = useCallback((station) => {
     if (!station) return;
+    deepLinkSupersededRef.current = true;
     pushPlayerState("radio", station.id);
     setSelectedChannel(null);
     setSelectedStation(station);
     setRadioModalOpen(true);
+  }, []);
+
+  // Open the player directly for a shared/deep-link URL (e.g. /tv/channel/xyz
+  // or a bookmark/refresh), instead of just updating the URL and leaving the
+  // grid on screen. Runs once on mount; doesn't push a new history entry
+  // since we're already on this URL.
+  useEffect(() => {
+    let cancelled = false;
+    if (IU.initialChannel) {
+      fetchChannel(IU.initialChannel)
+        .then((ch) => {
+          if (!cancelled && !deepLinkSupersededRef.current && ch) {
+            setSelectedStation(null);
+            setSelectedChannel(ch);
+          }
+        })
+        .catch((err) => {
+          if (!cancelled && !deepLinkSupersededRef.current && err?.status === 404) {
+            setNotFound(true);
+          }
+        });
+    } else if (IU.initialStation) {
+      fetchStation(IU.initialStation)
+        .then((st) => {
+          if (!cancelled && !deepLinkSupersededRef.current && st) {
+            setSelectedChannel(null);
+            setSelectedStation(st);
+            setRadioModalOpen(true);
+          }
+        })
+        .catch((err) => {
+          if (!cancelled && !deepLinkSupersededRef.current && err?.status === 404) {
+            setNotFound(true);
+          }
+        });
+    }
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useTVNavigation({
@@ -558,6 +706,7 @@ export default function App() {
   });
 
   const handleModeSwitch = (newMode) => {
+    setNotFound(false);
     if (selectedChannel || selectedStation) {
       setSelectedChannel(null);
       setSelectedStation(null);
@@ -618,9 +767,22 @@ export default function App() {
 
   // AI Search state
   const [showAISearch, setShowAISearch] = useState(false);
-  
-  // Admin dashboard state
-  const [showAdminDashboard, setShowAdminDashboard] = useState(false);
+
+  // Settings page state
+  const [showSettings, setShowSettings] = useState(false);
+
+  // Pricing page state
+  const [showPricing, setShowPricing] = useState(false);
+
+  // What's New state
+  const [showWhatsNew, setShowWhatsNew] = useState(false);
+  const [unseenWhatsNew, setUnseenWhatsNew] = useState(() => hasUnseenWhatsNew(LATEST_VERSION));
+
+  const handleCloseWhatsNew = useCallback(() => {
+    setShowWhatsNew(false);
+    markWhatsNewSeen(LATEST_VERSION);
+    setUnseenWhatsNew(false);
+  }, []);
 
   const handleAISelect = useCallback((item) => {
     if (mode === "tv") {
@@ -655,6 +817,30 @@ export default function App() {
     setShowRadioFavorites(false);
   }, []);
 
+  useNavigationTracking({
+    mode,
+    mapSubMode,
+    query: mode === "tv" ? search : radioSearch,
+    showFavorites: mode === "tv" ? showFavorites : showRadioFavorites,
+    showAISearch,
+    showLogin,
+    selectedChannelId: selectedChannel?.id,
+    selectedStationId: selectedStation?.id,
+    isGuest,
+    skip: onAdminPage,
+  });
+
+  // Admin is a real page, not app state - render it standalone, same pattern
+  // as the guest/landing branch, and skip the rest of this component's
+  // (unrelated) TV/radio rendering entirely while on it.
+  if (onAdminPage) {
+    return (
+      <Suspense fallback={null}>
+        <AdminDashboard onClose={() => { window.location.href = "/"; }} />
+      </Suspense>
+    );
+  }
+
   return (
     <>
       <Header
@@ -676,10 +862,17 @@ export default function App() {
         isGuest={isGuest}
         onGuestNotice={onGuestNotice}
         onOpenAISearch={() => setShowAISearch(true)}
-        onOpenAdmin={() => setShowAdminDashboard(true)}
+        onOpenAdmin={() => { window.location.href = "/admin"; }}
+        onOpenSettings={() => setShowSettings(true)}
+        onOpenPricing={() => setShowPricing(true)}
+        onOpenWhatsNew={() => setShowWhatsNew(true)}
+        hasUnseenWhatsNew={unseenWhatsNew}
+        theme={theme}
+        onToggleTheme={toggleTheme}
       />
       {sidebarOpen && <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} />}
       <div className="layout">
+        {mode !== "movies" && (
         <Sidebar
           className={sidebarOpen ? "open" : ""}
           railCollapsed={sidebarRailCollapsed}
@@ -721,11 +914,30 @@ export default function App() {
           onLogin={() => setShowLogin(true)}
           onGuestNotice={onGuestNotice}
         />
+        )}
         <main className={`main-content${showDockedPlayer ? " main-content--mini-player" : ""}`}>
           {showRecentRow && (
             <RecentlyPlayed recentItems={recentItems} onSelect={handleRecentSelect} />
           )}
-          {showFavorites ? (
+          {showRecentRow && mode === "tv" && activeCategories.length === 0 && activeCountries.length === 0 && activeQualities.length === 0 && (
+            <ForYouRow onSelect={openTvPlayer} />
+          )}
+          {notFound ? (
+            <div className="not-found-view">
+              <div className="not-found-view__art" aria-hidden>404</div>
+              <p className="not-found-view__title">Page not found</p>
+              <p className="not-found-view__hint">
+                That link doesn't match anything here. It may be mistyped or out of date.
+              </p>
+              <button
+                type="button"
+                className="not-found-view__home-btn"
+                onClick={() => { window.location.href = "/"; }}
+              >
+                Go to Adajoon home
+              </button>
+            </div>
+          ) : showFavorites ? (
             <FavoritesView
               tvFavorites={favoritesList}
               radioFavorites={radioFavoritesList}
@@ -753,16 +965,28 @@ export default function App() {
                   Radio Stations
                 </button>
               </div>
-              <WorldMap
-                mode={mapSubMode}
-                countries={countries}
-                radioCountries={radioCountries}
-                activeCountries={mapSubMode === "tv" ? activeCountries : activeRadioCountries}
-                onSelectCountry={handleMapCountrySelect}
-                onSelectChannel={(ch) => { setMode("tv"); openTvPlayer(ch); }}
-                onSelectStation={(st) => { setMode("radio"); handleSelectStation(st); }}
-              />
+              <ErrorBoundary compact compactMessage="The map failed to load.">
+                {mapSubMode === "radio" ? (
+                  <Suspense fallback={<div className="radio-garden-map" aria-busy="true" />}>
+                    <RadioGardenMap onSelect={handleSelectStation} />
+                  </Suspense>
+                ) : (
+                  <WorldMap
+                    mode="tv"
+                    countries={countries}
+                    radioCountries={radioCountries}
+                    activeCountries={activeCountries}
+                    onSelectCountry={handleMapCountrySelect}
+                    onSelectChannel={(ch) => { setMode("tv"); openTvPlayer(ch); }}
+                    onSelectStation={(st) => { setMode("radio"); handleSelectStation(st); }}
+                  />
+                )}
+              </ErrorBoundary>
             </div>
+          ) : mode === "movies" ? (
+            <ErrorBoundary compact compactMessage="Movies failed to load.">
+              <MoviesView />
+            </ErrorBoundary>
           ) : mode === "tv" ? (
             <ChannelGrid
               channels={channels}
@@ -820,6 +1044,10 @@ export default function App() {
               onGuestNotice={onGuestNotice}
               getVoteSummary={(id) => votes.getSummaryFor("radio", id)}
               stats={stats}
+              onSelectCollection={(tags) => {
+                setActiveTags(tags);
+                setShowRadioFavorites(false);
+              }}
             />
           )}
         </main>
@@ -842,6 +1070,8 @@ export default function App() {
           myVotes={votes.getMyVotesFor("tv", selectedChannel.id)}
           voteSummary={votes.getSummaryFor("tv", selectedChannel.id)}
           onVote={votes.submitVote}
+          onSelectSimilar={openTvPlayer}
+          onChannelStep={handleChannelStep}
         />
       )}
       {selectedChannel && floatingTv && (
@@ -871,6 +1101,7 @@ export default function App() {
           myVotes={votes.getMyVotesFor("radio", selectedStation.id)}
           voteSummary={votes.getSummaryFor("radio", selectedStation.id)}
           onVote={votes.submitVote}
+          onSelectSimilar={handleSelectStation}
         />
       )}
       {selectedStation && floatingRadio && (
@@ -904,27 +1135,48 @@ export default function App() {
             onPasskeyLogin={handlePasskeyLogin}
             googleClientId={GOOGLE_CLIENT_ID}
             appleClientId={APPLE_CLIENT_ID}
-            onSkip={() => { localStorage.setItem("adajoon_guest_skip", "1"); setShowLogin(false); }}
+            onSkip={() => { setSkippedGuestLogin(); setShowLogin(false); }}
           />
         </Suspense>
       )}
       {showAISearch && (
-        <AISearchModal
-          mode={mode === "map" ? (mapSubMode || "tv") : mode}
-          onSelect={handleAISelect}
-          onClose={() => setShowAISearch(false)}
-        />
+        <ErrorBoundary compact compactMessage="AI search failed to load.">
+          <AISearchModal
+            mode={mode === "map" ? (mapSubMode || "tv") : mode}
+            onSelect={handleAISelect}
+            onClose={() => setShowAISearch(false)}
+          />
+        </ErrorBoundary>
       )}
-      {showAdminDashboard && (
-        <AdminDashboard
-          onClose={() => setShowAdminDashboard(false)}
-        />
+      {showSettings && (
+        <ErrorBoundary compact compactMessage="Settings failed to load.">
+          <SettingsPage
+            onClose={() => setShowSettings(false)}
+            onSelectChannel={(ch) => { setShowSettings(false); setMode("tv"); openTvPlayer(ch); }}
+            onSelectStation={(st) => { setShowSettings(false); setMode("radio"); handleSelectStation(st); }}
+          />
+        </ErrorBoundary>
+      )}
+      {showPricing && (
+        <ErrorBoundary compact compactMessage="Pricing failed to load.">
+          <PricingPage
+            isGuest={isGuest}
+            onLogin={() => { setShowPricing(false); setShowLogin(true); }}
+            onClose={() => setShowPricing(false)}
+          />
+        </ErrorBoundary>
+      )}
+      {showWhatsNew && (
+        <ErrorBoundary compact compactMessage="What's New failed to load.">
+          <WhatsNewModal onClose={handleCloseWhatsNew} />
+        </ErrorBoundary>
       )}
       <BackToTop />
+      <InstallPrompt />
       <TVDebugInfo />
       <footer className="app-footer">
         <span>&copy; {new Date().getFullYear()} Revest Technology. All rights reserved.</span>
-        <span className="footer-version">v2.6.0-dev</span>
+        <span className="footer-version">v{__APP_VERSION__}</span>
       </footer>
     </>
   );

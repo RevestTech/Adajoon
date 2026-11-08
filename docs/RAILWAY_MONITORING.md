@@ -54,44 +54,23 @@ Railway automatically monitors infrastructure-level metrics for your services:
 
 ## Application-Level Analytics
 
-### 1. Mixpanel (Event Tracking)
+### 1. Self-hosted analytics (PostgreSQL)
 
-**Setup**: Already configured in `frontend/src/analytics.js`
+**Setup**: `frontend/src/analytics.js` → `POST /api/analytics/batch` → `analytics_events`
 
 **What It Tracks**:
-- User logins and signups
-- Channel/station plays
-- Search queries
-- Favorites added/removed
-- Votes cast
-- Content shared
-- Filter applications
-
-**Configuration**:
-- Set `VITE_MIXPANEL_TOKEN` in frontend environment
-- Events automatically tracked in production mode
-- Console logging in development
+- Sessions (start / heartbeat / end, idle vs active)
+- Channel/station playback heartbeats
+- Searches, favorites, votes, shares, filters
+- **Auth funnel**: attempt / success / failure / session lost (client + server)
+- **Paths**: `Screen View` and `Navigation` (mode, map, favorites, player, login, …)
 
 **Viewing Data**:
-- Dashboard: https://mixpanel.com/
-- Reports: User funnels, retention, cohorts
-- Real-time: Live view of events as they occur
+- Admin → **Analytics** tab (summary, auth funnel, top screens/navigations, top content)
+- APIs: `/api/admin/analytics/summary`, `auth-funnel`, `paths`, `top-content`, `events-over-time`
+- Full reference: [`docs/CUSTOM_ANALYTICS.md`](CUSTOM_ANALYTICS.md)
 
-### 2. PostHog (Feature Flags & A/B Tests)
-
-**Setup**: Already configured in `frontend/src/experiments.js`
-
-**What It Provides**:
-- Feature flag management
-- A/B test tracking
-- User property tracking
-- Conversion funnels
-
-**Configuration**:
-- Set `VITE_POSTHOG_KEY` in frontend environment
-- Set `VITE_POSTHOG_HOST` (defaults to app.posthog.com)
-
-### 3. Prometheus Metrics (Backend)
+### 2. Prometheus Metrics (Backend)
 
 **Endpoint**: `/metrics` (internal use only)
 
@@ -165,6 +144,10 @@ All endpoints require `is_admin = true`:
 - `GET /api/admin/stats/users?days=30` - Detailed user analytics
 - `GET /api/admin/stats/content` - Content performance
 - `GET /api/admin/stats/activity?days=30` - User engagement
+- `GET /api/admin/analytics/summary?days=7` - Event summary
+- `GET /api/admin/analytics/auth-funnel?days=7` - Login success vs failure
+- `GET /api/admin/analytics/paths?days=7` - Top screens / navigations
+- `GET /api/admin/analytics/top-content?days=7` - Most played content
 - `POST /api/admin/users/{user_id}/make-admin` - Grant admin
 - `POST /api/admin/users/{user_id}/revoke-admin` - Revoke admin
 
@@ -175,17 +158,17 @@ All endpoints require `is_admin = true`:
 ### For Daily Checks
 1. **Railway Dashboard**: Quick glance at CPU/memory/errors
 2. **Admin Dashboard**: User growth and engagement trends
-3. **Mixpanel**: Funnel drop-offs and conversion rates
+3. **Auth Funnel**: Login attempt / success / failure rates
 
 ### For Weekly Reviews
 1. **Admin Stats**: Weekly active users, new signups
 2. **Content Performance**: Top channels, dead links
-3. **Mixpanel Retention**: 7-day and 30-day cohorts
+3. **Auth Funnel / Paths**: Login success vs failure; top screens (Admin → Analytics)
 
 ### For Monthly Planning
 1. **Growth Metrics**: Month-over-month user growth
 2. **Subscription Trends**: Free → paid conversion rate
-3. **Feature Usage**: Most/least used features (PostHog)
+3. **Feature Usage**: Most/least used screens and navigations (self-hosted analytics)
 4. **Infrastructure Costs**: Railway usage and scaling needs
 
 ---
@@ -199,10 +182,10 @@ All endpoints require `is_admin = true`:
    - Memory > 90% for 5 minutes
    - Deployment failures
 
-### Mixpanel Alerts
-1. Create custom events (e.g., "Payment Failed")
-2. Set email/Slack notifications
-3. Monitor critical user paths
+### Auth / product alerts
+1. Watch Admin → Analytics → Auth Funnel for spike in `Auth Login Failed`
+2. Review recent failures table for method + error text
+3. Cross-check Railway logs for `/api/auth/*` 4xx/5xx
 
 ### Custom Alerts (Future)
 Consider adding:
@@ -272,14 +255,15 @@ WHERE email = 'your.admin@email.com';
 - Clear browser cookies and re-login
 - Check backend logs for authentication errors
 
-### "Mixpanel events not appearing"
-- Verify `VITE_MIXPANEL_TOKEN` is set
-- Check browser console for errors
-- Confirm `import.meta.env.PROD` is true
+### "Analytics events not appearing"
+- Open Network tab → `/api/analytics/batch`
+- Confirm Admin → Analytics shows recent events
+- Query `SELECT COUNT(*) FROM analytics_events;`
+- Check backend logs for analytics insert errors
 
 ---
 
 ## Version
 - **Created**: 2026-04-12
-- **Last Updated**: 2026-04-12
-- **Admin Dashboard Version**: v1.0 (Initial Release)
+- **Last Updated**: 2026-07-21 (v2.6.0 — self-hosted auth funnel + paths)
+- **Admin Dashboard**: Auth funnel + path analytics

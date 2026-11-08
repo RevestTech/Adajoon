@@ -33,7 +33,9 @@ frontend/.vite/
 # Testing
 .pytest_cache/
 .coverage
+.coverage*
 htmlcov/
+coverage.xml
 *.cover
 
 # Logs

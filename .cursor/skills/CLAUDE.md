@@ -988,7 +988,7 @@ Use your editor's search (Cmd/Ctrl+F) to find:
 - [ ] **Remove redundant `redirect.js`**: Server-side nginx redirect handles non-www → www, client-side JS redirect is no longer needed
 
 ### Low Priority
-- [ ] **Update version in App.jsx footer**: Still shows v2.5.0, should be v2.5.2
+- [x] **Update version in App.jsx footer**: Done in v2.6.0
 - [ ] **Clean up TV debug overlay** for production (TVDebugInfo component)
 - [ ] **Add automated Lighthouse CI** to catch mobile performance regressions
 
@@ -997,6 +997,6 @@ Use your editor's search (Cmd/Ctrl+F) to find:
 ## Version
 
 Created for Adajoon v2.3.0 (April 2026)
-Last updated: 2026-04-07 (v2.5.2 — iOS Safari fix, nginx caching fix, deployment workflow)
+Last updated: 2026-07-21 (v2.6.0 — radio map + TV EPG, auth funnel/path analytics, login cookie fixes)
 
 Skills are continuously improved through the [Skill Improvement](#skill-improvement) process.

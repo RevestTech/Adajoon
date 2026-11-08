@@ -2,6 +2,7 @@
 Analytics tracking endpoints for custom self-hosted analytics.
 Receives events from frontend and stores in PostgreSQL.
 """
+
 import logging
 from datetime import datetime, timezone
 
@@ -33,7 +34,7 @@ async def track_event(
 ):
     """
     Track an analytics event.
-    
+
     Events are stored in PostgreSQL with user_id (if authenticated),
     session_id, event_name, properties (JSONB), and timestamp.
     """
@@ -44,7 +45,7 @@ async def track_event(
             "user_agent": request.headers.get("user-agent", ""),
             "ip_address": request.client.host if request.client else None,
         }
-        
+
         event = AnalyticsEvent(
             user_id=current_user.id if current_user else None,
             session_id=payload.session_id,
@@ -52,12 +53,12 @@ async def track_event(
             properties=enriched_properties,
             created_at=datetime.now(timezone.utc),
         )
-        
+
         db.add(event)
         await db.commit()
-        
+
         return {"status": "ok", "event_id": event.id}
-        
+
     except Exception as e:
         logger.error(f"Failed to track event: {e}")
         await db.rollback()
@@ -73,7 +74,7 @@ async def track_batch(
 ):
     """
     Track multiple analytics events in a single request (batch mode).
-    
+
     More efficient for sending multiple events at once.
     """
     try:
@@ -84,7 +85,7 @@ async def track_batch(
                 "user_agent": request.headers.get("user-agent", ""),
                 "ip_address": request.client.host if request.client else None,
             }
-            
+
             event = AnalyticsEvent(
                 user_id=current_user.id if current_user else None,
                 session_id=payload.session_id,
@@ -93,12 +94,12 @@ async def track_batch(
                 created_at=datetime.now(timezone.utc),
             )
             event_models.append(event)
-        
+
         db.add_all(event_models)
         await db.commit()
-        
+
         return {"status": "ok", "events_tracked": len(event_models)}
-        
+
     except Exception as e:
         logger.error(f"Failed to track batch events: {e}")
         await db.rollback()

@@ -1,8 +1,49 @@
 import { useEffect, useRef, useState } from "react";
-import { fetchStreams, runHealthCheck } from "../api/channels";
+import { fetchChannel, fetchStreams, runHealthCheck } from "../api/channels";
+import { fetchEpgNow } from "../api/epg";
 import FeedbackBar from "./FeedbackBar";
 import MiniPlayer from "./MiniPlayer";
+import SimilarItemsRail from "./SimilarItemsRail";
 import { useShare } from "../hooks/useShare";
+import useAds from "../hooks/useAds";
+
+function formatEpgTime(iso) {
+  if (!iso) return "";
+  try {
+    return new Date(iso).toLocaleTimeString(undefined, {
+      hour: "numeric",
+      minute: "2-digit",
+    });
+  } catch {
+    return "";
+  }
+}
+
+function EpgNowNextStrip({ now, next }) {
+  if (!now && !next) return null;
+  return (
+    <div className="epg-now-next" aria-live="polite">
+      {now && (
+        <div className="epg-now-next__row epg-now-next__row--now">
+          <span className="epg-now-next__label">Now</span>
+          <span className="epg-now-next__title">{now.title || "Untitled"}</span>
+          <span className="epg-now-next__time">
+            {formatEpgTime(now.start_at)}–{formatEpgTime(now.stop_at)}
+          </span>
+        </div>
+      )}
+      {next && (
+        <div className="epg-now-next__row epg-now-next__row--next">
+          <span className="epg-now-next__label">Next</span>
+          <span className="epg-now-next__title">{next.title || "Untitled"}</span>
+          <span className="epg-now-next__time">
+            {formatEpgTime(next.start_at)}–{formatEpgTime(next.stop_at)}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function healthCheckPresentation(status) {
   const s = status || "unknown";
@@ -50,6 +91,8 @@ export default function VideoPlayer({
   myVotes,
   voteSummary,
   onVote,
+  onSelectSimilar,
+  onChannelStep,
 }) {
   const getCountryName = (code) => {
     if (!code) return null;
@@ -58,65 +101,268 @@ export default function VideoPlayer({
   };
   const internalVideoRef = useRef(null);
   const videoRef = externalVideoRef || internalVideoRef;
+  const adContainerRef = useRef(null);
+  const { adPlaying, playPreRoll } = useAds(videoRef, adContainerRef);
+  // Guards the pre-roll against re-firing on every retry/stall of the same
+  // channel - only ever one pre-roll per channel.id.
+  const preRolledChannelIdRef = useRef(null);
   const hlsRef = useRef(null);
+  const stallTimeoutRef = useRef(null);
   const [streams, setStreams] = useState([]);
   const [activeUrl, setActiveUrl] = useState(channel.stream_url || "");
+  const [isLoading, setIsLoading] = useState(Boolean(channel.stream_url));
   const [errorMsg, setErrorMsg] = useState("");
+  const [triedUrls, setTriedUrls] = useState(() =>
+    channel.stream_url ? [channel.stream_url] : []
+  );
+  const [retryNonce, setRetryNonce] = useState(0);
   const [healthResult, setHealthResult] = useState(null);
   const [checking, setChecking] = useState(false);
   const [shareToast, setShareToast] = useState("");
+  const [channelStepFlash, setChannelStepFlash] = useState(false);
+  const channelStepFlashTimeoutRef = useRef(null);
+  const [epgNow, setEpgNow] = useState(null);
+  const [epgNext, setEpgNext] = useState(null);
   const { shareTvChannel } = useShare();
+  // True once fetchStreams has settled (success or failure) for the current
+  // channel, so a stream failure that lands before alternates arrive can
+  // wait for them instead of declaring final failure prematurely.
+  const streamsSettledRef = useRef(false);
+  const pendingFailureRef = useRef(null);
+  const latestChannelIdRef = useRef(channel.id);
+  latestChannelIdRef.current = channel.id;
 
   useEffect(() => {
-    fetchStreams(channel.id).then(setStreams).catch(() => {});
+    const channelId = channel.id;
+    streamsSettledRef.current = false;
+    pendingFailureRef.current = null;
+    fetchStreams(channelId)
+      .then((result) => {
+        if (channelId !== latestChannelIdRef.current) return; // stale response for a channel we've left
+        streamsSettledRef.current = true;
+        setStreams(result);
+        // No primary stream_url, but the channel has alternates - use the
+        // first one instead of showing "No stream available" forever.
+        setActiveUrl((current) => current || result?.[0]?.url || current);
+        if (pendingFailureRef.current) {
+          const message = pendingFailureRef.current;
+          pendingFailureRef.current = null;
+          handleStreamFailure(message, result);
+        }
+      })
+      .catch(() => {
+        if (channelId !== latestChannelIdRef.current) return;
+        streamsSettledRef.current = true;
+        if (pendingFailureRef.current) {
+          const message = pendingFailureRef.current;
+          pendingFailureRef.current = null;
+          handleStreamFailure(message, []);
+        }
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [channel.id]);
+
+  // Reset playback state when switching to a different channel without
+  // closing the player (e.g. picking a new card while minimized).
+  useEffect(() => {
+    setStreams([]);
+    setActiveUrl(channel.stream_url || "");
+    setTriedUrls(channel.stream_url ? [channel.stream_url] : []);
+    setErrorMsg("");
+    setIsLoading(Boolean(channel.stream_url));
+  }, [channel.id]);
+
+  // Record every URL we've attempted so auto-fallback never retries one.
+  useEffect(() => {
+    if (!activeUrl) return;
+    setTriedUrls((prev) => (prev.includes(activeUrl) ? prev : [...prev, activeUrl]));
+  }, [activeUrl]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setEpgNow(null);
+    setEpgNext(null);
+    fetchEpgNow(channel.id)
+      .then((data) => {
+        if (cancelled) return;
+        setEpgNow(data?.now || null);
+        setEpgNext(data?.next || null);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setEpgNow(null);
+          setEpgNext(null);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [channel.id]);
+
+  const streamsRef = useRef(streams);
+  useEffect(() => { streamsRef.current = streams; }, [streams]);
+  const triedUrlsRef = useRef(triedUrls);
+  useEffect(() => { triedUrlsRef.current = triedUrls; }, [triedUrls]);
+
+  // On failure, auto-advance to the next untried stream source instead of
+  // just sitting frozen; only show a final error once every source failed.
+  // `streamsOverride`, when passed, is the just-resolved streams list (state
+  // hasn't committed yet when this is called from the fetchStreams handler).
+  const handleStreamFailure = (finalMessage, streamsOverride) => {
+    const source = streamsOverride ?? streamsRef.current;
+    const candidates = [channel.stream_url, ...source.map((s) => s.url)].filter(Boolean);
+    const next = candidates.find((u) => !triedUrlsRef.current.includes(u));
+    if (next) {
+      setActiveUrl(next);
+      return;
+    }
+    if (!streamsSettledRef.current) {
+      // Alternates may still be on the way - wait for them instead of
+      // declaring final failure; fetchStreams resolving will retry this.
+      pendingFailureRef.current = finalMessage;
+      return;
+    }
+    setIsLoading(false);
+    setErrorMsg(finalMessage);
+  };
 
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !activeUrl) return;
 
+    let cancelled = false;
     setErrorMsg("");
+    setIsLoading(true);
 
     if (hlsRef.current) {
       hlsRef.current.destroy();
       hlsRef.current = null;
     }
+    if (stallTimeoutRef.current) {
+      clearTimeout(stallTimeoutRef.current);
+      stallTimeoutRef.current = null;
+    }
 
-    if (activeUrl.includes(".m3u8") && !video.canPlayType("application/vnd.apple.mpegurl")) {
-      let cancelled = false;
-      import("hls.js").then(({ default: Hls }) => {
-        if (cancelled || !Hls.isSupported()) return;
-        const hls = new Hls({ enableWorker: true, lowLatencyMode: true });
-        hls.loadSource(activeUrl);
-        hls.attachMedia(video);
-        hls.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(() => {}));
-        hls.on(Hls.Events.ERROR, (_, data) => {
-          if (data.fatal) setErrorMsg("Stream could not be loaded. It may be offline.");
+    const clearStallTimeout = () => {
+      if (stallTimeoutRef.current) {
+        clearTimeout(stallTimeoutRef.current);
+        stallTimeoutRef.current = null;
+      }
+    };
+    const markPlaying = () => {
+      clearStallTimeout();
+      setIsLoading(false);
+    };
+    const handleNativeError = () => {
+      clearStallTimeout();
+      handleStreamFailure("Stream could not be loaded. It may be offline.");
+    };
+
+    video.addEventListener("playing", markPlaying);
+    video.addEventListener("error", handleNativeError);
+
+    // If nothing starts playing within 15s, treat it as a failed source
+    // rather than leaving the player frozen with no feedback.
+    stallTimeoutRef.current = setTimeout(() => {
+      handleStreamFailure("Stream timed out. It may be offline.");
+    }, 15000);
+
+    const loadSource = () => {
+      if (cancelled) return;
+      if (activeUrl.includes(".m3u8") && !video.canPlayType("application/vnd.apple.mpegurl")) {
+        import("hls.js").then(({ default: Hls }) => {
+          if (cancelled) return;
+          if (!Hls.isSupported()) {
+            clearStallTimeout();
+            handleStreamFailure("This stream format is not supported in your browser.");
+            return;
+          }
+          const hls = new Hls({ enableWorker: true, lowLatencyMode: true });
+          hls.loadSource(activeUrl);
+          hls.attachMedia(video);
+          hls.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(() => {}));
+          hls.on(Hls.Events.ERROR, (_, data) => {
+            if (data.fatal) {
+              clearStallTimeout();
+              handleStreamFailure("Stream could not be loaded. It may be offline.");
+            }
+          });
+          hlsRef.current = hls;
         });
-        hlsRef.current = hls;
-      });
-      return () => { cancelled = true; if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null; } };
-    } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
-      video.src = activeUrl;
-      video.play().catch(() => {});
+      } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
+        video.src = activeUrl;
+        video.play().catch(() => {
+          clearStallTimeout();
+          handleStreamFailure("Stream could not be loaded. It may be offline.");
+        });
+      } else {
+        video.src = activeUrl;
+        video.play().catch(() => {
+          clearStallTimeout();
+          handleStreamFailure("This stream format is not supported in your browser.");
+        });
+      }
+    };
+
+    // One pre-roll per channel - re-running this effect for a retry or
+    // fallback source on the same channel must not replay the ad.
+    if (preRolledChannelIdRef.current !== channel.id) {
+      preRolledChannelIdRef.current = channel.id;
+      playPreRoll().then(loadSource);
     } else {
-      video.src = activeUrl;
-      video.play().catch(() => setErrorMsg("This stream format is not supported in your browser."));
+      loadSource();
     }
 
     return () => {
+      cancelled = true;
+      video.removeEventListener("playing", markPlaying);
+      video.removeEventListener("error", handleNativeError);
+      clearStallTimeout();
       if (hlsRef.current) {
         hlsRef.current.destroy();
         hlsRef.current = null;
       }
     };
-  }, [activeUrl]);
+    // retryNonce has no effect on playback logic itself - it only forces
+    // this effect to rerun when Retry picks the same URL (e.g. the channel
+    // has just one source), which activeUrl alone wouldn't trigger.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeUrl, retryNonce]);
 
   useEffect(() => {
-    const handleKey = (e) => { if (e.key === "Escape") onClose(); };
+    const handleKey = (e) => {
+      if (e.key === "Escape") {
+        onClose();
+        return;
+      }
+      if (minimized || !onChannelStep) return;
+      if (["INPUT", "TEXTAREA"].includes(document.activeElement?.tagName)) return;
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        onChannelStep(1);
+        setChannelStepFlash(true);
+      } else if (e.key === "ArrowDown") {
+        e.preventDefault();
+        onChannelStep(-1);
+        setChannelStepFlash(true);
+      }
+    };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [onClose]);
+  }, [onClose, onChannelStep, minimized]);
+
+  useEffect(() => {
+    if (!channelStepFlash) return undefined;
+    clearTimeout(channelStepFlashTimeoutRef.current);
+    channelStepFlashTimeoutRef.current = setTimeout(() => setChannelStepFlash(false), 1500);
+    return () => clearTimeout(channelStepFlashTimeoutRef.current);
+  }, [channelStepFlash, channel.id]);
+
+  const handleSelectSimilar = (item) => {
+    fetchChannel(item.id)
+      .then((full) => onSelectSimilar?.(full))
+      .catch(() => {});
+  };
 
   const handleHealthCheck = async () => {
     setChecking(true);
@@ -215,10 +461,7 @@ export default function VideoPlayer({
               <button
                 type="button"
                 className="modal-favorite-btn modal-favorite-btn--guest"
-                onClick={() => {
-                  onGuestNotice?.("Sign in to save favorites.");
-                  onLogin?.();
-                }}
+                onClick={() => onGuestNotice?.("Sign in to save favorites.")}
                 title="Sign in to save favorites"
                 aria-label="Sign in to save favorites"
               >
@@ -295,14 +538,54 @@ export default function VideoPlayer({
             )}
           </div>
         </div>
+        {!minimized && (epgNow || epgNext) && (
+          <EpgNowNextStrip now={epgNow} next={epgNext} />
+        )}
         <div className="modal-body channel-modal-body">
           <div className="channel-modal-stage">
             {activeUrl ? (
               <div className="video-container">
+                {channelStepFlash && (
+                  <div className="channel-step-flash" role="status">
+                    {channel.logo ? (
+                      <img src={channel.logo} alt="" className="channel-step-flash-logo" />
+                    ) : (
+                      <span className="channel-step-flash-logo channel-step-flash-logo--placeholder" />
+                    )}
+                    <span className="channel-step-flash-name">{channel.name}</span>
+                  </div>
+                )}
                 {errorMsg ? (
-                  <div className="no-stream channel-modal-no-stream channel-modal-no-stream--error">{errorMsg}</div>
+                  <div className="no-stream channel-modal-no-stream channel-modal-no-stream--error">
+                    <p>{errorMsg}</p>
+                    <button
+                      type="button"
+                      className="channel-modal-retry-btn"
+                      onClick={() => {
+                        setTriedUrls([]);
+                        setErrorMsg("");
+                        setActiveUrl(channel.stream_url || streams[0]?.url || "");
+                        setRetryNonce((n) => n + 1);
+                      }}
+                    >
+                      Retry
+                    </button>
+                  </div>
                 ) : (
-                  <video ref={videoRef} controls autoPlay playsInline />
+                  <>
+                    {isLoading && (
+                      <div className="video-loading-overlay" aria-live="polite">
+                        <span className="video-loading-spinner" />
+                        <span>Connecting to stream…</span>
+                      </div>
+                    )}
+                    <video ref={videoRef} controls autoPlay playsInline />
+                    <div
+                      ref={adContainerRef}
+                      className="video-ad-container"
+                      style={{ display: adPlaying ? "block" : "none" }}
+                    />
+                  </>
                 )}
               </div>
             ) : (
@@ -364,6 +647,10 @@ export default function VideoPlayer({
               </div>
             )}
           </div>
+
+          {!minimized && (
+            <SimilarItemsRail itemType="tv" itemId={channel.id} onSelect={handleSelectSimilar} />
+          )}
 
           <FeedbackBar
             variant="channel"
