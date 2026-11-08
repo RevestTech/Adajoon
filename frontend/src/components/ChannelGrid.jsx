@@ -1,8 +1,46 @@
+import { useState, useEffect } from "react";
 import ViewToggle from "./ViewToggle";
 import VoteIndicator from "./VoteIndicator";
 import QuickFilters from "./QuickFilters";
+import { fetchEpgNowBatch } from "../api/epg";
+import { formatTimeLeft, epgProgressPercent } from "../utils/epgTime";
+import EpgGridView from "./EpgGridView";
+import { handleCardKey } from "../utils/keyboardNav";
 
 const GUEST_LIMIT = 20;
+
+/** Compact one-line version for list rows and thumbnails, no progress bar. */
+function EpgInlineText({ programme }) {
+  if (!programme) return null;
+  const timeLeft = formatTimeLeft(programme.stop_at);
+  if (!timeLeft) return null;
+  return (
+    <span className="epg-inline-text" title={programme.title}>
+      Now: {programme.title || "Untitled"} · {timeLeft}
+    </span>
+  );
+}
+
+function EpgTileBadge({ programme }) {
+  if (!programme) return null;
+  const timeLeft = formatTimeLeft(programme.stop_at);
+  if (!timeLeft) return null;
+  return (
+    <div className="epg-tile-badge" title={programme.title}>
+      <div className="epg-tile-badge__text">
+        <span className="epg-tile-badge__now">Now</span>
+        <span className="epg-tile-badge__title">{programme.title || "Untitled"}</span>
+        <span className="epg-tile-badge__time">{timeLeft}</span>
+      </div>
+      <div className="epg-tile-badge__bar">
+        <div
+          className="epg-tile-badge__bar-fill"
+          style={{ width: `${epgProgressPercent(programme.start_at, programme.stop_at)}%` }}
+        />
+      </div>
+    </div>
+  );
+}
 
 /** Maps channel health_status to badge classes, dot class, label, and thumb overlay class. */
 function getTvStreamStatus(healthStatus) {
@@ -140,6 +178,29 @@ export default function ChannelGrid({
   const showSkeleton = loading && channels.length === 0;
   const showCountryInList = activeCountries.length === 0;
 
+  const visibleChannels = isGuest ? channels.slice(0, GUEST_LIMIT) : channels;
+  const [epgNow, setEpgNow] = useState({});
+  const [showEpgGrid, setShowEpgGrid] = useState(false);
+  const visibleIdsKey = visibleChannels.map((ch) => ch.id).join(",");
+  useEffect(() => {
+    let cancelled = false;
+    const ids = visibleIdsKey ? visibleIdsKey.split(",") : [];
+    if (ids.length === 0) {
+      setEpgNow({});
+      return;
+    }
+    fetchEpgNowBatch(ids)
+      .then((data) => {
+        if (!cancelled) setEpgNow(data.items || {});
+      })
+      .catch(() => {
+        if (!cancelled) setEpgNow({});
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [visibleIdsKey]);
+
   if (showSkeleton) {
     const SkeletonEl = viewMode === "list" ? "skeleton-row" : viewMode === "thumb" ? "skeleton-thumb" : "skeleton-card";
     const gridClass = viewMode === "list" ? "channel-list" : viewMode === "thumb" ? "thumb-grid" : "channel-grid";
@@ -268,9 +329,28 @@ export default function ChannelGrid({
               );
             })}
           </div>
+          <button
+            type="button"
+            className="tv-guide-btn"
+            onClick={() => setShowEpgGrid(true)}
+            disabled={visibleChannels.length === 0}
+          >
+            TV Guide
+          </button>
           <ViewToggle viewMode={viewMode} onViewToggle={onViewToggle} />
         </div>
       </div>
+
+      {showEpgGrid && (
+        <EpgGridView
+          channels={visibleChannels}
+          onClose={() => setShowEpgGrid(false)}
+          onSelectChannel={(ch) => {
+            setShowEpgGrid(false);
+            onSelect(ch);
+          }}
+        />
+      )}
 
 
       <div className={`content-body${loading ? " content-loading" : ""}`}>
@@ -372,10 +452,10 @@ export default function ChannelGrid({
         ) : (
           <>
             <div className={viewMode === "list" ? "channel-list" : viewMode === "thumb" ? "thumb-grid" : "channel-grid"}>
-              {(isGuest ? channels.slice(0, GUEST_LIMIT) : channels).map((ch) => {
+              {visibleChannels.map((ch) => {
                 const countryObj = countryList.find(c => c.code === ch.country_code);
                 const countryName = countryObj ? countryObj.name : ch.country_code;
-                
+
                 const props = {
                   key: ch.id,
                   channel: ch,
@@ -385,13 +465,13 @@ export default function ChannelGrid({
                     ? (e) => {
                         e.stopPropagation();
                         onGuestNotice?.("Sign in to save favorites.");
-                        onLogin();
                       }
                     : (e) => { e.stopPropagation(); onToggleFavorite(ch); },
                   isGuest,
                   voteSummary: getVoteSummary ? getVoteSummary(ch.id) : {},
                   countryName,
                   showCountry: showCountryInList,
+                  nowProgramme: epgNow[ch.id],
                 };
                 if (viewMode === "list") return <ChannelRow {...props} />;
                 if (viewMode === "thumb") return <ChannelThumb {...props} />;
@@ -442,12 +522,19 @@ function GuestBanner({ onLogin, total, type }) {
   );
 }
 
-function ChannelCard({ channel, onClick, favorited, onToggleFavorite, isGuest, voteSummary, countryName }) {
+function ChannelCard({ channel, onClick, favorited, onToggleFavorite, isGuest, voteSummary, countryName, nowProgramme }) {
   const cats = channel.categories ? channel.categories.split(";").filter(Boolean) : [];
   const streamStatus = channel.stream_url ? getTvStreamStatus(channel.health_status) : null;
 
   return (
-    <div className="channel-card" onClick={onClick}>
+    <div
+      className="channel-card"
+      onClick={onClick}
+      role="button"
+      tabIndex={0}
+      aria-label={channel.name}
+      onKeyDown={handleCardKey(onClick)}
+    >
       {isGuest ? (
         <button
           type="button"
@@ -494,6 +581,7 @@ function ChannelCard({ channel, onClick, favorited, onToggleFavorite, isGuest, v
       <div className="channel-name" title={channel.name}>
         {channel.name}
       </div>
+      <EpgTileBadge programme={nowProgramme} />
       <div className="channel-meta">
         {countryName && (
           <span className="channel-tag" title={countryName}>{countryName}</span>
@@ -513,12 +601,19 @@ function ChannelCard({ channel, onClick, favorited, onToggleFavorite, isGuest, v
   );
 }
 
-function ChannelRow({ channel, onClick, favorited, onToggleFavorite, isGuest, voteSummary, countryName, showCountry }) {
+function ChannelRow({ channel, onClick, favorited, onToggleFavorite, isGuest, voteSummary, countryName, showCountry, nowProgramme }) {
   const cats = channel.categories ? channel.categories.split(";").filter(Boolean) : [];
   const streamStatus = channel.stream_url ? getTvStreamStatus(channel.health_status) : null;
 
   return (
-    <div className="list-row" onClick={onClick}>
+    <div
+      className="list-row"
+      onClick={onClick}
+      role="button"
+      tabIndex={0}
+      aria-label={channel.name}
+      onKeyDown={handleCardKey(onClick)}
+    >
       <div className="list-row-logo">
         {channel.logo ? (
           <img
@@ -547,6 +642,7 @@ function ChannelRow({ channel, onClick, favorited, onToggleFavorite, isGuest, vo
           {cats.slice(0, 2).map((c) => (
             <span key={c} className="list-meta-item">{c}</span>
           ))}
+          <EpgInlineText programme={nowProgramme} />
         </div>
       </div>
       <div className="list-row-status">
@@ -589,12 +685,19 @@ function ChannelRow({ channel, onClick, favorited, onToggleFavorite, isGuest, vo
   );
 }
 
-function ChannelThumb({ channel, onClick, favorited, onToggleFavorite, isGuest, voteSummary, countryName }) {
+function ChannelThumb({ channel, onClick, favorited, onToggleFavorite, isGuest, voteSummary, countryName, nowProgramme }) {
   const cats = channel.categories ? channel.categories.split(";").filter(Boolean) : [];
   const streamStatus = channel.stream_url ? getTvStreamStatus(channel.health_status) : null;
 
   return (
-    <div className="thumb-card" onClick={onClick}>
+    <div
+      className="thumb-card"
+      onClick={onClick}
+      role="button"
+      tabIndex={0}
+      aria-label={channel.name}
+      onKeyDown={handleCardKey(onClick)}
+    >
       <div className="thumb-image">
         {channel.logo ? (
           <img
@@ -646,6 +749,7 @@ function ChannelThumb({ channel, onClick, favorited, onToggleFavorite, isGuest, 
       </div>
       <div className="thumb-info">
         <span className="thumb-name" title={channel.name}>{channel.name}</span>
+        <EpgInlineText programme={nowProgramme} />
         <div className="thumb-tags">
           {countryName && <span className="channel-tag" title={countryName}>{countryName}</span>}
           {cats.slice(0, 2).map((c) => (

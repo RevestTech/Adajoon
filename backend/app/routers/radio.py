@@ -1,18 +1,33 @@
 import logging
 import math
 
-from fastapi import APIRouter, Depends, Query, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.redis_client import cache_get, cache_set
 from app.schemas import (
-    RadioStationOut, RadioSearchParams, PaginatedRadio,
-    RadioTagOut, RadioCountryOut,
+    MapBboxResponse,
+    PaginatedRadio,
+    RadioCountryOut,
+    RadioSearchParams,
+    RadioStationOut,
 )
 from app.services.radio_service import (
-    search_radio, get_radio_countries,
+    MAP_DEFAULT_LIMIT,
+    MAP_MAX_LIMIT,
+    MAP_NEARBY_DEFAULT_LIMIT,
+    MAP_NEARBY_MAX_LIMIT,
+    NOW_PLAYING_BATCH_MAX,
+    get_map_bbox,
+    get_nearby_stations,
+    get_now_playing_batch,
+    get_radio_countries,
+    get_ride_station,
+    get_station_by_id,
+    parse_bbox,
+    search_radio,
 )
-from app.redis_client import cache_get, cache_set
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/radio", tags=["radio"])
@@ -28,15 +43,22 @@ async def list_radio_stations(
     country: str | None = Query(None),
     language: str | None = Query(None),
     working_only: bool = Query(False),
-    status: str | None = Query(None, description="Filter by health status: verified, live, or hide_offline"),
+    status: str | None = Query(
+        None, description="Filter by health status: verified, live, or hide_offline"
+    ),
     page: int = Query(1, ge=1),
     per_page: int = Query(40, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
 ):
     params = RadioSearchParams(
-        query=query, tag=tag, country=country,
-        language=language, working_only=working_only,
-        status=status, page=page, per_page=per_page,
+        query=query,
+        tag=tag,
+        country=country,
+        language=language,
+        working_only=working_only,
+        status=status,
+        page=page,
+        per_page=per_page,
     )
     stations, total = await search_radio(db, params)
     return PaginatedRadio(
@@ -46,6 +68,14 @@ async def list_radio_stations(
         per_page=per_page,
         total_pages=math.ceil(total / per_page) if total else 0,
     )
+
+
+@router.get("/stations/{station_id}", response_model=RadioStationOut)
+async def get_radio_station(station_id: str, db: AsyncSession = Depends(get_db)):
+    station = await get_station_by_id(db, station_id)
+    if not station:
+        raise HTTPException(status_code=404, detail="Station not found")
+    return RadioStationOut.model_validate(station)
 
 
 STATIC_TAGS = [
@@ -71,6 +101,7 @@ STATIC_TAGS = [
     {"name": "variety", "station_count": 600},
 ]
 
+
 @router.get("/tags-test")
 async def tags_test():
     """Test endpoint to verify Railway deployment."""
@@ -86,6 +117,23 @@ async def list_radio_tags():
     return STATIC_TAGS
 
 
+@router.get("/now-playing-batch")
+async def radio_now_playing_batch(
+    station_ids: str = Query(..., description="Comma-separated station ids"),
+    db: AsyncSession = Depends(get_db),
+):
+    """Current track title for a page of visible station cards, fetched
+    live from each station's ICY in-band metadata. Bounded, cached, and
+    best-effort - most stations simply don't expose this and are omitted
+    from the result rather than erroring."""
+    ids = [s.strip() for s in station_ids.split(",") if s.strip()][
+        :NOW_PLAYING_BATCH_MAX
+    ]
+    if not ids:
+        return {}
+    return await get_now_playing_batch(db, ids)
+
+
 @router.get("/countries", response_model=list[RadioCountryOut])
 async def list_radio_countries(db: AsyncSession = Depends(get_db)):
     try:
@@ -94,7 +142,11 @@ async def list_radio_countries(db: AsyncSession = Depends(get_db)):
             return cached
         rows = await get_radio_countries(db)
         data = [
-            RadioCountryOut(country=r.country, country_code=r.country_code, station_count=r.station_count)
+            RadioCountryOut(
+                country=r.country,
+                country_code=r.country_code,
+                station_count=r.station_count,
+            )
             for r in rows
         ]
         # Convert Pydantic models to dicts for caching
@@ -102,4 +154,81 @@ async def list_radio_countries(db: AsyncSession = Depends(get_db)):
         return data
     except Exception as e:
         logger.error(f"Error in list_radio_countries: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to fetch radio countries: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to fetch radio countries: {str(e)}"
+        )
+
+
+@router.get("/map/ride", response_model=RadioStationOut)
+async def radio_map_ride(
+    lat: float | None = Query(None, ge=-90, le=90),
+    lng: float | None = Query(None, ge=-180, le=180),
+    working_only: bool = Query(True),
+    db: AsyncSession = Depends(get_db),
+):
+    """Random playable geo station for 'Take a ride' (optionally near a point)."""
+    if (lat is None) != (lng is None):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="lat and lng must be provided together",
+        )
+    station = await get_ride_station(
+        db,
+        lat=lat,
+        lng=lng,
+        working_only=working_only,
+    )
+    if station is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No geo stations available",
+        )
+    return RadioStationOut.model_validate(station)
+
+
+@router.get("/map/nearby", response_model=list[RadioStationOut])
+async def radio_map_nearby(
+    lat: float = Query(..., ge=-90, le=90),
+    lng: float = Query(..., ge=-180, le=180),
+    limit: int = Query(MAP_NEARBY_DEFAULT_LIMIT, ge=1, le=MAP_NEARBY_MAX_LIMIT),
+    working_only: bool = Query(True),
+    db: AsyncSession = Depends(get_db),
+):
+    """Closest playable geo stations to a point, for sparse map regions."""
+    stations = await get_nearby_stations(
+        db,
+        lat=lat,
+        lng=lng,
+        limit=limit,
+        working_only=working_only,
+    )
+    return [RadioStationOut.model_validate(s) for s in stations]
+
+
+@router.get("/map", response_model=MapBboxResponse)
+async def radio_map_bbox(
+    bbox: str = Query(..., description="west,south,east,north"),
+    zoom: int = Query(5, ge=0, le=22),
+    limit: int = Query(MAP_DEFAULT_LIMIT, ge=1, le=MAP_MAX_LIMIT),
+    working_only: bool = Query(True),
+    db: AsyncSession = Depends(get_db),
+):
+    """Stations or grid clusters inside a viewport bbox (no PostGIS)."""
+    try:
+        west, south, east, north = parse_bbox(bbox)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+
+    return await get_map_bbox(
+        db,
+        west=west,
+        south=south,
+        east=east,
+        north=north,
+        zoom=zoom,
+        limit=limit,
+        working_only=working_only,
+    )

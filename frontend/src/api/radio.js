@@ -39,16 +39,26 @@ const FALLBACK_TAGS = [
   { name: "variety", station_count: 600 },
 ];
 
+export const fetchStation = async (stationId) => {
+  const res = await fetch(`${BASE}/stations/${stationId}`);
+  if (!res.ok) {
+    const err = new Error("Failed to fetch station");
+    err.status = res.status;
+    throw err;
+  }
+  return res.json();
+};
+
 export async function fetchRadioTags() {
   try {
     const res = await fetch(`${BASE}/tags`);
     if (!res.ok) {
-      // Silent fallback - no console noise
+      console.warn(`fetchRadioTags: /tags returned ${res.status}, using fallback tags`);
       return FALLBACK_TAGS;
     }
     return res.json();
   } catch (error) {
-    // Silent fallback - no console noise
+    console.warn("fetchRadioTags: request failed, using fallback tags", error);
     return FALLBACK_TAGS;
   }
 }
@@ -56,5 +66,62 @@ export async function fetchRadioTags() {
 export async function fetchRadioCountries() {
   const res = await fetch(`${BASE}/countries`);
   if (!res.ok) throw new Error("Failed to fetch radio countries");
+  return res.json();
+}
+
+export async function fetchRadioMap({
+  bbox,
+  zoom = 5,
+  limit,
+  workingOnly = true,
+  signal,
+} = {}) {
+  const params = new URLSearchParams();
+  params.set("bbox", bbox);
+  params.set("zoom", String(zoom));
+  if (limit != null) params.set("limit", String(limit));
+  params.set("working_only", workingOnly ? "true" : "false");
+
+  const res = await fetch(`${BASE}/map?${params}`, { signal });
+  if (!res.ok) throw new Error("Failed to load radio map");
+  return res.json();
+}
+
+export async function fetchRadioMapRide({ lat, lng, workingOnly = true, signal } = {}) {
+  const params = new URLSearchParams();
+  if (lat != null && Number.isFinite(Number(lat))) params.set("lat", String(lat));
+  if (lng != null && Number.isFinite(Number(lng))) params.set("lng", String(lng));
+  params.set("working_only", workingOnly ? "true" : "false");
+
+  const res = await fetch(`${BASE}/map/ride?${params}`, { signal });
+  if (res.status === 404) throw new Error("No station found nearby");
+  if (!res.ok) throw new Error("Failed to take a ride");
+  return res.json();
+}
+
+export async function fetchRadioMapNearby({ lat, lng, limit = 6, workingOnly = true, signal } = {}) {
+  const params = new URLSearchParams();
+  params.set("lat", String(lat));
+  params.set("lng", String(lng));
+  params.set("limit", String(limit));
+  params.set("working_only", workingOnly ? "true" : "false");
+
+  const res = await fetch(`${BASE}/map/nearby?${params}`, { signal });
+  if (!res.ok) throw new Error("Failed to load nearby stations");
+  return res.json();
+}
+
+/**
+ * Current track title for a page of visible station cards, fetched live
+ * from each station's ICY in-band metadata. Stations without it are simply
+ * absent from the result.
+ * @param {string[]} stationIds
+ * @returns {Promise<Record<string, string>>}
+ */
+export async function fetchNowPlayingBatch(stationIds) {
+  if (!stationIds?.length) return {};
+  const params = new URLSearchParams({ station_ids: stationIds.join(",") });
+  const res = await fetch(`${BASE}/now-playing-batch?${params}`);
+  if (!res.ok) throw new Error("Failed to fetch now-playing batch");
   return res.json();
 }

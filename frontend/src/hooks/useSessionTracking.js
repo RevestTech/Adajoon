@@ -16,8 +16,14 @@ export function useSessionTracking() {
   const idleTimeoutRef = useRef(null);
 
   useEffect(() => {
+    // Reset accumulators on every mount so a remount (route change, React
+    // Strict Mode double-invoke) starts a fresh session instead of adding
+    // on top of a previous mount's totals.
     sessionStartRef.current = Date.now();
     lastActivityRef.current = Date.now();
+    isActiveRef.current = true;
+    activityTimeRef.current = 0;
+    idleTimeRef.current = 0;
     pagesVisitedRef.current = 1;
 
     analytics.track('Session Started', {

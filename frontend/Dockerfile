@@ -1,12 +1,12 @@
-FROM node:20-alpine AS build
+FROM node:26-alpine AS build
 
 WORKDIR /app
 
-COPY frontend/package.json ./
-RUN npm install
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
 
-ARG CACHEBUST=20260406
-ENV BUILD_ID=20260406
+ARG CACHEBUST=20260412_v2
+ENV BUILD_ID=20260412_v2
 COPY frontend/ .
 RUN npm run build
 
@@ -14,7 +14,6 @@ FROM nginx:alpine
 
 COPY --from=build /app/dist /usr/share/nginx/html
 COPY frontend/nginx.conf.template /etc/nginx/conf.d/default.conf.template
-COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
 COPY frontend/start.sh /start.sh
 RUN chmod +x /start.sh
 

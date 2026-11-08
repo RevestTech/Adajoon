@@ -1,12 +1,12 @@
 fastapi==0.115.6
-uvicorn[standard]==0.34.0
+uvicorn[standard]==0.42.0
 sqlalchemy[asyncio]==2.0.36
 asyncpg==0.30.0
 psycopg2-binary==2.9.10
 httpx==0.28.1
-pydantic==2.10.3
+pydantic==2.12.5
 pydantic-settings==2.7.0
-alembic==1.14.0
+alembic==1.18.4
 m3u8==6.0.0
 apscheduler==3.10.4
 python-jose[cryptography]==3.3.0
@@ -27,4 +27,3 @@ stripe==8.2.0
 redis[hiredis]==5.0.1
 python-multipart==0.0.9
 anthropic==0.42.0
-hvac==2.3.0

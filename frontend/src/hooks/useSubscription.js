@@ -4,27 +4,34 @@
 import { useState, useEffect } from 'react';
 import { authenticatedFetch } from '../utils/csrf';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-
 export default function useSubscription() {
   const [tier, setTier] = useState('free');
   const [status, setStatus] = useState('');
   const [endsAt, setEndsAt] = useState(null);
   const [loading, setLoading] = useState(true);
   const [tiers, setTiers] = useState({});
+  // Starts closed (false) rather than optimistically open - until the real
+  // admin setting is known, we'd rather under-show ads than show them to a
+  // user the admin just turned them off for.
+  const [adsEnabled, setAdsEnabled] = useState(false);
+  const [adsSettingResolved, setAdsSettingResolved] = useState(false);
 
   /**
-   * Load available tiers.
+   * Load available tiers (and the global ads on/off switch, which rides
+   * along on this same response rather than a separate endpoint).
    */
   const loadTiers = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/subscriptions/tiers`);
+      const response = await fetch(`/api/subscriptions/tiers`);
       if (response.ok) {
         const data = await response.json();
         setTiers(data.tiers || {});
+        setAdsEnabled(data.ads_enabled !== false);
       }
     } catch (error) {
       console.error('Failed to load tiers:', error);
+    } finally {
+      setAdsSettingResolved(true);
     }
   };
 
@@ -35,7 +42,7 @@ export default function useSubscription() {
     setLoading(true);
     
     try {
-      const response = await authenticatedFetch(`${API_URL}/api/subscriptions/status`);
+      const response = await authenticatedFetch(`/api/subscriptions/status`);
       if (response.ok) {
         const data = await response.json();
         setTier(data.tier || 'free');
@@ -52,18 +59,19 @@ export default function useSubscription() {
   /**
    * Create checkout session and redirect to Stripe.
    */
-  const checkout = async (targetTier) => {
+  const checkout = async (targetTier, promoCode) => {
     try {
       const successUrl = `${window.location.origin}/subscription/success`;
       const cancelUrl = `${window.location.origin}/subscription/cancel`;
-      
-      const response = await authenticatedFetch(`${API_URL}/api/subscriptions/checkout`, {
+
+      const response = await authenticatedFetch(`/api/subscriptions/checkout`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           tier: targetTier,
           success_url: successUrl,
           cancel_url: cancelUrl,
+          ...(promoCode ? { promo_code: promoCode } : {}),
         }),
       });
       
@@ -93,7 +101,7 @@ export default function useSubscription() {
     try {
       const returnUrl = window.location.origin;
       
-      const response = await authenticatedFetch(`${API_URL}/api/subscriptions/portal`, {
+      const response = await authenticatedFetch(`/api/subscriptions/portal`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ return_url: returnUrl }),
@@ -118,10 +126,14 @@ export default function useSubscription() {
   };
 
   /**
-   * Check if user has premium access.
+   * Check if user has premium access. A comped tier with an expiry in the
+   * past no longer counts, even if status is still "active" - the admin
+   * grant endpoint sets an end date rather than flipping status back itself.
    */
   const isPremium = () => {
-    return tier !== 'free' && status === 'active';
+    if (tier === 'free' || status !== 'active') return false;
+    if (endsAt && new Date(endsAt) < new Date()) return false;
+    return true;
   };
 
   /**
@@ -146,6 +158,8 @@ export default function useSubscription() {
     endsAt,
     loading,
     tiers,
+    adsEnabled,
+    adsSettingResolved,
     checkout,
     openPortal,
     isPremium,

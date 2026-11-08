@@ -70,6 +70,27 @@ User Action → analytics.track() → Event Queue (frontend)
 - `Favorite Action`, `Vote Cast`
 - `Content Shared`, `Filter Applied`
 
+### Auth Funnel (success vs failure)
+Client + server both emit these (server uses `session_id` like `server-…`):
+
+| Event | Meaning |
+|-------|---------|
+| `Auth Login Attempted` | Login started (google / apple / passkey) |
+| `User Logged In` | Successful login |
+| `Auth Login Failed` | Failed login (`properties.error`, `method`, optional `http_status`) |
+| `Auth Session Lost` | Session cleared after `/me` 401/403 |
+
+Admin: **Analytics → Auth Funnel** (or `GET /api/admin/analytics/auth-funnel?days=7`).
+
+### Tight path / screen tracking
+| Event | Meaning |
+|-------|---------|
+| `Screen View` | Current surface (`screen`: `tv`, `radio`, `map:radio`, `login`, `favorites:tv`, `player:tv`, …) |
+| `Navigation` | Move between surfaces (`from_screen` → `to_screen`) |
+| `Page View` | Coarse page name |
+
+Admin: **Analytics → Top Screens / Top Navigations** (or `GET /api/admin/analytics/paths?days=7`).
+
 ---
 
 ## Frontend API
@@ -101,9 +122,12 @@ analytics.trackPlay('tv', channel);
 
 - `analytics.identify(userId, traits)` - Identify user
 - `analytics.page(pageName, properties)` - Track page view
+- `analytics.trackScreen(screen, properties)` / `trackNavigation(from, to)` - path tracking
 - `analytics.reset()` - Clear session (on logout)
 - `analytics.trackSignup(method, userId)`
-- `analytics.trackLogin(method, userId)`
+- `analytics.trackLogin(method, userId)` / `trackLoginAttempt` / `trackLoginFailure`
+- `analytics.trackAuthSessionLost(reason)`
+- `analytics.flushNow()` - immediate / keepalive send
 - `analytics.trackPlay(itemType, item)`
 - `analytics.trackSearch(query, resultCount, itemType)`
 - `analytics.trackFavorite(action, itemType, item)`
@@ -202,6 +226,14 @@ Get daily event counts.
   { "date": "2026-04-07", "count": 3000 }
 ]
 ```
+
+### GET `/api/admin/analytics/auth-funnel?days=7`
+
+Auth success vs failure funnel: attempts, successes, failures, session_lost, by_method breakdown, recent_failures (last 25).
+
+### GET `/api/admin/analytics/paths?days=7&limit=30`
+
+Where users go: `top_screens`, `top_navigations` (`from→to`), `top_pages`.
 
 ### GET `/api/admin/analytics/top-content?days=7&limit=10`
 
@@ -390,5 +422,5 @@ The analytics.js API is **compatible** with the old Mixpanel implementation:
 ---
 
 **Version**: 2.6.0  
-**Last Updated**: April 12, 2026  
+**Last Updated**: 2026-07-21  
 **Migration from Mixpanel**: Complete ✅

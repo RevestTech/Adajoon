@@ -29,6 +29,21 @@ class ErrorBoundary extends Component {
 
   render() {
     if (this.state.hasError) {
+      if (this.props.compact) {
+        return (
+          <div className="error-boundary error-boundary--compact">
+            <p className="error-boundary__message">
+              {this.props.compactMessage || 'This section failed to load.'}
+            </p>
+            <button
+              className="error-boundary__button error-boundary__button--secondary"
+              onClick={this.handleReset}
+            >
+              Try Again
+            </button>
+          </div>
+        );
+      }
       return (
         <div className="error-boundary">
           <div className="error-boundary__content">

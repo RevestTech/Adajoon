@@ -1,5 +1,30 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { authenticatedFetch } from "../utils/csrf";
+import { WHATS_NEW, formatReleaseDate } from "../data/whatsNew";
+import PricingManager from "./PricingManager";
+import MovieManager from "./MovieManager";
+import UserManager from "./UserManager";
+import SubscriptionManager from "./SubscriptionManager";
+import ContentModeration from "./ContentModeration";
+import SecretsManager from "./SecretsManager";
+
+const TAB_TITLES = {
+  overview: "Overview",
+  users: "Users",
+  content: "Content",
+  activity: "Activity",
+  analytics: "Analytics",
+  pricing: "Pricing",
+  movies: "Movies",
+  subscriptions: "Subscriptions",
+  secrets: "Secrets",
+  releases: "Releases",
+};
+
+function tabFromPath() {
+  const seg = window.location.pathname.split("/")[2];
+  return TAB_TITLES[seg] ? seg : "overview";
+}
 
 export default function AdminDashboard({ onClose }) {
   const [loading, setLoading] = useState(true);
@@ -8,24 +33,27 @@ export default function AdminDashboard({ onClose }) {
   const [userStats, setUserStats] = useState(null);
   const [contentStats, setContentStats] = useState(null);
   const [activityStats, setActivityStats] = useState(null);
-  const [activeTab, setActiveTab] = useState("overview");
+  const [analyticsStats, setAnalyticsStats] = useState(null);
+  const [activeTab, setActiveTabState] = useState(tabFromPath);
   const [timePeriod, setTimePeriod] = useState(30);
 
-  useEffect(() => {
-    loadOverview();
+  const setActiveTab = useCallback((tab) => {
+    setActiveTabState(tab);
+    history.pushState(null, "", `/admin/${tab}`);
+    document.title = `Admin · ${TAB_TITLES[tab]} - Adajoon`;
   }, []);
 
   useEffect(() => {
-    if (activeTab === "users") {
-      loadUserStats();
-    } else if (activeTab === "content") {
-      loadContentStats();
-    } else if (activeTab === "activity") {
-      loadActivityStats();
-    }
-  }, [activeTab, timePeriod]);
+    document.title = `Admin · ${TAB_TITLES[activeTab]} - Adajoon`;
+  }, [activeTab]);
 
-  const loadOverview = async () => {
+  useEffect(() => {
+    const onPopState = () => setActiveTabState(tabFromPath());
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
+
+  const loadOverview = useCallback(async () => {
     setLoading(true);
     try {
       const response = await authenticatedFetch("/api/admin/stats/overview");
@@ -40,9 +68,9 @@ export default function AdminDashboard({ onClose }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const loadUserStats = async () => {
+  const loadUserStats = useCallback(async () => {
     try {
       const response = await authenticatedFetch(`/api/admin/stats/users?days=${timePeriod}`);
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -51,9 +79,9 @@ export default function AdminDashboard({ onClose }) {
     } catch (err) {
       setError(err.message);
     }
-  };
+  }, [timePeriod]);
 
-  const loadContentStats = async () => {
+  const loadContentStats = useCallback(async () => {
     try {
       const response = await authenticatedFetch("/api/admin/stats/content");
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -62,9 +90,9 @@ export default function AdminDashboard({ onClose }) {
     } catch (err) {
       setError(err.message);
     }
-  };
+  }, []);
 
-  const loadActivityStats = async () => {
+  const loadActivityStats = useCallback(async () => {
     try {
       const response = await authenticatedFetch(`/api/admin/stats/activity?days=${timePeriod}`);
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -73,49 +101,107 @@ export default function AdminDashboard({ onClose }) {
     } catch (err) {
       setError(err.message);
     }
-  };
+  }, [timePeriod]);
+
+  const loadAnalyticsStats = useCallback(async () => {
+    try {
+      const [summaryRes, eventsRes, contentRes, authFunnelRes, pathsRes] = await Promise.all([
+        authenticatedFetch(`/api/admin/analytics/summary?days=${timePeriod}`),
+        authenticatedFetch(`/api/admin/analytics/events-over-time?days=${timePeriod}`),
+        authenticatedFetch(`/api/admin/analytics/top-content?days=${timePeriod}&limit=10`),
+        authenticatedFetch(`/api/admin/analytics/auth-funnel?days=${timePeriod}`),
+        authenticatedFetch(`/api/admin/analytics/paths?days=${timePeriod}&limit=15`),
+      ]);
+
+      if (!summaryRes.ok || !eventsRes.ok || !contentRes.ok || !authFunnelRes.ok || !pathsRes.ok) {
+        throw new Error('Failed to load analytics');
+      }
+
+      const [summary, events, content, authFunnel, paths] = await Promise.all([
+        summaryRes.json(),
+        eventsRes.json(),
+        contentRes.json(),
+        authFunnelRes.json(),
+        pathsRes.json(),
+      ]);
+
+      setAnalyticsStats({ summary, events, content, authFunnel, paths });
+    } catch (err) {
+      setError(err.message);
+    }
+  }, [timePeriod]);
+
+  useEffect(() => {
+    loadOverview();
+  }, [loadOverview]);
+
+  useEffect(() => {
+    if (activeTab === "users") {
+      loadUserStats();
+    } else if (activeTab === "content") {
+      loadContentStats();
+    } else if (activeTab === "activity") {
+      loadActivityStats();
+    } else if (activeTab === "analytics") {
+      loadAnalyticsStats();
+    }
+  }, [activeTab, timePeriod, loadUserStats, loadContentStats, loadActivityStats, loadAnalyticsStats]);
 
   if (loading && !overview) {
     return (
-      <div className="admin-modal-overlay">
-        <div className="admin-modal">
-          <div className="admin-loading">Loading admin dashboard...</div>
-        </div>
+      <div className="admin-page">
+        <div className="admin-loading">Loading admin dashboard...</div>
       </div>
     );
   }
 
-  if (error && !overview) {
+  if (error && !overview && activeTab === "overview") {
     return (
-      <div className="admin-modal-overlay">
-        <div className="admin-modal">
-          <div className="admin-error">
-            <p>Error loading admin dashboard: {error}</p>
-            {error.includes("403") && (
-              <p className="admin-error-hint">You do not have admin access.</p>
-            )}
-            <button onClick={onClose}>Close</button>
-          </div>
+      <div className="admin-page">
+        <div className="admin-error">
+          <p>Error loading admin dashboard: {error}</p>
+          {error.includes("403") && (
+            <p className="admin-error-hint">You do not have admin access.</p>
+          )}
+          <button onClick={onClose}>Back to Adajoon</button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="admin-modal-overlay">
-      <div className="admin-modal">
-        <div className="admin-header">
-          <h1>Admin Dashboard</h1>
-          <button className="admin-close" onClick={onClose}>×</button>
-        </div>
+    <div className="admin-page">
+      <div className="admin-header">
+        <button className="admin-back-link" onClick={onClose}>
+          ← Back to Adajoon
+        </button>
+        <h1>Admin · {TAB_TITLES[activeTab]}</h1>
+      </div>
 
-        <div className="admin-tabs">
+      <div className="admin-tabs">
+        <div className="admin-tab-group">
+          <span className="admin-tab-group-label">Insights</span>
           <button
             className={`admin-tab ${activeTab === "overview" ? "active" : ""}`}
             onClick={() => setActiveTab("overview")}
           >
             Overview
           </button>
+          <button
+            className={`admin-tab ${activeTab === "activity" ? "active" : ""}`}
+            onClick={() => setActiveTab("activity")}
+          >
+            Activity
+          </button>
+          <button
+            className={`admin-tab ${activeTab === "analytics" ? "active" : ""}`}
+            onClick={() => setActiveTab("analytics")}
+          >
+            Analytics
+          </button>
+        </div>
+        <div className="admin-tab-group">
+          <span className="admin-tab-group-label">Manage</span>
           <button
             className={`admin-tab ${activeTab === "users" ? "active" : ""}`}
             onClick={() => setActiveTab("users")}
@@ -129,14 +215,39 @@ export default function AdminDashboard({ onClose }) {
             Content
           </button>
           <button
-            className={`admin-tab ${activeTab === "activity" ? "active" : ""}`}
-            onClick={() => setActiveTab("activity")}
+            className={`admin-tab ${activeTab === "subscriptions" ? "active" : ""}`}
+            onClick={() => setActiveTab("subscriptions")}
           >
-            Activity
+            Subscriptions
+          </button>
+          <button
+            className={`admin-tab ${activeTab === "pricing" ? "active" : ""}`}
+            onClick={() => setActiveTab("pricing")}
+          >
+            Pricing
+          </button>
+          <button
+            className={`admin-tab ${activeTab === "movies" ? "active" : ""}`}
+            onClick={() => setActiveTab("movies")}
+          >
+            Movies
+          </button>
+          <button
+            className={`admin-tab ${activeTab === "secrets" ? "active" : ""}`}
+            onClick={() => setActiveTab("secrets")}
+          >
+            Secrets
+          </button>
+          <button
+            className={`admin-tab ${activeTab === "releases" ? "active" : ""}`}
+            onClick={() => setActiveTab("releases")}
+          >
+            Releases
           </button>
         </div>
+      </div>
 
-        {(activeTab === "users" || activeTab === "activity") && (
+        {(activeTab === "users" || activeTab === "activity" || activeTab === "analytics") && (
           <div className="admin-period-selector">
             <label>Time Period:</label>
             <select value={timePeriod} onChange={(e) => setTimePeriod(Number(e.target.value))}>
@@ -220,6 +331,16 @@ export default function AdminDashboard({ onClose }) {
                     <span className="admin-health-icon">{overview.system.redis_healthy ? "✓" : "✗"}</span>
                     <span>Redis: {overview.system.redis_healthy ? "Healthy" : "Unhealthy"}</span>
                   </div>
+                  <div className={`admin-health-item ${overview.system.db_healthy ? "healthy" : "unhealthy"}`}>
+                    <span className="admin-health-icon">{overview.system.db_healthy ? "✓" : "✗"}</span>
+                    <span>Database: {overview.system.db_healthy ? "Healthy" : "Unhealthy"}</span>
+                  </div>
+                  <div className="admin-health-time">
+                    Last catalog sync:{" "}
+                    {overview.system.last_sync_at
+                      ? new Date(overview.system.last_sync_at).toLocaleString()
+                      : "Unavailable"}
+                  </div>
                   <div className="admin-health-time">
                     Last updated: {new Date(overview.system.timestamp).toLocaleString()}
                   </div>
@@ -228,143 +349,157 @@ export default function AdminDashboard({ onClose }) {
             </div>
           )}
 
-          {activeTab === "users" && userStats && (
+          {activeTab === "users" && (
             <div className="admin-users">
-              <div className="admin-section">
-                <h2>Users by Provider</h2>
-                <div className="admin-chart-simple">
-                  {userStats.users_by_provider.map((item) => (
-                    <div key={item.provider} className="admin-chart-bar">
-                      <span className="admin-chart-label">{item.provider}</span>
-                      <div className="admin-chart-bar-fill" style={{ width: `${(item.count / overview.users.total) * 100}%` }}>
-                        <span className="admin-chart-value">{item.count}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="admin-section">
-                <h2>Users by Subscription Tier</h2>
-                <div className="admin-chart-simple">
-                  {userStats.users_by_tier.map((item) => (
-                    <div key={item.tier} className="admin-chart-bar">
-                      <span className="admin-chart-label">{item.tier}</span>
-                      <div className="admin-chart-bar-fill" style={{ width: `${(item.count / overview.users.total) * 100}%` }}>
-                        <span className="admin-chart-value">{item.count}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="admin-section">
-                <h2>Most Active Users</h2>
-                <div className="admin-table">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Email</th>
-                        <th>Name</th>
-                        <th>Joined</th>
-                        <th>Favorites</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {userStats.most_active_users.map((user, idx) => (
-                        <tr key={idx}>
-                          <td>{user.email}</td>
-                          <td>{user.name || "—"}</td>
-                          <td>{user.joined ? new Date(user.joined).toLocaleDateString() : "—"}</td>
-                          <td>{user.favorites_count}</td>
-                        </tr>
+              {userStats && overview && (
+                <>
+                  <div className="admin-section">
+                    <h2>Users by Provider</h2>
+                    <div className="admin-chart-simple">
+                      {userStats.users_by_provider.map((item) => (
+                        <div key={item.provider} className="admin-chart-bar">
+                          <span className="admin-chart-label">{item.provider}</span>
+                          <div className="admin-chart-bar-fill" style={{ width: `${(item.count / overview.users.total) * 100}%` }}>
+                            <span className="admin-chart-value">{item.count}</span>
+                          </div>
+                        </div>
                       ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+                    </div>
+                  </div>
+
+                  <div className="admin-section">
+                    <h2>Users by Subscription Tier</h2>
+                    <div className="admin-chart-simple">
+                      {userStats.users_by_tier.map((item) => (
+                        <div key={item.tier} className="admin-chart-bar">
+                          <span className="admin-chart-label">{item.tier}</span>
+                          <div className="admin-chart-bar-fill" style={{ width: `${(item.count / overview.users.total) * 100}%` }}>
+                            <span className="admin-chart-value">{item.count}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="admin-section">
+                    <h2>Most Active Users</h2>
+                    <div className="admin-table">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>Email</th>
+                            <th>Name</th>
+                            <th>Joined</th>
+                            <th>Last Accessed</th>
+                            <th>Favorites</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {userStats.most_active_users.map((user, idx) => (
+                            <tr key={idx}>
+                              <td>{user.email}</td>
+                              <td>{user.name || "—"}</td>
+                              <td>{user.joined ? new Date(user.joined).toLocaleDateString() : "—"}</td>
+                              <td>{user.last_accessed ? new Date(user.last_accessed).toLocaleDateString() : "—"}</td>
+                              <td>{user.favorites_count}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              <UserManager />
             </div>
           )}
 
-          {activeTab === "content" && contentStats && (
+          {activeTab === "content" && (
             <div className="admin-content-stats">
-              <div className="admin-section">
-                <h2>Most Favorited TV Channels</h2>
-                <div className="admin-table">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Channel</th>
-                        <th>Favorites</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {contentStats.most_favorited_tv.map((item, idx) => (
-                        <tr key={idx}>
-                          <td>
-                            {item.logo && <img src={item.logo} alt="" className="admin-table-logo" />}
-                            {item.name}
-                          </td>
-                          <td>{item.favorites}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              <div className="admin-section">
-                <h2>Most Favorited Radio Stations</h2>
-                <div className="admin-table">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Station</th>
-                        <th>Favorites</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {contentStats.most_favorited_radio.map((item, idx) => (
-                        <tr key={idx}>
-                          <td>
-                            {item.favicon && <img src={item.favicon} alt="" className="admin-table-logo" />}
-                            {item.name}
-                          </td>
-                          <td>{item.favorites}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              <div className="admin-section">
-                <h2>Channel Health Status</h2>
-                <div className="admin-chart-simple">
-                  {contentStats.channels_by_health.map((item) => (
-                    <div key={item.status} className="admin-chart-bar">
-                      <span className="admin-chart-label">{item.status}</span>
-                      <div className="admin-chart-bar-fill" style={{ width: `${(item.count / overview.content.tv_channels) * 100}%` }}>
-                        <span className="admin-chart-value">{item.count}</span>
-                      </div>
+              {contentStats && overview && (
+                <>
+                  <div className="admin-section">
+                    <h2>Most Favorited TV Channels</h2>
+                    <div className="admin-table">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>Channel</th>
+                            <th>Favorites</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {contentStats.most_favorited_tv.map((item, idx) => (
+                            <tr key={idx}>
+                              <td>
+                                {item.logo && <img src={item.logo} alt="" className="admin-table-logo" />}
+                                {item.name}
+                              </td>
+                              <td>{item.favorites}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
-                  ))}
-                </div>
-              </div>
+                  </div>
 
-              <div className="admin-section">
-                <h2>Radio Station Health Status</h2>
-                <div className="admin-chart-simple">
-                  {contentStats.radio_by_health.map((item) => (
-                    <div key={item.status} className="admin-chart-bar">
-                      <span className="admin-chart-label">{item.status}</span>
-                      <div className="admin-chart-bar-fill" style={{ width: `${(item.count / overview.content.radio_stations) * 100}%` }}>
-                        <span className="admin-chart-value">{item.count}</span>
-                      </div>
+                  <div className="admin-section">
+                    <h2>Most Favorited Radio Stations</h2>
+                    <div className="admin-table">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>Station</th>
+                            <th>Favorites</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {contentStats.most_favorited_radio.map((item, idx) => (
+                            <tr key={idx}>
+                              <td>
+                                {item.favicon && <img src={item.favicon} alt="" className="admin-table-logo" />}
+                                {item.name}
+                              </td>
+                              <td>{item.favorites}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
-                  ))}
-                </div>
-              </div>
+                  </div>
+
+                  <div className="admin-section">
+                    <h2>Channel Health Status</h2>
+                    <div className="admin-chart-simple">
+                      {contentStats.channels_by_health.map((item) => (
+                        <div key={item.status} className="admin-chart-bar">
+                          <span className="admin-chart-label">{item.status}</span>
+                          <div className="admin-chart-bar-fill" style={{ width: `${(item.count / overview.content.tv_channels) * 100}%` }}>
+                            <span className="admin-chart-value">{item.count}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="admin-section">
+                    <h2>Radio Station Health Status</h2>
+                    <div className="admin-chart-simple">
+                      {contentStats.radio_by_health.map((item) => (
+                        <div key={item.status} className="admin-chart-bar">
+                          <span className="admin-chart-label">{item.status}</span>
+                          <div className="admin-chart-bar-fill" style={{ width: `${(item.count / overview.content.radio_stations) * 100}%` }}>
+                            <span className="admin-chart-value">{item.count}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+
+              <ContentModeration />
             </div>
           )}
 
@@ -409,8 +544,229 @@ export default function AdminDashboard({ onClose }) {
               </div>
             </div>
           )}
+
+          {activeTab === "analytics" && analyticsStats && (
+            <div className="admin-analytics">
+              <div className="admin-section">
+                <h2>Analytics Summary</h2>
+                <div className="admin-stats-grid">
+                  <div className="admin-stat-card">
+                    <div className="admin-stat-label">Total Events</div>
+                    <div className="admin-stat-value">{analyticsStats.summary.total_events.toLocaleString()}</div>
+                  </div>
+                  <div className="admin-stat-card">
+                    <div className="admin-stat-label">Unique Sessions</div>
+                    <div className="admin-stat-value">{analyticsStats.summary.unique_sessions.toLocaleString()}</div>
+                  </div>
+                  <div className="admin-stat-card">
+                    <div className="admin-stat-label">Unique Users</div>
+                    <div className="admin-stat-value">{analyticsStats.summary.unique_users.toLocaleString()}</div>
+                  </div>
+                  <div className="admin-stat-card">
+                    <div className="admin-stat-label">Avg Session Duration</div>
+                    <div className="admin-stat-value">
+                      {Math.round(analyticsStats.summary.avg_session_duration_seconds / 60)}m
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="admin-section">
+                <h2>Top Events</h2>
+                <div className="admin-chart-simple">
+                  {analyticsStats.summary.top_events.map((event) => {
+                    const maxCount = analyticsStats.summary.top_events[0]?.count || 1;
+                    return (
+                      <div key={event.event_name} className="admin-chart-bar">
+                        <span className="admin-chart-label">{event.event_name}</span>
+                        <div className="admin-chart-bar-fill" style={{ width: `${(event.count / maxCount) * 100}%` }}>
+                          <span className="admin-chart-value">{event.count.toLocaleString()}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="admin-section">
+                <h2>Events Over Time</h2>
+                <div className="admin-chart-simple">
+                  {analyticsStats.events.map((day) => {
+                    const maxCount = Math.max(...analyticsStats.events.map(d => d.count));
+                    return (
+                      <div key={day.date} className="admin-chart-bar">
+                        <span className="admin-chart-label">{new Date(day.date).toLocaleDateString()}</span>
+                        <div className="admin-chart-bar-fill" style={{ width: `${(day.count / maxCount) * 100}%` }}>
+                          <span className="admin-chart-value">{day.count.toLocaleString()}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="admin-section">
+                <h2>Most Watched Content</h2>
+                <div className="admin-table">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Content</th>
+                        <th>Type</th>
+                        <th>Plays</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {analyticsStats.content.map((item, idx) => (
+                        <tr key={idx}>
+                          <td>{item.item_name || 'Unknown'}</td>
+                          <td>{item.item_type || 'N/A'}</td>
+                          <td>{item.play_count}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div className="admin-section">
+                <h2>Auth Funnel</h2>
+                <div className="admin-stats-grid">
+                  <div className="admin-stat-card">
+                    <div className="admin-stat-label">Attempts</div>
+                    <div className="admin-stat-value">{analyticsStats.authFunnel.attempts.toLocaleString()}</div>
+                  </div>
+                  <div className="admin-stat-card">
+                    <div className="admin-stat-label">Successes</div>
+                    <div className="admin-stat-value">{analyticsStats.authFunnel.successes.toLocaleString()}</div>
+                  </div>
+                  <div className="admin-stat-card">
+                    <div className="admin-stat-label">Failures</div>
+                    <div className="admin-stat-value">{analyticsStats.authFunnel.failures.toLocaleString()}</div>
+                  </div>
+                  <div className="admin-stat-card">
+                    <div className="admin-stat-label">Sessions Lost</div>
+                    <div className="admin-stat-value">{analyticsStats.authFunnel.session_lost.toLocaleString()}</div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="admin-section">
+                <h2>Auth by Method</h2>
+                <div className="admin-table">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Method</th>
+                        <th>Success</th>
+                        <th>Failure</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {analyticsStats.authFunnel.by_method.map((item) => (
+                        <tr key={item.method}>
+                          <td>{item.method}</td>
+                          <td>{item.success}</td>
+                          <td>{item.failure}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div className="admin-section">
+                <h2>Recent Login Failures</h2>
+                <div className="admin-table">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Time</th>
+                        <th>Method</th>
+                        <th>Error</th>
+                        <th>Session</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {analyticsStats.authFunnel.recent_failures.map((item, idx) => (
+                        <tr key={idx}>
+                          <td>{item.created_at ? new Date(item.created_at).toLocaleString() : "—"}</td>
+                          <td>{item.method}</td>
+                          <td>{item.error || "—"}</td>
+                          <td>{item.session_id}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div className="admin-section">
+                <h2>Top Screens</h2>
+                <div className="admin-chart-simple">
+                  {analyticsStats.paths.top_screens.map((item) => {
+                    const maxCount = analyticsStats.paths.top_screens[0]?.count || 1;
+                    return (
+                      <div key={item.screen} className="admin-chart-bar">
+                        <span className="admin-chart-label">{item.screen}</span>
+                        <div className="admin-chart-bar-fill" style={{ width: `${(item.count / maxCount) * 100}%` }}>
+                          <span className="admin-chart-value">{item.count.toLocaleString()}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="admin-section">
+                <h2>Top Navigations</h2>
+                <div className="admin-table">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>From</th>
+                        <th>To</th>
+                        <th>Count</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {analyticsStats.paths.top_navigations.map((item, idx) => (
+                        <tr key={idx}>
+                          <td>{item.from_screen}</td>
+                          <td>{item.to_screen}</td>
+                          <td>{item.count}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === "subscriptions" && <SubscriptionManager />}
+          {activeTab === "pricing" && <PricingManager />}
+          {activeTab === "movies" && <MovieManager />}
+          {activeTab === "secrets" && <SecretsManager />}
+
+          {activeTab === "releases" && (
+            <div className="admin-releases">
+              {WHATS_NEW.map((release) => (
+                <div key={release.version} className="admin-section">
+                  <h2>
+                    v{release.version}
+                    <span className="admin-release-date">{formatReleaseDate(release.date)}</span>
+                  </h2>
+                  <ul className="admin-release-highlights">
+                    {release.highlights.map((h, i) => (
+                      <li key={i}>{h}</li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
-    </div>
   );
 }

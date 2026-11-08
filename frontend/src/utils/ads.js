@@ -107,17 +107,20 @@ export function areAdsSupported() {
 }
 
 /**
- * Determine if ads should be shown (based on user tier, etc.).
+ * Determine if ads should be shown (based on the admin ads kill switch and
+ * user tier).
  * @param {Object} user - Current user object
+ * @param {boolean} adsEnabled - Admin-controlled global ads switch
  */
-export function shouldShowAds(user) {
+export function shouldShowAds(user, adsEnabled = true) {
+  if (!adsEnabled) return false;
+
   // Show ads to:
   // - Anonymous users
   // - Free tier users
   // Don't show to premium subscribers
   if (!user) return true;
-  
-  // Check subscription tier (to be implemented with MONET-002)
+
   const tier = user.subscription_tier || 'free';
   return tier === 'free';
 }
