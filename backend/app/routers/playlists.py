@@ -1,11 +1,14 @@
 """Playlist endpoints."""
+
 import json
 from typing import Literal, Optional
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select, delete, func
-from sqlalchemy.ext.asyncio import AsyncSession
-from pydantic import BaseModel
 
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+from sqlalchemy import case, delete, func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.csrf import verify_csrf_token
 from app.database import get_db
 from app.models import Playlist, PlaylistItem, User
 from app.routers.auth import require_user
@@ -16,6 +19,7 @@ router = APIRouter(prefix="/api/playlists", tags=["playlists"])
 # ---------------------------------------------------------------------------
 # Request/Response Models
 # ---------------------------------------------------------------------------
+
 
 class CreatePlaylistRequest(BaseModel):
     name: str
@@ -43,6 +47,7 @@ class ReorderRequest(BaseModel):
 # Endpoints
 # ---------------------------------------------------------------------------
 
+
 @router.get("/")
 async def get_playlists(
     user: User = Depends(require_user),
@@ -50,23 +55,24 @@ async def get_playlists(
 ):
     """Get all playlists for current user."""
     result = await db.execute(
-        select(Playlist)
+        select(Playlist, func.count(PlaylistItem.id))
+        .outerjoin(PlaylistItem, PlaylistItem.playlist_id == Playlist.id)
         .where(Playlist.user_id == user.id)
+        .group_by(Playlist.id)
         .order_by(Playlist.created_at.desc())
     )
-    playlists = result.scalars().all()
-    
+
     return [
         {
             "id": p.id,
             "name": p.name,
             "description": p.description,
             "is_public": p.is_public,
-            "item_count": len(p.items) if p.items else 0,
+            "item_count": item_count,
             "created_at": p.created_at.isoformat() if p.created_at else None,
             "updated_at": p.updated_at.isoformat() if p.updated_at else None,
         }
-        for p in playlists
+        for p, item_count in result.all()
     ]
 
 
@@ -75,6 +81,7 @@ async def create_playlist(
     request: CreatePlaylistRequest,
     user: User = Depends(require_user),
     db: AsyncSession = Depends(get_db),
+    _csrf: None = Depends(verify_csrf_token),
 ):
     """Create a new playlist."""
     playlist = Playlist(
@@ -86,7 +93,7 @@ async def create_playlist(
     db.add(playlist)
     await db.commit()
     await db.refresh(playlist)
-    
+
     return {
         "id": playlist.id,
         "name": playlist.name,
@@ -104,19 +111,16 @@ async def get_playlist(
     db: AsyncSession = Depends(get_db),
 ):
     """Get playlist details with items."""
-    result = await db.execute(
-        select(Playlist)
-        .where(Playlist.id == playlist_id)
-    )
+    result = await db.execute(select(Playlist).where(Playlist.id == playlist_id))
     playlist = result.scalar_one_or_none()
-    
+
     if not playlist:
         raise HTTPException(status_code=404, detail="Playlist not found")
-    
+
     # Check ownership or public access
     if playlist.user_id != user.id and not playlist.is_public:
         raise HTTPException(status_code=403, detail="Access denied")
-    
+
     # Get items
     items_result = await db.execute(
         select(PlaylistItem)
@@ -124,7 +128,7 @@ async def get_playlist(
         .order_by(PlaylistItem.position)
     )
     items = items_result.scalars().all()
-    
+
     return {
         "id": playlist.id,
         "name": playlist.name,
@@ -152,27 +156,27 @@ async def update_playlist(
     request: UpdatePlaylistRequest,
     user: User = Depends(require_user),
     db: AsyncSession = Depends(get_db),
+    _csrf: None = Depends(verify_csrf_token),
 ):
     """Update playlist metadata."""
     result = await db.execute(
-        select(Playlist)
-        .where(Playlist.id == playlist_id, Playlist.user_id == user.id)
+        select(Playlist).where(Playlist.id == playlist_id, Playlist.user_id == user.id)
     )
     playlist = result.scalar_one_or_none()
-    
+
     if not playlist:
         raise HTTPException(status_code=404, detail="Playlist not found")
-    
+
     if request.name is not None:
         playlist.name = request.name
     if request.description is not None:
         playlist.description = request.description
     if request.is_public is not None:
         playlist.is_public = request.is_public
-    
+
     await db.commit()
     await db.refresh(playlist)
-    
+
     return {
         "id": playlist.id,
         "name": playlist.name,
@@ -186,20 +190,20 @@ async def delete_playlist(
     playlist_id: int,
     user: User = Depends(require_user),
     db: AsyncSession = Depends(get_db),
+    _csrf: None = Depends(verify_csrf_token),
 ):
     """Delete a playlist."""
     result = await db.execute(
-        select(Playlist)
-        .where(Playlist.id == playlist_id, Playlist.user_id == user.id)
+        select(Playlist).where(Playlist.id == playlist_id, Playlist.user_id == user.id)
     )
     playlist = result.scalar_one_or_none()
-    
+
     if not playlist:
         raise HTTPException(status_code=404, detail="Playlist not found")
-    
+
     await db.delete(playlist)
     await db.commit()
-    
+
     return {"status": "deleted"}
 
 
@@ -209,24 +213,25 @@ async def add_playlist_item(
     request: AddItemRequest,
     user: User = Depends(require_user),
     db: AsyncSession = Depends(get_db),
+    _csrf: None = Depends(verify_csrf_token),
 ):
     """Add an item to playlist."""
     # Verify ownership
     result = await db.execute(
-        select(Playlist)
-        .where(Playlist.id == playlist_id, Playlist.user_id == user.id)
+        select(Playlist).where(Playlist.id == playlist_id, Playlist.user_id == user.id)
     )
     playlist = result.scalar_one_or_none()
     if not playlist:
         raise HTTPException(status_code=404, detail="Playlist not found")
-    
+
     # Get current max position
     max_pos_result = await db.execute(
-        select(func.coalesce(func.max(PlaylistItem.position), -1))
-        .where(PlaylistItem.playlist_id == playlist_id)
+        select(func.coalesce(func.max(PlaylistItem.position), -1)).where(
+            PlaylistItem.playlist_id == playlist_id
+        )
     )
     max_position = max_pos_result.scalar()
-    
+
     # Add item
     item = PlaylistItem(
         playlist_id=playlist_id,
@@ -238,7 +243,7 @@ async def add_playlist_item(
     db.add(item)
     await db.commit()
     await db.refresh(item)
-    
+
     return {
         "id": item.id,
         "item_type": item.item_type,
@@ -253,24 +258,25 @@ async def remove_playlist_item(
     item_id: int,
     user: User = Depends(require_user),
     db: AsyncSession = Depends(get_db),
+    _csrf: None = Depends(verify_csrf_token),
 ):
     """Remove an item from playlist."""
     # Verify ownership
     result = await db.execute(
-        select(Playlist)
-        .where(Playlist.id == playlist_id, Playlist.user_id == user.id)
+        select(Playlist).where(Playlist.id == playlist_id, Playlist.user_id == user.id)
     )
     playlist = result.scalar_one_or_none()
     if not playlist:
         raise HTTPException(status_code=404, detail="Playlist not found")
-    
+
     # Delete item
     await db.execute(
-        delete(PlaylistItem)
-        .where(PlaylistItem.id == item_id, PlaylistItem.playlist_id == playlist_id)
+        delete(PlaylistItem).where(
+            PlaylistItem.id == item_id, PlaylistItem.playlist_id == playlist_id
+        )
     )
     await db.commit()
-    
+
     return {"status": "removed"}
 
 
@@ -280,24 +286,31 @@ async def reorder_playlist(
     request: ReorderRequest,
     user: User = Depends(require_user),
     db: AsyncSession = Depends(get_db),
+    _csrf: None = Depends(verify_csrf_token),
 ):
     """Reorder playlist items."""
     # Verify ownership
     result = await db.execute(
-        select(Playlist)
-        .where(Playlist.id == playlist_id, Playlist.user_id == user.id)
+        select(Playlist).where(Playlist.id == playlist_id, Playlist.user_id == user.id)
     )
     playlist = result.scalar_one_or_none()
     if not playlist:
         raise HTTPException(status_code=404, detail="Playlist not found")
-    
-    # Update positions
-    for position, item_id in enumerate(request.item_ids):
+
+    # Update all positions in a single bulk statement instead of one UPDATE per item
+    if request.item_ids:
+        position_whens = [
+            (PlaylistItem.id == item_id, position)
+            for position, item_id in enumerate(request.item_ids)
+        ]
         await db.execute(
             PlaylistItem.__table__.update()
-            .where(PlaylistItem.id == item_id, PlaylistItem.playlist_id == playlist_id)
-            .values(position=position)
+            .where(
+                PlaylistItem.playlist_id == playlist_id,
+                PlaylistItem.id.in_(request.item_ids),
+            )
+            .values(position=case(*position_whens, else_=PlaylistItem.position))
         )
-    
+
     await db.commit()
     return {"status": "reordered"}

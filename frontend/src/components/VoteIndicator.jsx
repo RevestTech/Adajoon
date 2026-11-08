@@ -10,6 +10,24 @@ const ThumbDown = () => (
   </svg>
 );
 
+const CheckIcon = () => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="20 6 9 17 4 12" />
+  </svg>
+);
+
+const ClockIcon = () => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
+  </svg>
+);
+
+const SignalIcon = () => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+  </svg>
+);
+
 const XCircle = () => (
   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" />
@@ -18,16 +36,28 @@ const XCircle = () => (
 
 export default function VoteIndicator({ summary }) {
   if (!summary) return null;
-  const likes = summary.like || 0;
-  const dislikes = summary.dislike || 0;
-  const broken = summary.broken || 0;
-  if (likes === 0 && dislikes === 0 && broken === 0) return null;
+  
+  const votes = [
+    { type: 'works', count: summary.works || 0, icon: CheckIcon, className: 'vi-works', label: 'works' },
+    { type: 'like', count: summary.like || 0, icon: ThumbUp, className: 'vi-like', label: 'likes' },
+    { type: 'dislike', count: summary.dislike || 0, icon: ThumbDown, className: 'vi-dislike', label: 'dislikes' },
+    { type: 'slow', count: summary.slow || 0, icon: ClockIcon, className: 'vi-slow', label: 'slow' },
+    { type: 'bad_quality', count: summary.bad_quality || 0, icon: SignalIcon, className: 'vi-bad-quality', label: 'bad quality' },
+    { type: 'broken', count: summary.broken || 0, icon: XCircle, className: 'vi-broken', label: 'broken' },
+  ];
+  
+  const activeVotes = votes.filter(v => v.count > 0);
+  if (activeVotes.length === 0) return null;
+
+  const tooltipText = activeVotes.map(v => `${v.count} ${v.label}`).join(', ');
 
   return (
-    <span className="vote-indicator" title={`${likes} likes, ${dislikes} dislikes${broken ? `, ${broken} reported broken` : ""}`}>
-      {likes > 0 && <span className="vi-like"><ThumbUp /> {likes}</span>}
-      {dislikes > 0 && <span className="vi-dislike"><ThumbDown /> {dislikes}</span>}
-      {broken > 0 && <span className="vi-broken"><XCircle /> {broken}</span>}
+    <span className="vote-indicator" title={tooltipText}>
+      {activeVotes.map(({ type, count, icon: Icon, className }) => (
+        <span key={type} className={className}>
+          <Icon /> {count}
+        </span>
+      ))}
     </span>
   );
 }

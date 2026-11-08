@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { authenticatedFetch } from "../utils/csrf";
 
 const API_BASE = "/api";
 
@@ -15,14 +16,11 @@ export function useWatchHistory(user) {
     
     setLoading(true);
     try {
-      const token = localStorage.getItem("adajoon_token");
       const url = itemType 
         ? `${API_BASE}/history?item_type=${itemType}&limit=50`
         : `${API_BASE}/history?limit=50`;
       
-      const response = await fetch(url, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
+      const response = await authenticatedFetch(url);
       
       if (response.ok) {
         const data = await response.json();
@@ -40,13 +38,9 @@ export function useWatchHistory(user) {
     if (!user) return;
     
     try {
-      const token = localStorage.getItem("adajoon_token");
-      await fetch(`${API_BASE}/history/record`, {
+      await authenticatedFetch(`${API_BASE}/history/record`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           item_type: itemType,
           item_id: item.id,
@@ -68,14 +62,12 @@ export function useWatchHistory(user) {
     if (!user) return;
     
     try {
-      const token = localStorage.getItem("adajoon_token");
       const url = itemType 
         ? `${API_BASE}/history?item_type=${itemType}`
         : `${API_BASE}/history`;
       
-      await fetch(url, {
+      await authenticatedFetch(url, {
         method: "DELETE",
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       
       setHistory([]);
@@ -89,10 +81,8 @@ export function useWatchHistory(user) {
     if (!user) return;
     
     try {
-      const token = localStorage.getItem("adajoon_token");
-      await fetch(`${API_BASE}/history/${historyId}`, {
+      await authenticatedFetch(`${API_BASE}/history/${historyId}`, {
         method: "DELETE",
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       
       setHistory(prev => prev.filter(item => item.id !== historyId));

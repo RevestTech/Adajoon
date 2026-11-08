@@ -115,11 +115,8 @@ export default function Sidebar({
           {isGuest ? (
             <div
               className="sidebar-item favorites-item favorites-item--guest"
-              onClick={() => {
-                onGuestNotice?.("Sign in to save favorites and sync across devices.");
-                onLogin?.();
-              }}
-              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onGuestNotice?.("Sign in to save favorites and sync across devices."); onLogin?.(); } }}
+              onClick={() => onGuestNotice?.("Sign in to save favorites and sync across devices.")}
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onGuestNotice?.("Sign in to save favorites and sync across devices."); } }}
               tabIndex={0}
               role="button"
               title="Sign in to use favorites"
@@ -211,11 +208,8 @@ export default function Sidebar({
         {isGuest ? (
           <div
             className="sidebar-item favorites-item favorites-item--guest"
-            onClick={() => {
-              onGuestNotice?.("Sign in to save favorites and sync across devices.");
-              onLogin?.();
-            }}
-            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onGuestNotice?.("Sign in to save favorites and sync across devices."); onLogin?.(); } }}
+            onClick={() => onGuestNotice?.("Sign in to save favorites and sync across devices.")}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onGuestNotice?.("Sign in to save favorites and sync across devices."); } }}
             tabIndex={0}
             role="button"
             title="Sign in to use favorites"

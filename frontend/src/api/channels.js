@@ -1,3 +1,5 @@
+import { authenticatedFetch } from '../utils/csrf';
+
 const BASE = "/api";
 
 export async function fetchChannels({ query, category, country, language, status, page = 1, perPage = 40 }) {
@@ -33,6 +35,16 @@ export async function fetchStats() {
   return res.json();
 }
 
+export const fetchChannel = async (channelId) => {
+  const res = await fetch(`${BASE}/channels/${channelId}`);
+  if (!res.ok) {
+    const err = new Error("Failed to fetch channel");
+    err.status = res.status;
+    throw err;
+  }
+  return res.json();
+};
+
 export async function fetchStreams(channelId) {
   const res = await fetch(`${BASE}/channels/${channelId}/streams`);
   if (!res.ok) throw new Error("Failed to fetch streams");
@@ -40,7 +52,20 @@ export async function fetchStreams(channelId) {
 }
 
 export async function runHealthCheck(channelId) {
-  const res = await fetch(`${BASE}/healthcheck/${channelId}`, { method: "POST" });
+  const res = await authenticatedFetch(`${BASE}/healthcheck/${channelId}`, { method: "POST" });
   if (!res.ok) throw new Error("Health check failed");
+  return res.json();
+}
+
+/**
+ * Channels in the category this browser session watches the most, for a
+ * "For You" row - no login required.
+ * @param {string} sessionId
+ * @param {number} [limit=10]
+ */
+export async function fetchForYou(sessionId, limit = 10) {
+  const params = new URLSearchParams({ session_id: sessionId, limit: String(limit) });
+  const res = await fetch(`${BASE}/channels/for-you?${params}`);
+  if (!res.ok) throw new Error("Failed to fetch For You channels");
   return res.json();
 }

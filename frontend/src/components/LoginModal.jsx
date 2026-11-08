@@ -11,6 +11,7 @@ export default function LoginModal({ onClose, onGoogleLogin, googleClientId }) {
       callback: (response) => {
         onGoogleLogin(response.credential);
       },
+      use_fedcm_for_prompt: true,
     });
 
     window.google.accounts.id.renderButton(googleBtnRef.current, {

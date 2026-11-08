@@ -1,11 +1,7 @@
 import { useState, useCallback, useRef } from "react";
+import { authenticatedFetch } from "../utils/csrf";
 
 const API = "/api/auth";
-
-function getAuthHeaders() {
-  const t = localStorage.getItem("adajoon_token");
-  return t ? { Authorization: `Bearer ${t}` } : {};
-}
 
 export function useVotes() {
   const [myVotes, setMyVotes] = useState({});
@@ -13,11 +9,9 @@ export function useVotes() {
   const loadedTypes = useRef(new Set());
 
   const loadMyVotes = useCallback(async (itemType) => {
-    const hdrs = getAuthHeaders();
-    if (!hdrs.Authorization) return;
     if (loadedTypes.current.has(itemType)) return;
     try {
-      const res = await fetch(`${API}/votes/me?item_type=${itemType}`, { headers: hdrs });
+      const res = await authenticatedFetch(`${API}/votes/me?item_type=${itemType}`);
       if (res.ok) {
         const data = await res.json();
         setMyVotes((prev) => ({ ...prev, [itemType]: data }));
@@ -30,7 +24,7 @@ export function useVotes() {
     if (!itemIds.length) return;
     const ids = itemIds.slice(0, 100).join(",");
     try {
-      const res = await fetch(`${API}/votes/summary?item_type=${itemType}&item_ids=${encodeURIComponent(ids)}`);
+      const res = await authenticatedFetch(`${API}/votes/summary?item_type=${itemType}&item_ids=${encodeURIComponent(ids)}`);
       if (res.ok) {
         const data = await res.json();
         setSummaries((prev) => {
@@ -45,12 +39,10 @@ export function useVotes() {
   }, []);
 
   const submitVote = useCallback(async (itemType, itemId, voteType) => {
-    const hdrs = getAuthHeaders();
-    if (!hdrs.Authorization) return null;
     try {
-      const res = await fetch(`${API}/votes`, {
+      const res = await authenticatedFetch(`${API}/votes`, {
         method: "POST",
-        headers: { ...hdrs, "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ item_type: itemType, item_id: itemId, vote_type: voteType }),
       });
       if (!res.ok) return null;

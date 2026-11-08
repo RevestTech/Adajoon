@@ -1,11 +1,16 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import FeedbackBar from "./FeedbackBar";
+import SimilarItemsRail from "./SimilarItemsRail";
+import { fetchStation, fetchNowPlayingBatch } from "../api/radio";
 import { useShare } from "../hooks/useShare";
+
+const NOW_PLAYING_POLL_MS = 60000;
 
 export default function RadioPlayer({
   station,
   onClose,
   onMinimize,
+  onPopOut,
   audioRef,
   minimized = false,
   isFavorite,
@@ -16,13 +21,36 @@ export default function RadioPlayer({
   myVotes,
   voteSummary,
   onVote,
+  onSelectSimilar,
 }) {
   const [playing, setPlaying] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+  const [retryCount, setRetryCount] = useState(0);
   const [shareToast, setShareToast] = useState("");
+  const [nowPlaying, setNowPlaying] = useState("");
   const { shareRadioStation } = useShare();
+  const stallTimeoutRef = useRef(null);
 
   const streamUrl = station.url_resolved || station.url;
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = () => {
+      fetchNowPlayingBatch([station.id])
+        .then((data) => {
+          if (!cancelled) setNowPlaying(data?.[station.id] || "");
+        })
+        .catch(() => {
+          if (!cancelled) setNowPlaying("");
+        });
+    };
+    load();
+    const interval = setInterval(load, NOW_PLAYING_POLL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [station.id]);
 
   useEffect(() => {
     const audio = audioRef?.current;
@@ -30,15 +58,46 @@ export default function RadioPlayer({
 
     setErrorMsg("");
     audio.src = streamUrl;
+
+    const clearStallTimeout = () => {
+      if (stallTimeoutRef.current) {
+        clearTimeout(stallTimeoutRef.current);
+        stallTimeoutRef.current = null;
+      }
+    };
+    const handleError = () => {
+      clearStallTimeout();
+      setErrorMsg("Could not play this station. It may be offline or geo-restricted.");
+    };
+    const handlePlaying = () => {
+      clearStallTimeout();
+      setErrorMsg("");
+    };
+
+    audio.addEventListener("error", handleError);
+    audio.addEventListener("playing", handlePlaying);
+
+    // A dead/geo-restricted stream can hang indefinitely with no error
+    // event at all - surface a failure instead of staying silent.
+    stallTimeoutRef.current = setTimeout(() => {
+      setErrorMsg("Station timed out. It may be offline or geo-restricted.");
+    }, 15000);
+
     audio.play()
       .then(() => setPlaying(true))
-      .catch(() => setErrorMsg("Could not play this station. It may be offline or geo-restricted."));
+      .catch(() => {
+        clearStallTimeout();
+        setErrorMsg("Could not play this station. It may be offline or geo-restricted.");
+      });
 
     return () => {
+      clearStallTimeout();
+      audio.removeEventListener("error", handleError);
+      audio.removeEventListener("playing", handlePlaying);
       audio.pause();
       audio.src = "";
     };
-  }, [streamUrl, audioRef]);
+  }, [streamUrl, audioRef, retryCount]);
 
   useEffect(() => {
     const handleKey = (e) => {
@@ -47,6 +106,12 @@ export default function RadioPlayer({
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
   }, [onClose]);
+
+  const handleSelectSimilar = (item) => {
+    fetchStation(item.id)
+      .then((full) => onSelectSimilar?.(full))
+      .catch(() => {});
+  };
 
   useEffect(() => {
     const audio = audioRef?.current;
@@ -77,6 +142,9 @@ export default function RadioPlayer({
         <div className="modal-header">
           <div>
             <h3 id="radio-player-title">{station.name}</h3>
+            {nowPlaying && (
+              <p className="now-playing-text" title={nowPlaying}>{nowPlaying}</p>
+            )}
             <span className="radio-player-meta">
               {station.country}
               {station.language && ` · ${station.language}`}
@@ -105,10 +173,7 @@ export default function RadioPlayer({
               <button
                 type="button"
                 className="favorite-btn favorite-btn--guest"
-                onClick={() => {
-                  onGuestNotice?.("Sign in to save favorites.");
-                  onLogin?.();
-                }}
+                onClick={() => onGuestNotice?.("Sign in to save favorites.")}
                 title="Sign in to save favorites"
                 aria-label="Sign in to save favorites"
                 style={{ position: "static" }}
@@ -153,6 +218,21 @@ export default function RadioPlayer({
                 <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
               </svg>
             </button>
+            {typeof onPopOut === "function" && !minimized && (
+              <button
+                type="button"
+                className="modal-popout"
+                onClick={onPopOut}
+                aria-label="Open player in a new browser window"
+                title="Open in new window"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="M15 3h6v6" />
+                  <path d="M10 14L21 3" />
+                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                </svg>
+              </button>
+            )}
             {typeof onMinimize === "function" && (
               <button
                 type="button"
@@ -179,6 +259,8 @@ export default function RadioPlayer({
                 className="radio-player-art"
                 src={station.favicon}
                 alt={station.name}
+                referrerPolicy="no-referrer"
+                decoding="async"
                 onError={(e) => { e.target.style.display = "none"; }}
               />
             ) : (
@@ -200,7 +282,16 @@ export default function RadioPlayer({
           </div>
 
           {errorMsg ? (
-            <div className="no-stream">{errorMsg}</div>
+            <div className="no-stream">
+              <p>{errorMsg}</p>
+              <button
+                type="button"
+                className="channel-modal-retry-btn"
+                onClick={() => setRetryCount((n) => n + 1)}
+              >
+                Retry
+              </button>
+            </div>
           ) : null}
           <audio
             ref={audioRef}
@@ -215,6 +306,10 @@ export default function RadioPlayer({
                 <span key={t} className="channel-tag">{t}</span>
               ))}
             </div>
+          )}
+
+          {!minimized && (
+            <SimilarItemsRail itemType="radio" itemId={station.id} onSelect={handleSelectSimilar} />
           )}
 
           <FeedbackBar

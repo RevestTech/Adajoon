@@ -49,29 +49,22 @@
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <script type="text/javascript" src="https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/en_US/appleid.auth.js" async defer></script>
     
-    <!-- Chromecast -->
-    <script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1"></script>
-    
-    <!-- Google IMA SDK for Ads -->
-    <script src="https://imasdk.googleapis.com/js/sdkloader/ima3.js"></script>
+    <!-- Chromecast (async — not supported on iOS Safari, must not block rendering) -->
+    <script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1" async defer></script>
+
+    <!-- Google IMA SDK for Ads (async — must not block rendering on mobile) -->
+    <script src="https://imasdk.googleapis.com/js/sdkloader/ima3.js" async defer></script>
   </head>
   <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
+    <!-- Client-side redirect MUST run before anything else -->
+    <script src="/redirect.js"></script>
     
-    <!-- Service Worker Registration -->
-    <script>
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js')
-            .then((registration) => {
-              console.log('SW registered:', registration.scope);
-            })
-            .catch((error) => {
-              console.error('SW registration failed:', error);
-            });
-        });
-      }
-    </script>
+    <div id="root">
+      <!-- Fallback shown until React mounts (replaced by React render) -->
+      <div id="loading-fallback" style="display:flex;align-items:center;justify-content:center;height:100vh;height:100dvh;color:#a0a0b8;font-family:Inter,system-ui,sans-serif;font-size:16px;">Loading Adajoon…</div>
+    </div>
+    <!-- Catch fatal JS errors and display them (diagnostic) -->
+    <script src="/error-fallback.js"></script>
+    <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

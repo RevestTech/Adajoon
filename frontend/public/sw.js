@@ -1,6 +1,6 @@
 // Service Worker for Adajoon PWA
-const CACHE_NAME = 'adajoon-v2.2.0';
-const RUNTIME_CACHE = 'adajoon-runtime';
+const CACHE_NAME = 'adajoon-v2.6.2';
+const RUNTIME_CACHE = 'adajoon-runtime-v2';
 
 // Assets to cache on install
 const PRECACHE_ASSETS = [
@@ -63,8 +63,8 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       fetch(request)
         .then((response) => {
-          // Clone response for caching
-          if (response.ok) {
+          // Only cache successful responses (2xx status codes)
+          if (response.ok && response.status >= 200 && response.status < 300) {
             const responseClone = response.clone();
             caches.open(RUNTIME_CACHE).then((cache) => {
               cache.put(request, responseClone);
@@ -89,6 +89,25 @@ self.addEventListener('fetch', (event) => {
             );
           });
         })
+    );
+    return;
+  }
+
+  // Network-first for page navigations, so a stale cached index.html can't
+  // keep pointing at a previous deploy's (now-missing) hashed JS/CSS bundle.
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          if (response.ok) {
+            const responseClone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(request, responseClone);
+            });
+          }
+          return response;
+        })
+        .catch(() => caches.match(request).then((cached) => cached || caches.match('/index.html')))
     );
     return;
   }
@@ -181,5 +200,24 @@ async function syncFavorites() {
   // Placeholder for syncing favorites when back online
   console.log('[SW] Syncing favorites...');
 }
+
+// Handle messages from clients (for manual cache clear)
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+  if (event.data && event.data.type === 'CLEAR_CACHE') {
+    event.waitUntil(
+      caches.keys().then((cacheNames) => {
+        return Promise.all(
+          cacheNames.map((name) => {
+            console.log('[SW] Clearing cache:', name);
+            return caches.delete(name);
+          })
+        );
+      })
+    );
+  }
+});
 
 console.log('[SW] Service worker loaded');

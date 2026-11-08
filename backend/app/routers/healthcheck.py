@@ -1,8 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException, Body
+from fastapi import APIRouter, Body, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.schemas import HealthCheckResult, ValidatorStatusOut, ValidatorStatusBuckets
+from app.schemas import HealthCheckResult, ValidatorStatusBuckets, ValidatorStatusOut
 from app.services.healthcheck_service import check_channel, check_channels_batch
 from app.services.validator_service import get_validator_status
 
@@ -13,10 +13,21 @@ validator_router = APIRouter(prefix="/api/validator", tags=["validator"])
 
 @router.post("/{channel_id}", response_model=HealthCheckResult)
 async def healthcheck_channel(channel_id: str, db: AsyncSession = Depends(get_db)):
-    result = await check_channel(db, channel_id)
-    if "error" in result:
-        raise HTTPException(status_code=404, detail=result["error"])
-    return result
+    try:
+        result = await check_channel(db, channel_id)
+        if "error" in result:
+            raise HTTPException(status_code=404, detail=result["error"])
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        # Log the error for debugging
+        import logging
+
+        logging.getLogger(__name__).error(
+            f"Healthcheck failed for channel {channel_id}: {e}"
+        )
+        raise HTTPException(status_code=500, detail="Healthcheck failed")
 
 
 @router.post("/batch", response_model=list[HealthCheckResult])

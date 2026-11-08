@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useAuth } from "../hooks/useAuth";
 
-export default function UserMenu({ user, onLogout, onLogin }) {
+export default function UserMenu({ user, onLogout, onLogin, onOpenAdmin, onOpenSettings }) {
   const [open, setOpen] = useState(false);
   const [passkeyMsg, setPasskeyMsg] = useState("");
   const menuRef = useRef(null);
@@ -29,15 +29,41 @@ export default function UserMenu({ user, onLogout, onLogin }) {
     }
   };
 
+  const isLocalhost =
+    typeof window !== "undefined" &&
+    ["localhost", "127.0.0.1"].includes(window.location.hostname);
+
   if (!user) {
     return (
-      <button className="user-login-btn" onClick={onLogin}>
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-          <circle cx="12" cy="7" r="4" />
-        </svg>
-        Sign In
-      </button>
+      <div className="user-login-group">
+        <button className="user-login-btn" onClick={onLogin} aria-label="Sign In" title="Sign In">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+            <circle cx="12" cy="7" r="4" />
+          </svg>
+          <span className="user-login-btn-label">Sign In</span>
+        </button>
+        {isLocalhost && (
+          <>
+            <button
+              type="button"
+              className="user-login-btn user-login-btn--dev"
+              onClick={() => auth.loginWithDev().catch(() => {})}
+              title="Local-only: log in without Google/Apple"
+            >
+              Dev Login
+            </button>
+            <button
+              type="button"
+              className="user-login-btn user-login-btn--dev"
+              onClick={() => auth.loginWithDev("dev-admin@localhost.test", true).catch(() => {})}
+              title="Local-only: log in as an admin test user"
+            >
+              Dev Login (Admin)
+            </button>
+          </>
+        )}
+      </div>
     );
   }
 
@@ -59,6 +85,25 @@ export default function UserMenu({ user, onLogout, onLogin }) {
             <span className="user-dropdown-email">{user.email}</span>
           </div>
           <div className="user-dropdown-divider" />
+          {onOpenSettings && (
+            <button className="user-dropdown-item" onClick={() => { setOpen(false); onOpenSettings(); }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="3" />
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+              </svg>
+              Settings
+            </button>
+          )}
+          {user.is_admin && onOpenAdmin && (
+            <button className="user-dropdown-item" onClick={() => { setOpen(false); onOpenAdmin(); }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 2L2 7l10 5 10-5-10-5z" />
+                <path d="M2 17l10 5 10-5" />
+                <path d="M2 12l10 5 10-5" />
+              </svg>
+              Admin Dashboard
+            </button>
+          )}
           {window.PublicKeyCredential && (
             <button className="user-dropdown-item" onClick={handleRegisterPasskey}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

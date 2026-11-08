@@ -1,0 +1,182 @@
+# Changelog
+
+All notable changes to Adajoon will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+## [2.6.2] - 2026-10-24
+
+### Fixed
+- **Guest mode didn't persist**: added a cookie-backed fallback alongside localStorage for the guest-skip flag (Safari ITP purges script-writable storage after ~7 days); guest state now fails open instead of closed on a storage read error
+- **Silent playback failures**: TV and radio players now show a loading spinner while connecting, a visible error with Retry on failure, auto-fallback across untried stream URLs, and a 15s stall timeout for streams that hang with no error event
+- **"AI Search" wasn't surfaced as non-AI**: a notice now shows when the backend falls back to basic keyword search
+- **Mobile header overflow**: TV/Radio/Map and Sign In labels collapse to icon-only at ≤640px instead of overflowing the viewport
+- **Channel/radio deep links didn't open the player**: `/tv/channel/:id` and `/radio/station/:id` URLs were parsed on load but never consumed; added the missing `GET /api/radio/stations/{id}` endpoint and wired both up to open the player on mount
+- **No 404 page**: unknown routes now show a proper not-found view instead of silently falling back to the default grid
+- **Duplicate Google Sign-In button**: render is now idempotent per mount, closing a race between the initial render call and its polling retry
+- **Map country filter flashed stale results**: list/count now shows a loading state immediately when a country filter is applied, instead of briefly showing the previous unfiltered data
+- Deep-link lookups no longer race a user's own, faster selection, and now show 404 (not a silent fallback) when the linked channel/station no longer exists
+- VideoPlayer: fixed stale stream lists leaking across channel switches, a failure declared too early when alternates were still loading, and Retry not restarting a single-stream channel
+- RadioPlayer: cleared a stale error message left behind after a late recovery
+- Backend: fixed a `logger` used-before-assignment bug in `main.py`, plus a full flake8/black/isort cleanup
+
+## [2.6.1] - 2026-10-24
+
+### Fixed
+- **CSRF double-submit**: cookie no longer unchecked against the header token; Bearer-authenticated requests bypass the cookie check since that auth path isn't CSRF-exploitable
+- **JWT secret validation**: dev default now rejected outside `development`/`dev` env, not just exactly `production`
+- **Google login**: now requires `email_verified`, closing an account-takeover path
+- **Admin/passkey endpoints**: added missing CSRF checks on promote/revoke-admin and passkey registration
+- **`/api/recommendations/similar`**: was completely broken - referenced nonexistent `Channel.country`/`upvotes`/`downvotes` columns, used Postgres `position()` with invalid comma-call syntax, and split categories on the wrong separator. Fixed, switched to the indexed `country_code` column, added caching and rate limiting
+- **Hourly validator worker**: `health_checked_at` is a timestamptz column but was compared against ISO-format strings - Postgres rejects that outright, so the worker has likely never completed a validation cycle. Fixed to use real datetimes
+- **`POST /api/healthcheck/{id}`**: same timestamptz-vs-string bug on the write side; also stopped its own 404 getting swallowed into a 500
+- **Unauthenticated cache-clear**: `POST /api/redis/cache/clear/{key}` now requires admin auth + CSRF
+- **History endpoints**: now 401 cleanly on missing auth instead of a 500
+- **Frontend build**: Docker image now installs from the committed lockfile (`npm ci`) instead of re-resolving dependencies fresh on every build, which had started failing against the current npm registry state
+- Deduplicated channel/radio status-filter logic, TV/radio AI-search fallback scoring, and the channel/radio batch validator loop
+- Backend container now runs as a non-root user
+- CSP no longer needs `unsafe-inline` for scripts; COOP/COEP relaxation for OAuth now scoped to the HTML page only, not API responses
+
+## [2.6.0] - 2026-07-21
+
+### Added
+- **Radio world map**: MapLibre explorer (Map → Radio Stations) with bbox clusters/pins, Take a ride, geo sync from Radio Browser
+- **TV EPG**: `epg_programmes` table, worker XMLTV ingest, `/api/epg/now` + channel schedule APIs, VideoPlayer now/next strip
+- **AI on-now sports**: Keyword/AI TV search merges EPG programmes airing now for soccer/football/fifa-style queries
+- **Radio browser-window pop-out**: Desktop “Open in new window” opens a dedicated popup player (`RadioPopoutWindow`)
+- **Auth funnel + path analytics**: Client and server emit login attempt/success/failure/session-lost; screen + navigation tracking; Admin Analytics shows funnel, recent failures, top screens/navigations (`/api/admin/analytics/auth-funnel`, `/paths`)
+- See `docs/RADIO_MAP_EPG.md`, `docs/FLOATING_PLAYER.md`, `docs/CUSTOM_ANALYTICS.md`
+
+### Fixed
+- **Login / cookie reliability**: Adaptive cookie domain (Railway host vs `.adajoon.com`); WebAuthn multi-origin list; Apple `postMessage` single origin; CSRF header attached on authenticated fetches; softer `/me` logout
+- **Channel schema 500s**: Coerce ORM `None`/`datetime` timestamps on `ChannelOut` / `RadioStationOut`
+- **CSP for IPTV + MapLibre**: `media-src` allows `http:`; `worker-src blob:` and OpenFreeMap hosts for the radio map
+- **Map bbox at world zoom**: Clamp longitudes outside ±180 instead of returning 400
+- **Dark map contrast**: Lighten OpenFreeMap dark basemap paints; stub missing style sprites (`circle-11`)
+
+### Added (carried from earlier unreleased)
+- **Floating Player (Desktop Only)**: Pop-out player for TV channels and radio stations
+- **Custom Self-Hosted Analytics**: PostgreSQL-backed tracking (sessions, playback, actions); Admin `/api/admin/analytics/*`
+- **Admin Dashboard**: User/content/activity stats; admin-only via avatar menu
+
+### Removed
+- **Mixpanel / PostHog**: Replaced by self-hosted analytics (`docs/CUSTOM_ANALYTICS.md`)
+
+## [2.5.2] - 2026-04-07
+
+### Fixed
+- **Black screen on iOS Safari (iPhone)**: Removed `height: -webkit-fill-available` from `#root` which computed to 0 on certain iOS Safari versions, clipping all content. Replaced with standard `100vh` + `100dvh` fallback
+- **Stale HTML cached on mobile**: Nginx `Cache-Control: no-cache` only applied to `location = /index.html` but not when served via `try_files` fallback from `location /`. Added aggressive no-cache headers (`no-store, must-revalidate`) to the catch-all location block
+- **External scripts blocking iOS rendering**: Made Chromecast SDK and Google IMA SDK scripts `async defer` to prevent parser-blocking on iOS Safari
+- **CSS `dvh` units without fallback**: Added `vh` fallbacks before all `dvh` declarations in sidebar and modal mobile styles
+
+### Added
+- Inline loading fallback ("Loading Adajoon...") in `index.html` visible until React mounts
+- Inline `window.onerror` handler that displays JavaScript errors visually for debugging
+- Server-side non-www to www redirect in nginx config (`return 301`)
+
+## [2.5.1] - 2026-04-07
+
+### Fixed
+- **502 Bad Gateway on all API calls**: Frontend nginx proxy was defaulting to port 8000 but Railway runs the backend on port 8080. Updated `frontend/start.sh` default `BACKEND_URL` from `http://backend:8000` to `http://backend.railway.internal:8080`
+- **Nginx proxy template**: Added `proxy_connect_timeout 10s` to `/api/` location block in `nginx.conf.template` for better error handling
+
+### Changed
+- **Railway service cleanup**: Renamed frontend service from "Adajoon" back to "frontend" for consistency with codebase conventions
+- **Backend CORS origins**: Added `https://adajoon-production.up.railway.app` to `CORS_ORIGINS` and `WEBAUTHN_ORIGIN` environment variables
+
+### Removed
+- Deleted orphaned "frontend" service (had failed deployment from earlier rebuild)
+- Deleted accidental "function-bun" service (created by Railway Agent intercepting keyboard input)
+
+## [2.5.0] - 2026-04-05
+
+### Added
+- **Smart TV Support**: Full optimization for Samsung Tizen, LG webOS, and other TV browsers
+  - Automatic device detection for TV platforms
+  - 10-foot UI with larger text (24px base) and buttons (60px min height)
+  - D-pad navigation support for TV remote controls
+  - Samsung/LG back button handling
+  - Enhanced focus indicators (4px white outline with glow)
+  - TV-safe zones (5% padding from screen edges)
+  - TV Mode debug indicator badge
+- Device detection utilities (`deviceDetection.js`)
+- TV-specific React hooks (`useDevice`, `useTVNavigation`)
+- TV-optimized CSS styles (`tv.css`, `tv-debug.css`)
+- Comprehensive TV optimization documentation (`docs/TV_OPTIMIZATION.md`)
+
+### Changed
+- Updated Vite build target to ES2015 for TV browser compatibility
+- Set CSS target to Chrome 61 for older smart TV browsers
+- Improved browser compatibility for Samsung Tizen 2.4+ (2017+ models)
+
+### Fixed
+- Blank screen issue on Samsung Internet browser (JavaScript compatibility)
+- Remote control navigation not working on TV devices
+
+## [2.4.0] - 2026-04-04
+
+### Added
+- Enhanced voting system for TV channels and radio stations
+- Recently played history tracking
+- Guest mode with local favorites
+- Improved authentication flow
+
+### Changed
+- Modernized UI with updated color scheme
+- Improved mobile responsiveness
+- Enhanced video player controls
+
+### Fixed
+- Various bug fixes and performance improvements
+
+## [2.3.0] - 2026-03-15
+
+### Added
+- Radio station streaming support
+- Category and country filtering
+- Quality indicators for streams
+- Favorites synchronization
+
+### Changed
+- Improved search functionality
+- Enhanced sidebar navigation
+- Better error handling
+
+## [2.2.0] - 2026-02-20
+
+### Added
+- OAuth authentication (Google, Apple)
+- Passkey/WebAuthn support
+- User profile management
+- CSRF protection
+
+### Changed
+- Updated security headers
+- Improved cookie handling
+- Enhanced CORS configuration
+
+## [2.1.0] - 2026-01-15
+
+### Added
+- Initial public release
+- Live TV channel streaming
+- HLS video player
+- Basic search and filtering
+
+---
+
+## Version Numbering
+
+- **Major version** (X.0.0): Breaking changes, major feature overhauls
+- **Minor version** (0.X.0): New features, backward compatible
+- **Patch version** (0.0.X): Bug fixes, minor improvements
+
+## Links
+
+- [GitHub Repository](https://github.com/yourusername/adajoon)
+- [Documentation](./docs/)
+- [TV Optimization Guide](./docs/TV_OPTIMIZATION.md)

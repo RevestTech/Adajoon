@@ -1,5 +1,11 @@
+import { useEffect, useState } from "react";
 import ViewToggle from "./ViewToggle";
 import VoteIndicator from "./VoteIndicator";
+import { RADIO_COLLECTIONS } from "../data/radioCollections";
+import { handleCardKey } from "../utils/keyboardNav";
+import { fetchNowPlayingBatch } from "../api/radio";
+
+const NOW_PLAYING_POLL_MS = 60000;
 
 const GUEST_LIMIT = 20;
 
@@ -38,11 +44,47 @@ function getRadioStreamStatus(station) {
 }
 
 const QUALITY_OPTIONS = [
-  { key: "all", label: "All" },
-  { key: "has_stream", label: "Working", dot: "online" },
-  { key: "verified", label: "Verified", dot: "verified" },
-  { key: "live", label: "Live", dot: "online" },
-  { key: "hide_dead", label: "Hide Dead", dot: "offline" },
+  { 
+    key: "all", 
+    label: "All", 
+    tooltip: "Show all stations (no filtering)",
+    group: "base"
+  },
+  { 
+    key: "verified", 
+    label: "Verified", 
+    dot: "verified",
+    tooltip: "Fully tested and confirmed working",
+    group: "system"
+  },
+  { 
+    key: "live", 
+    label: "Online Now", 
+    dot: "online",
+    tooltip: "Currently streaming (last check successful)",
+    group: "system"
+  },
+  { 
+    key: "has_stream", 
+    label: "Working", 
+    dot: "online",
+    tooltip: "Has a working stream URL",
+    group: "system"
+  },
+  { 
+    key: "highly_rated", 
+    label: "Highly Rated", 
+    icon: "⭐",
+    tooltip: "Community approved: 3+ positive votes",
+    group: "community"
+  },
+  { 
+    key: "hide_dead", 
+    label: "Hide Broken", 
+    dot: "offline",
+    tooltip: "Hide offline and broken stations",
+    group: "hide"
+  },
 ];
 
 export default function RadioGrid({
@@ -71,9 +113,37 @@ export default function RadioGrid({
   onGuestNotice,
   getVoteSummary,
   stats,
+  onSelectCollection,
 }) {
   const hasFilters = activeTags.length > 0 || activeCountries.length > 0 || search || showFavorites || activeQualities.length > 0;
   const showSkeleton = loading && stations.length === 0;
+
+  const visibleStations = isGuest ? stations.slice(0, GUEST_LIMIT) : stations;
+  const [nowPlaying, setNowPlaying] = useState({});
+  const visibleIdsKey = visibleStations.map((st) => st.id).join(",");
+  useEffect(() => {
+    let cancelled = false;
+    const ids = visibleIdsKey ? visibleIdsKey.split(",") : [];
+    if (ids.length === 0) {
+      setNowPlaying({});
+      return undefined;
+    }
+    const load = () => {
+      fetchNowPlayingBatch(ids)
+        .then((data) => {
+          if (!cancelled) setNowPlaying(data || {});
+        })
+        .catch(() => {
+          if (!cancelled) setNowPlaying({});
+        });
+    };
+    load();
+    const interval = setInterval(load, NOW_PLAYING_POLL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [visibleIdsKey]);
 
   if (showSkeleton) {
     const SkeletonEl = viewMode === "list" ? "skeleton-row" : viewMode === "thumb" ? "skeleton-thumb" : "skeleton-card";
@@ -148,7 +218,8 @@ export default function RadioGrid({
         </div>
         <div className="content-toolbar">
           <div className="quality-filter">
-            {QUALITY_OPTIONS.map((opt) => {
+            <span className="filter-group-label">System Status:</span>
+            {QUALITY_OPTIONS.filter(opt => opt.group === "base" || opt.group === "system").map((opt) => {
               const val = opt.key === "hide_dead" ? "hide_offline" : opt.key;
               const active = opt.key === "all" ? activeQualities.length === 0 : activeQualities.includes(val);
               return (
@@ -156,7 +227,46 @@ export default function RadioGrid({
                   key={opt.key}
                   className={`quality-btn ${active ? "active" : ""}`}
                   onClick={() => onQualityChange(opt.key)}
+                  title={opt.tooltip}
                 >
+                  {opt.icon && <span className="btn-icon">{opt.icon}</span>}
+                  {opt.dot && <span className={`status-dot ${opt.dot}`} />}
+                  {opt.label}
+                </button>
+              );
+            })}
+            
+            <span className="filter-separator" />
+            <span className="filter-group-label">Community:</span>
+            {QUALITY_OPTIONS.filter(opt => opt.group === "community").map((opt) => {
+              const val = opt.key === "hide_dead" ? "hide_offline" : opt.key;
+              const active = activeQualities.includes(val);
+              return (
+                <button
+                  key={opt.key}
+                  className={`quality-btn ${active ? "active" : ""}`}
+                  onClick={() => onQualityChange(opt.key)}
+                  title={opt.tooltip}
+                >
+                  {opt.icon && <span className="btn-icon">{opt.icon}</span>}
+                  {opt.dot && <span className={`status-dot ${opt.dot}`} />}
+                  {opt.label}
+                </button>
+              );
+            })}
+            
+            <span className="filter-separator" />
+            {QUALITY_OPTIONS.filter(opt => opt.group === "hide").map((opt) => {
+              const val = opt.key === "hide_dead" ? "hide_offline" : opt.key;
+              const active = activeQualities.includes(val);
+              return (
+                <button
+                  key={opt.key}
+                  className={`quality-btn ${active ? "active" : ""}`}
+                  onClick={() => onQualityChange(opt.key)}
+                  title={opt.tooltip}
+                >
+                  {opt.icon && <span className="btn-icon">{opt.icon}</span>}
                   {opt.dot && <span className={`status-dot ${opt.dot}`} />}
                   {opt.label}
                 </button>
@@ -168,6 +278,20 @@ export default function RadioGrid({
       </div>
 
       <div className={`content-body${loading ? " content-loading" : ""}`}>
+        {!hasFilters && onSelectCollection && (
+          <div className="radio-collections" role="group" aria-label="Radio collections">
+            {RADIO_COLLECTIONS.map((collection) => (
+              <button
+                key={collection.title}
+                type="button"
+                className="radio-collection-chip"
+                onClick={() => onSelectCollection(collection.tags)}
+              >
+                {collection.title}
+              </button>
+            ))}
+          </div>
+        )}
         {hasFilters && (
           <div className="active-filters">
             {showFavorites && (
@@ -240,7 +364,7 @@ export default function RadioGrid({
         ) : (
           <>
             <div className={viewMode === "list" ? "channel-list" : viewMode === "thumb" ? "thumb-grid" : "channel-grid"}>
-              {(isGuest ? stations.slice(0, GUEST_LIMIT) : stations).map((st) => {
+              {visibleStations.map((st) => {
                 const props = {
                   key: st.id,
                   station: st,
@@ -250,11 +374,11 @@ export default function RadioGrid({
                     ? (e) => {
                         e.stopPropagation();
                         onGuestNotice?.("Sign in to save favorites.");
-                        onLogin();
                       }
                     : (e) => { e.stopPropagation(); onToggleFavorite(st); },
                   isGuest,
                   voteSummary: getVoteSummary ? getVoteSummary(st.id) : {},
+                  nowPlaying: nowPlaying[st.id],
                 };
                 if (viewMode === "list") return <RadioRow {...props} />;
                 if (viewMode === "thumb") return <RadioThumb {...props} />;
@@ -305,12 +429,19 @@ function GuestBanner({ onLogin, total, type }) {
   );
 }
 
-function RadioCard({ station, onClick, favorited, onToggleFavorite, isGuest, voteSummary }) {
+function RadioCard({ station, onClick, favorited, onToggleFavorite, isGuest, voteSummary, nowPlaying }) {
   const tags = station.tags ? station.tags.split(",").map((t) => t.trim()).filter(Boolean) : [];
   const streamStatus = getRadioStreamStatus(station);
 
   return (
-    <div className="channel-card radio-card" onClick={onClick}>
+    <div
+      className="channel-card radio-card"
+      onClick={onClick}
+      role="button"
+      tabIndex={0}
+      aria-label={station.name}
+      onKeyDown={handleCardKey(onClick)}
+    >
       {isGuest ? (
         <button
           type="button"
@@ -363,6 +494,9 @@ function RadioCard({ station, onClick, favorited, onToggleFavorite, isGuest, vot
       <div className="channel-name" title={station.name}>
         {station.name}
       </div>
+      {nowPlaying && (
+        <div className="now-playing-text" title={nowPlaying}>{nowPlaying}</div>
+      )}
       <div className="channel-meta">
         {station.country_code && (
           <span className="channel-tag">{station.country_code}</span>
@@ -383,12 +517,19 @@ function RadioCard({ station, onClick, favorited, onToggleFavorite, isGuest, vot
   );
 }
 
-function RadioRow({ station, onClick, favorited, onToggleFavorite, isGuest, voteSummary }) {
+function RadioRow({ station, onClick, favorited, onToggleFavorite, isGuest, voteSummary, nowPlaying }) {
   const tags = station.tags ? station.tags.split(",").map((t) => t.trim()).filter(Boolean) : [];
   const streamStatus = getRadioStreamStatus(station);
 
   return (
-    <div className="list-row" onClick={onClick}>
+    <div
+      className="list-row"
+      onClick={onClick}
+      role="button"
+      tabIndex={0}
+      aria-label={station.name}
+      onKeyDown={handleCardKey(onClick)}
+    >
       <div className="list-row-logo">
         {station.favicon ? (
           <img
@@ -414,6 +555,9 @@ function RadioRow({ station, onClick, favorited, onToggleFavorite, isGuest, vote
       </div>
       <div className="list-row-info">
         <span className="list-row-name">{station.name}</span>
+        {nowPlaying && (
+          <span className="now-playing-text now-playing-text--inline" title={nowPlaying}>{nowPlaying}</span>
+        )}
         <div className="list-row-tags">
           {station.country_code && <span className="channel-tag">{station.country_code}</span>}
           {tags.slice(0, 3).map((t) => (
@@ -456,12 +600,19 @@ function RadioRow({ station, onClick, favorited, onToggleFavorite, isGuest, vote
   );
 }
 
-function RadioThumb({ station, onClick, favorited, onToggleFavorite, isGuest, voteSummary }) {
+function RadioThumb({ station, onClick, favorited, onToggleFavorite, isGuest, voteSummary, nowPlaying }) {
   const tags = station.tags ? station.tags.split(",").map((t) => t.trim()).filter(Boolean) : [];
   const streamStatus = getRadioStreamStatus(station);
 
   return (
-    <div className="thumb-card" onClick={onClick}>
+    <div
+      className="thumb-card"
+      onClick={onClick}
+      role="button"
+      tabIndex={0}
+      aria-label={station.name}
+      onKeyDown={handleCardKey(onClick)}
+    >
       <div className="thumb-image">
         {station.favicon ? (
           <img

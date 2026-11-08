@@ -1,0 +1,282 @@
+/* TV-Optimized Styles for Samsung Tizen and other Smart TVs */
+
+/* Apply TV-specific styles when running on TV devices */
+body.tv-device {
+  font-size: 24px;
+  line-height: 1.5;
+  cursor: none;
+}
+
+/* TV-safe zones - prevent content cutoff at screen edges */
+body.tv-device .layout {
+  padding: 3vh 5vw;
+}
+
+body.tv-device main.main-content {
+  padding: 2rem 3rem;
+}
+
+/* 10-foot UI - Larger interactive elements */
+body.tv-device button,
+body.tv-device .btn,
+body.tv-device a.button {
+  min-height: 60px;
+  padding: 18px 36px;
+  font-size: 22px;
+  border-radius: 8px;
+}
+
+body.tv-device input,
+body.tv-device select,
+body.tv-device textarea {
+  min-height: 60px;
+  padding: 16px 24px;
+  font-size: 22px;
+}
+
+/* Focus indicators for D-pad navigation */
+body.tv-device *:focus {
+  outline: 4px solid #667eea;
+  outline-offset: 4px;
+  box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.3);
+  z-index: 10;
+  position: relative;
+}
+
+body.tv-device button:focus,
+body.tv-device .btn:focus,
+body.tv-device a:focus {
+  outline: 4px solid #fff;
+  outline-offset: 4px;
+  box-shadow: 0 0 20px rgba(255, 255, 255, 0.5);
+  transform: scale(1.05);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* Channel/Station cards - larger for TV */
+body.tv-device .channel-card,
+body.tv-device .station-card {
+  min-height: 200px;
+  padding: 20px;
+}
+
+body.tv-device .channel-card:focus,
+body.tv-device .station-card:focus {
+  transform: scale(1.08);
+  z-index: 20;
+}
+
+body.tv-device .channel-logo,
+body.tv-device .station-logo {
+  min-height: 120px;
+  min-width: 120px;
+}
+
+/* Grid layout adjustments for TV */
+body.tv-device .channel-grid,
+body.tv-device .radio-grid {
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 30px;
+}
+
+/* Text readability for 10-foot viewing */
+body.tv-device h1 {
+  font-size: 48px;
+  margin-bottom: 24px;
+}
+
+body.tv-device h2 {
+  font-size: 36px;
+  margin-bottom: 20px;
+}
+
+body.tv-device h3 {
+  font-size: 28px;
+  margin-bottom: 16px;
+}
+
+body.tv-device p,
+body.tv-device span,
+body.tv-device div {
+  font-size: 22px;
+}
+
+/* Header adjustments */
+body.tv-device .header {
+  padding: 20px 5vw;
+  min-height: 80px;
+}
+
+body.tv-device .header input[type="search"] {
+  font-size: 24px;
+  padding: 20px 24px;
+}
+
+/* Sidebar adjustments */
+body.tv-device .sidebar {
+  font-size: 22px;
+  padding: 30px 20px;
+}
+
+body.tv-device .sidebar-item {
+  padding: 18px 24px;
+  font-size: 22px;
+}
+
+/* Player controls - larger for TV remotes */
+body.tv-device .player-controls button {
+  width: 80px;
+  height: 80px;
+  font-size: 32px;
+}
+
+body.tv-device .video-player,
+body.tv-device .radio-player {
+  border-radius: 0;
+}
+
+/* Modal adjustments */
+body.tv-device .modal {
+  max-width: 90vw;
+  padding: 40px;
+}
+
+/* Remove hover effects (TV doesn't have hover) */
+body.tv-device *:hover {
+  transform: none;
+}
+
+/* Scrollbar adjustments */
+body.tv-device ::-webkit-scrollbar {
+  width: 16px;
+}
+
+body.tv-device ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 8px;
+}
+
+/* Grid view mode - larger cards */
+body.tv-device .view-mode--grid .channel-card {
+  min-height: 240px;
+}
+
+/* List view mode - larger rows */
+body.tv-device .view-mode--list .channel-row {
+  min-height: 100px;
+  padding: 20px;
+  font-size: 24px;
+}
+
+/* Filter badges - larger */
+body.tv-device .filter-badge {
+  padding: 12px 24px;
+  font-size: 20px;
+}
+
+/* Pagination - larger buttons */
+body.tv-device .pagination button {
+  min-width: 80px;
+  min-height: 60px;
+  font-size: 24px;
+  margin: 0 8px;
+}
+
+/* Loading states */
+body.tv-device .spinner {
+  width: 80px;
+  height: 80px;
+  border-width: 6px;
+}
+
+/* Toast notifications - larger */
+body.tv-device .toast {
+  padding: 24px 32px;
+  font-size: 24px;
+  min-height: 80px;
+}
+
+/* Hide elements not suitable for TV */
+body.tv-device .hide-on-tv {
+  display: none !important;
+}
+
+/* Show TV-only elements */
+body.tv-device .show-on-tv {
+  display: block !important;
+}
+
+/* Disable text selection on TV */
+body.tv-device {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+/* Improve video player visibility */
+body.tv-device video {
+  max-width: 100%;
+  max-height: 100vh;
+}
+
+/* Back button indicator for TV remote */
+body.tv-device .tv-back-hint {
+  position: fixed;
+  bottom: 40px;
+  left: 5vw;
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+  padding: 16px 32px;
+  border-radius: 8px;
+  font-size: 20px;
+  z-index: 1000;
+}
+
+/* Focus trap for modals */
+body.tv-device .modal-overlay {
+  background: rgba(0, 0, 0, 0.95);
+}
+
+/* Better contrast for TV screens */
+body.tv-device {
+  background: #0a0a0a;
+  color: #ffffff;
+}
+
+body.tv-device .card,
+body.tv-device .panel {
+  background: #1a1a1a;
+  border: 2px solid #333;
+}
+
+/* Reduce animations for TV (can cause lag) */
+body.tv-device * {
+  transition-duration: 0.2s !important;
+}
+
+/* Hide mouse cursor on TV */
+body.tv-device,
+body.tv-device * {
+  cursor: none !important;
+}
+
+/* TV-specific media queries for 4K screens */
+@media (min-width: 3840px) {
+  body.tv-device {
+    font-size: 32px;
+  }
+
+  body.tv-device h1 {
+    font-size: 64px;
+  }
+
+  body.tv-device button {
+    min-height: 80px;
+    font-size: 28px;
+  }
+
+  body.tv-device .channel-card {
+    min-height: 300px;
+  }
+}
