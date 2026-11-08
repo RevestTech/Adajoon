@@ -23,11 +23,14 @@ export default defineConfig({
     chunkSizeWarningLimit: 600,
     rollupOptions: {
       output: {
-        manualChunks: {
-          vendor: ["react", "react-dom"],
-          hls: ["hls.js"],
-          webauthn: ["@simplewebauthn/browser"],
-          maplibre: ["maplibre-gl"],
+        // vite 8's rolldown bundler requires manualChunks as a function,
+        // not the rollup-era object-of-arrays form.
+        manualChunks(id) {
+          if (!id.includes("node_modules")) return;
+          if (id.includes("/react/") || id.includes("/react-dom/")) return "vendor";
+          if (id.includes("/hls.js/")) return "hls";
+          if (id.includes("/@simplewebauthn/browser/")) return "webauthn";
+          if (id.includes("/maplibre-gl/")) return "maplibre";
         },
       },
     },
