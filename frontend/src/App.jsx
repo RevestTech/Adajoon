@@ -38,8 +38,9 @@ import {
   isKnownPath,
   isAdminPath,
 } from "./hooks/useUrlState";
-import { fetchChannels, fetchChannel, fetchCategories, fetchCountries, fetchStats } from "./api/channels";
-import { fetchRadioStations, fetchStation, fetchRadioTags, fetchRadioCountries } from "./api/radio";
+import { fetchChannel, fetchStats } from "./api/channels";
+import { fetchStation } from "./api/radio";
+import useCatalogList from "./hooks/useCatalogList";
 import { recordWatchHistory } from "./api/history";
 import { openRadioPopoutWindow } from "./utils/radioPopout";
 import {
@@ -156,36 +157,89 @@ export default function App() {
     localStorage.setItem("adajoon_view", v);
   };
 
-  // TV state
-  const [channels, setChannels] = useState([]);
-  const [categories, setCategories] = useState([]);
-  const [countries, setCountries] = useState([]);
-  const [stats, setStats] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [search, setSearch] = useState(IU.search);
-  const [activeCategories, setActiveCategories] = useState(IU.activeCategories);
-  const [activeCountries, setActiveCountries] = useState(IU.activeCountries);
+  // TV and radio browsing (list/facets/pagination/fetch) are an identical
+  // shape for both verticals - see useCatalogList. Selection, player/modal,
+  // and favorites-view state stay here: they diverge enough between TV and
+  // radio (channel-stepping, radio's popout-window fallback, radio's
+  // lazy-vs-TV's-eager fetch gating below) that folding them into the same
+  // hook would trade a correct abstraction for a leaky one.
   const [showFavorites, setShowFavorites] = useState(IU.showFavorites);
-  const [activeQualities, setActiveQualities] = useState(IU.activeQualities);
-  const [page, setPage] = useState(IU.page);
-  const [totalPages, setTotalPages] = useState(0);
-  const [total, setTotal] = useState(0);
-  const [selectedChannel, setSelectedChannel] = useState(null);
+  const [showRadioFavorites, setShowRadioFavorites] = useState(IU.showRadioFavorites);
 
-  // Radio state
-  const [radioStations, setRadioStations] = useState([]);
-  const [radioTags, setRadioTags] = useState([]);
-  const [radioCountries, setRadioCountries] = useState([]);
-  const [radioLoading, setRadioLoading] = useState(true);
-  const [radioError, setRadioError] = useState(null);
-  const [radioSearch, setRadioSearch] = useState(IU.radioSearch);
-  const [activeTags, setActiveTags] = useState(IU.activeTags);
-  const [activeRadioCountries, setActiveRadioCountries] = useState(IU.activeRadioCountries);
-  const [activeRadioQualities, setActiveRadioQualities] = useState(IU.activeRadioQualities);
-  const [radioPage, setRadioPage] = useState(IU.radioPage);
-  const [radioTotalPages, setRadioTotalPages] = useState(0);
-  const [radioTotal, setRadioTotal] = useState(0);
+  const tv = useCatalogList("tv", {
+    skipFetch: showFavorites,
+    initialSearch: IU.search,
+    initialFacets: IU.activeCategories,
+    initialCountries: IU.activeCountries,
+    initialQualities: IU.activeQualities,
+    initialPage: IU.page,
+  });
+  const {
+    items: channels,
+    facets: categories,
+    countries,
+    loading,
+    error,
+    search,
+    setSearch,
+    debouncedSearch: debouncedTvSearch,
+    activeFacets: activeCategories,
+    setActiveFacets: setActiveCategories,
+    activeCountries,
+    setActiveCountries,
+    activeQualities,
+    setActiveQualities,
+    page,
+    setPage,
+    totalPages,
+    total,
+    loadMeta,
+    loadList: loadChannels,
+  } = tv;
+
+  const radio = useCatalogList("radio", {
+    skipFetch: showRadioFavorites,
+    initialSearch: IU.radioSearch,
+    initialFacets: IU.activeTags,
+    initialCountries: IU.activeRadioCountries,
+    initialQualities: IU.activeRadioQualities,
+    initialPage: IU.radioPage,
+  });
+  const {
+    items: radioStations,
+    facets: radioTags,
+    countries: radioCountries,
+    loading: radioLoading,
+    error: radioError,
+    search: radioSearch,
+    setSearch: setRadioSearch,
+    debouncedSearch: debouncedRadioSearch,
+    activeFacets: activeTags,
+    setActiveFacets: setActiveTags,
+    activeCountries: activeRadioCountries,
+    setActiveCountries: setActiveRadioCountries,
+    activeQualities: activeRadioQualities,
+    setActiveQualities: setActiveRadioQualities,
+    page: radioPage,
+    setPage: setRadioPage,
+    totalPages: radioTotalPages,
+    total: radioTotal,
+    loadMeta: loadRadioMeta,
+    loadList: loadRadio,
+  } = radio;
+
+  // Platform-wide stats shown on both grids - not TV- or radio-specific,
+  // so it's its own small poll rather than bundled into either hook.
+  const [stats, setStats] = useState(null);
+  const loadStats = useCallback(async () => {
+    try {
+      setStats(await fetchStats());
+    } catch {
+      /* retry later */
+    }
+  }, []);
+
+  const [selectedChannel, setSelectedChannel] = useState(null);
   const [selectedStation, setSelectedStation] = useState(null);
   const [radioModalOpen, setRadioModalOpen] = useState(true);
   const [tvModalOpen, setTvModalOpen] = useState(true);
@@ -196,7 +250,6 @@ export default function App() {
   // Set by any explicit channel/station selection so a slow initial deep-link
   // lookup can't clobber a selection the user already made before it resolved.
   const deepLinkSupersededRef = useRef(false);
-  const [showRadioFavorites, setShowRadioFavorites] = useState(IU.showRadioFavorites);
 
   const nowPlaying =
     selectedStation == null
@@ -206,19 +259,6 @@ export default function App() {
   const showDockedPlayer =
     (nowPlaying && !nowPlaying.modalOpen) ||
     Boolean(selectedChannel && !tvModalOpen);
-
-  const [debouncedTvSearch, setDebouncedTvSearch] = useState(IU.search);
-  const [debouncedRadioSearch, setDebouncedRadioSearch] = useState(IU.radioSearch);
-
-  useEffect(() => {
-    const t = setTimeout(() => setDebouncedTvSearch(search), 300);
-    return () => clearTimeout(t);
-  }, [search]);
-
-  useEffect(() => {
-    const t = setTimeout(() => setDebouncedRadioSearch(radioSearch), 300);
-    return () => clearTimeout(t);
-  }, [radioSearch]);
 
   useEffect(() => {
     writeUrlParams({
@@ -257,9 +297,6 @@ export default function App() {
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
   }, []);
-
-  const prevTvFiltersKey = useRef(null);
-  const prevRadioFiltersKey = useRef(null);
 
   const { favorites, favoritesList, favoritesCount, toggleFavorite, isFavorite, loadFromServer } = useFavorites();
   const { addRecent, recentItems } = useRecentlyPlayed();
@@ -371,108 +408,24 @@ export default function App() {
   // effects below need it in their dependency arrays.
   const onAdminPage = isAdminPath(window.location.pathname);
 
-  // TV: load metadata
-  const loadMeta = useCallback(async () => {
-    try {
-      const [cats, ctrs, st] = await Promise.all([
-        fetchCategories(), fetchCountries(), fetchStats(),
-      ]);
-      setCategories(cats);
-      setCountries(ctrs);
-      setStats(st);
-    } catch { /* retry later */ }
-  }, []);
-
-  // TV: load channels
-  const loadChannels = useCallback(async () => {
-    if (showFavorites) return;
-    // Always show the loading state while a fetch is in flight, even when
-    // channels are already populated - otherwise a filter change (e.g.
-    // selecting a country on the map) renders the stale, now-mismatched
-    // list/count for a frame before the new data arrives.
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await fetchChannels({
-        query: search || undefined,
-        category: activeCategories.length ? activeCategories.join(",") : undefined,
-        country: activeCountries.length ? activeCountries.join(",") : undefined,
-        status: activeQualities.length ? activeQualities.join(",") : undefined,
-        page,
-      });
-      setChannels(data.channels);
-      setTotalPages(data.total_pages);
-      setTotal(data.total);
-    } catch {
-      setError("Unable to load channels. The server may still be syncing data.");
-    } finally {
-      setLoading(false);
-    }
-  }, [search, activeCategories, activeCountries, activeQualities, page, showFavorites]);
-
-  // Radio: load metadata
-  const loadRadioMeta = useCallback(async () => {
-    try {
-      const [tags, ctrs] = await Promise.all([
-        fetchRadioTags(), fetchRadioCountries(),
-      ]);
-      setRadioTags(tags);
-      setRadioCountries(ctrs);
-    } catch { /* retry later */ }
-  }, []);
-
-  // Radio: load stations
-  const loadRadio = useCallback(async () => {
-    if (showRadioFavorites) return;
-    setRadioLoading(true);
-    setRadioError(null);
-    try {
-      const data = await fetchRadioStations({
-        query: radioSearch || undefined,
-        tag: activeTags.length ? activeTags.join(",") : undefined,
-        country: activeRadioCountries.length ? activeRadioCountries.join(",") : undefined,
-        status: activeRadioQualities.length ? activeRadioQualities.join(",") : undefined,
-        page: radioPage,
-      });
-      setRadioStations(data.stations);
-      setRadioTotalPages(data.total_pages);
-      setRadioTotal(data.total);
-    } catch {
-      setRadioError("Unable to load radio stations. Data may still be syncing.");
-    } finally {
-      setRadioLoading(false);
-    }
-  }, [radioSearch, activeTags, activeRadioCountries, activeRadioQualities, radioPage, showRadioFavorites]);
-
+  // TV metadata + stats load eagerly on mount/interval, regardless of
+  // `mode` - matches pre-refactor behavior (radio's equivalents below are
+  // gated on `mode`, loading lazily only once that vertical is visited).
   useEffect(() => {
     if (onAdminPage) return;
     loadMeta();
-    const interval = setInterval(loadMeta, 30000);
+    loadStats();
+    const interval = setInterval(() => {
+      loadMeta();
+      loadStats();
+    }, 30000);
     return () => clearInterval(interval);
-  }, [loadMeta, onAdminPage]);
+  }, [loadMeta, loadStats, onAdminPage]);
 
   useEffect(() => {
     if (onAdminPage) return;
     loadChannels();
   }, [loadChannels, onAdminPage]);
-
-  useEffect(() => {
-    const key = JSON.stringify({
-      search,
-      activeCategories,
-      activeCountries,
-      showFavorites,
-      activeQualities,
-    });
-    if (prevTvFiltersKey.current === null) {
-      prevTvFiltersKey.current = key;
-      return;
-    }
-    if (prevTvFiltersKey.current !== key) {
-      prevTvFiltersKey.current = key;
-      setPage(1);
-    }
-  }, [search, activeCategories, activeCountries, showFavorites, activeQualities]);
 
   useEffect(() => {
     if (onAdminPage) return;
@@ -483,24 +436,6 @@ export default function App() {
     if (onAdminPage) return;
     if (mode === "radio") loadRadio();
   }, [mode, loadRadio, onAdminPage]);
-
-  useEffect(() => {
-    const key = JSON.stringify({
-      radioSearch,
-      activeTags,
-      activeRadioCountries,
-      activeRadioQualities,
-      showRadioFavorites,
-    });
-    if (prevRadioFiltersKey.current === null) {
-      prevRadioFiltersKey.current = key;
-      return;
-    }
-    if (prevRadioFiltersKey.current !== key) {
-      prevRadioFiltersKey.current = key;
-      setRadioPage(1);
-    }
-  }, [radioSearch, activeTags, activeRadioCountries, activeRadioQualities, showRadioFavorites]);
 
   const displayedChannels = showFavorites ? favoritesList : channels;
   const displayedTotal = showFavorites ? favoritesCount : total;
