@@ -5,7 +5,16 @@ import logging
 from datetime import datetime, timedelta, timezone
 
 import httpx
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
+from fastapi import (
+    APIRouter,
+    Cookie,
+    Depends,
+    HTTPException,
+    Query,
+    Request,
+    Response,
+    status,
+)
 from fastapi.responses import HTMLResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from google.auth.transport import requests as google_requests
@@ -906,7 +915,9 @@ NEGATIVE_VOTE_TYPES = {"dislike", "broken"}
 
 @router.get("/votes/trending")
 async def get_trending(
-    item_type: str, limit: int = TRENDING_LIMIT, db: AsyncSession = Depends(get_db)
+    item_type: str,
+    limit: int = Query(TRENDING_LIMIT, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
 ):
     """Top items by net vote score (like + works - dislike - broken), for
     the search box's trending/default-state suggestions. Public endpoint."""

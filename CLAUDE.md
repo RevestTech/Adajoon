@@ -19,8 +19,6 @@ Streaming aggregator: 39k+ live TV channels, radio stations, and syndicated movi
 | Background sync | `backend/app/worker.py` | — |
 | DB schema | `backend/alembic/versions/` (head: `018_add_app_settings_and_admin_hidden.py`) | — |
 
-`whitelabel.py` router exists but is **not wired up** (`main.py`: `# app.include_router(whitelabel.router)  # TODO: Implement Tenant model first`) — dead code pending a decision, not a bug.
-
 ## Run locally
 
 See `README.md` and `docker-compose.yml`. Run migrations with `./run-migrations.sh`.
