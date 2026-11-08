@@ -42,7 +42,7 @@ async def make_user_admin(
     target_user = result.scalar_one_or_none()
 
     if not target_user:
-        return {"error": "User not found"}
+        raise HTTPException(status_code=404, detail="User not found")
 
     target_user.is_admin = True
     target_user.role = "admin"
@@ -74,13 +74,15 @@ async def revoke_user_admin(
 
     # Prevent self-demotion
     if admin_user.id == user_id:
-        return {"error": "Cannot revoke your own admin privileges"}
+        raise HTTPException(
+            status_code=400, detail="Cannot revoke your own admin privileges"
+        )
 
     result = await db.execute(select(User).where(User.id == user_id))
     target_user = result.scalar_one_or_none()
 
     if not target_user:
-        return {"error": "User not found"}
+        raise HTTPException(status_code=404, detail="User not found")
 
     target_user.is_admin = False
     target_user.role = "user"

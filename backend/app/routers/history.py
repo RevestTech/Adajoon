@@ -4,7 +4,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 from sqlalchemy import delete, desc, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -86,7 +86,7 @@ async def record_watch_history(
 @router.get("/", response_model=list[WatchHistoryResponse])
 async def get_watch_history(
     item_type: Optional[str] = None,
-    limit: int = 50,
+    limit: int = Query(50, ge=1, le=100),
     user: User = Depends(require_user),
     db: AsyncSession = Depends(get_db),
 ):

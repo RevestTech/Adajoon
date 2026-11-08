@@ -3,7 +3,7 @@
 from typing import Literal
 
 from fastapi import APIRouter, Depends, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from sqlalchemy import Integer, func, select
@@ -24,7 +24,7 @@ NEGATIVE_VOTE_TYPES = ("dislike", "broken")
 class RecommendationParams(BaseModel):
     item_type: Literal["tv", "radio"]
     item_id: str
-    limit: int = 10
+    limit: int = Field(10, ge=1, le=100)
 
 
 async def _get_channel_recommendations(
