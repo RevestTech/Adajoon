@@ -1,4 +1,5 @@
 import { useEffect, useRef, useCallback, useState } from "react";
+import { analytics } from "../analytics";
 
 let gsiInitialized = false;
 
@@ -32,6 +33,11 @@ export default function LandingPage({
         client_id: googleClientId,
         callback: (response) => callbackRef.current(response.credential),
         use_fedcm_for_prompt: true,
+        error_callback: (err) => {
+          analytics.trackLoginFailure("google", err?.type || "gsi_error", {
+            stage: "button_click",
+          });
+        },
       });
       gsiInitialized = true;
     }
