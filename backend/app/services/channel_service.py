@@ -147,6 +147,7 @@ async def get_for_you_channels(
 
     filters = [
         Channel.is_nsfw.is_(False),
+        Channel.admin_hidden.is_(False),
         Channel.stream_url != "",
         Channel.categories.ilike(f"%{top_category}%"),
     ]
