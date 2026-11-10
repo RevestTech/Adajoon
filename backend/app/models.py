@@ -345,6 +345,30 @@ class EpgProgramme(Base):
     )
 
 
+class UserDevice(Base):
+    """A device/browser that has logged in as this user - backs the
+    per-tier device-limit enforcement in app.services.device_service."""
+
+    __tablename__ = "user_devices"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    device_id = Column(String(128), nullable=False)
+    label = Column(String(255), default="")
+    first_seen_at = Column(DateTime(timezone=True), server_default=func.now())
+    last_seen_at = Column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    user = relationship("User")
+
+    __table_args__ = (
+        Index("ix_user_device_unique", "user_id", "device_id", unique=True),
+    )
+
+
 class PricingTier(Base):
     """A subscription tier, editable by admins instead of hardcoded in the API."""
 

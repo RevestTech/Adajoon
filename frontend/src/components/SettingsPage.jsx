@@ -3,6 +3,8 @@ import useParentalControls from "../hooks/useParentalControls";
 import { clearWatchHistory, deleteWatchHistoryItem, fetchWatchHistory } from "../api/history";
 import { fetchChannel } from "../api/channels";
 import { fetchStation } from "../api/radio";
+import { fetchDevices, removeDevice } from "../api/devices";
+import { getDeviceId } from "../utils/deviceId";
 
 function formatWatchedAt(isoString) {
   const date = new Date(isoString);
@@ -229,6 +231,70 @@ function WatchHistoryTab({ onSelectChannel, onSelectStation }) {
   );
 }
 
+function DevicesTab() {
+  const [devices, setDevices] = useState(null);
+  const [error, setError] = useState("");
+  const [busyId, setBusyId] = useState(null);
+  const thisDeviceId = getDeviceId();
+
+  const load = useCallback(async () => {
+    try {
+      setDevices(await fetchDevices());
+    } catch (err) {
+      setError(err.message || "Failed to load devices");
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const handleRemove = async (deviceId) => {
+    setBusyId(deviceId);
+    setError("");
+    try {
+      await removeDevice(deviceId);
+      await load();
+    } catch (err) {
+      setError(err.message || "Failed to remove device");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  if (devices === null && !error) return <div className="settings-loading">Loading…</div>;
+
+  return (
+    <div className="settings-section">
+      <h3 className="settings-section-title">Devices</h3>
+      <p className="settings-section-hint">
+        Your plan limits how many devices can be signed in at once. Remove one here to free up a slot
+        for a new device.
+      </p>
+      {error && <p className="settings-message">{error}</p>}
+      {devices && devices.length === 0 && (
+        <p className="settings-section-hint">No devices on record yet.</p>
+      )}
+      {devices && devices.map((d) => (
+        <div key={d.device_id} className="settings-toggle-row">
+          <span>
+            {d.device_id === thisDeviceId ? "This device" : "Device"} · signed in{" "}
+            {formatWatchedAt(d.last_seen_at)}
+          </span>
+          <button
+            type="button"
+            className="settings-btn settings-btn--danger"
+            disabled={busyId === d.device_id}
+            onClick={() => handleRemove(d.device_id)}
+          >
+            Remove
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function SettingsPage({ onClose, onSelectChannel, onSelectStation }) {
   const [activeTab, setActiveTab] = useState("history");
 
@@ -253,6 +319,12 @@ export default function SettingsPage({ onClose, onSelectChannel, onSelectStation
           >
             Parental Controls
           </button>
+          <button
+            className={`admin-tab ${activeTab === "devices" ? "active" : ""}`}
+            onClick={() => setActiveTab("devices")}
+          >
+            Devices
+          </button>
         </div>
 
         <div className="admin-content">
@@ -260,6 +332,7 @@ export default function SettingsPage({ onClose, onSelectChannel, onSelectStation
             <WatchHistoryTab onSelectChannel={onSelectChannel} onSelectStation={onSelectStation} />
           )}
           {activeTab === "parental" && <ParentalControlsTab />}
+          {activeTab === "devices" && <DevicesTab />}
         </div>
       </div>
     </div>
