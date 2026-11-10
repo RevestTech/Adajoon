@@ -77,7 +77,7 @@ if settings.sentry_dsn:
         sentry_sdk.init(
             dsn=settings.sentry_dsn,
             environment=settings.env,
-            release=f"adajoon@2.7.1",
+            release="adajoon@2.7.1",
             integrations=[StarletteIntegration(), FastApiIntegration()],
             traces_sample_rate=0.1,
         )
