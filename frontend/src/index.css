@@ -4776,6 +4776,12 @@ body {
   .favorite-btn { width: 44px; height: 44px; }
   .favorite-btn svg { width: 18px; height: 18px; }
 
+  /* Floating/mini player controls were 28x28 on all screens - below the
+     ~44px minimum touch target. Grow the tap area only; icon stays its
+     current visual size, centered (standard pattern: a target can be
+     larger than the icon it tells you to tap). */
+  .floating-player-btn { width: 44px; height: 44px; }
+
   .thumb-grid { grid-template-columns: 1fr; gap: 10px; }
 
   .list-row { padding: 8px 10px; gap: 8px; }
