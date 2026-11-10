@@ -5,16 +5,16 @@ generic audit-everything framework, just the specific admin-write
 endpoints that already exist (make/revoke-admin, comp/revoke a
 subscription, hide/unhide content, secret writes, pricing changes).
 
-Revision ID: 019
-Revises: 018
+Revision ID: 020
+Revises: 019
 Create Date: 2026-11-10
 
 """
 
 from alembic import op
 
-revision = "019"
-down_revision = "018"
+revision = "020"
+down_revision = "019"
 branch_labels = None
 depends_on = None
 
