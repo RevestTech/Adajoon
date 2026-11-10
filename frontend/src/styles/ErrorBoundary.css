@@ -7,7 +7,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: var(--bg-primary);
   z-index: 10000;
   padding: 20px;
 }
@@ -24,16 +24,17 @@
 }
 
 .error-boundary--compact .error-boundary__message {
-  color: #a0a0b8;
+  color: var(--text-secondary);
 }
 
 .error-boundary__content {
-  background: white;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
   border-radius: 16px;
   padding: 40px;
   max-width: 600px;
   width: 100%;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--shadow);
   text-align: center;
 }
 
@@ -55,13 +56,13 @@
 .error-boundary__title {
   font-size: 28px;
   font-weight: 700;
-  color: #1a202c;
+  color: var(--text-primary);
   margin-bottom: 16px;
 }
 
 .error-boundary__message {
   font-size: 16px;
-  color: #4a5568;
+  color: var(--text-secondary);
   line-height: 1.6;
   margin-bottom: 32px;
 }
@@ -69,8 +70,8 @@
 .error-boundary__details {
   text-align: left;
   margin-bottom: 24px;
-  background: #f7fafc;
-  border: 1px solid #e2e8f0;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   padding: 16px;
 }
@@ -78,14 +79,14 @@
 .error-boundary__details summary {
   cursor: pointer;
   font-weight: 600;
-  color: #2d3748;
+  color: var(--text-primary);
   margin-bottom: 12px;
 }
 
 .error-boundary__stack {
   font-family: 'Courier New', monospace;
   font-size: 12px;
-  color: #e53e3e;
+  color: var(--accent-hover);
   overflow-x: auto;
   white-space: pre-wrap;
   word-wrap: break-word;
@@ -114,17 +115,18 @@
 }
 
 .error-boundary__button--primary {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: var(--accent);
   color: white;
 }
 
 .error-boundary__button--secondary {
-  background: #e2e8f0;
-  color: #2d3748;
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
 }
 
 .error-boundary__button--secondary:hover {
-  background: #cbd5e0;
+  background: var(--bg-elevated);
 }
 
 @media (max-width: 640px) {
