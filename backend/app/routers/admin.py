@@ -6,6 +6,7 @@ admin_content.py, and self-hosted analytics reporting in admin_analytics.py -
 this file kept growing past 1,000 lines before that split.
 """
 
+import json
 import logging
 from datetime import datetime, timedelta
 
@@ -16,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.middleware.admin_required import require_admin
 from app.models import (
+    AdminAuditLog,
     Channel,
     Playlist,
     RadioStation,
@@ -29,6 +31,17 @@ from app.services import settings_service
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 logger = logging.getLogger(__name__)
+
+# Kept in sync with the phase names in worker.py's run_cycle() - not
+# imported from there to avoid coupling the API to the worker's logging
+# setup for five string constants.
+SYNC_PHASES = [
+    "validate_all_channels",
+    "validate_all_radio",
+    "iptv_full_sync",
+    "sync_radio_stations",
+    "sync_epg",
+]
 
 
 @router.get("/stats/overview")
@@ -102,6 +115,11 @@ async def get_stats_overview(
     redis_healthy = await redis_health_check()
     last_sync_at = await settings_service.get_setting(db, "last_sync_at")
 
+    sync_phases = {}
+    for phase in SYNC_PHASES:
+        raw = await settings_service.get_setting(db, f"sync_phase:{phase}")
+        sync_phases[phase] = json.loads(raw) if raw else None
+
     return {
         "users": {
             "total": total_users,
@@ -124,8 +142,45 @@ async def get_stats_overview(
             "redis_healthy": redis_healthy,
             "db_healthy": True,
             "last_sync_at": last_sync_at,
+            "sync_phases": sync_phases,
             "timestamp": datetime.utcnow().isoformat(),
         },
+    }
+
+
+@router.get("/audit-log")
+async def get_audit_log(
+    admin_user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+):
+    """Reverse-chronological log of admin actions that changed state - see
+    app/services/audit_service.py for what's logged and why."""
+    result = await db.execute(
+        select(AdminAuditLog)
+        .order_by(AdminAuditLog.created_at.desc())
+        .offset(offset)
+        .limit(limit)
+    )
+    rows = result.scalars().all()
+    total = (await db.execute(select(func.count(AdminAuditLog.id)))).scalar() or 0
+    return {
+        "entries": [
+            {
+                "id": r.id,
+                "admin_email": r.admin_email,
+                "action": r.action,
+                "target_type": r.target_type,
+                "target_id": r.target_id,
+                "detail": r.detail,
+                "created_at": r.created_at.isoformat() if r.created_at else None,
+            }
+            for r in rows
+        ],
+        "total": total,
+        "limit": limit,
+        "offset": offset,
     }
 
 

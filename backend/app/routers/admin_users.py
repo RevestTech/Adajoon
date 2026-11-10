@@ -12,6 +12,7 @@ from app.csrf import verify_csrf_token
 from app.database import get_db
 from app.middleware.admin_required import require_admin
 from app.models import PricingTier, User
+from app.services.audit_service import log_admin_action
 
 router = APIRouter(prefix="/api/admin", tags=["admin", "users"])
 logger = logging.getLogger(__name__)
@@ -49,6 +50,9 @@ async def make_user_admin(
     await db.commit()
 
     logger.info("User %s is now an admin", target_user.email)
+    await log_admin_action(
+        db, admin_user, "make_admin", target_type="user", target_id=user_id
+    )
 
     return {
         "success": True,
@@ -89,6 +93,9 @@ async def revoke_user_admin(
     await db.commit()
 
     logger.info("Admin privileges revoked for user %s", target_user.email)
+    await log_admin_action(
+        db, admin_user, "revoke_admin", target_type="user", target_id=user_id
+    )
 
     return {
         "success": True,
@@ -218,6 +225,14 @@ async def admin_update_user(
 
     await db.commit()
     logger.info("Admin %s updated user %s", admin_user.email, target.email)
+    await log_admin_action(
+        db,
+        admin_user,
+        "update_user",
+        target_type="user",
+        target_id=user_id,
+        detail=payload.model_dump_json(exclude_none=True),
+    )
     return {"success": True}
 
 

@@ -458,3 +458,21 @@ class AppSetting(Base):
     key = Column(String(100), primary_key=True)
     value = Column(Text, nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class AdminAuditLog(Base):
+    """Who did what, when, for admin actions that change state (grant/revoke
+    admin, comp/revoke a subscription, hide/unhide content, write a secret,
+    pricing changes). Logs the specific admin-write endpoints that already
+    exist - not a generic "audit everything" framework."""
+
+    __tablename__ = "admin_audit_log"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    admin_user_id = Column(Integer, nullable=False, index=True)
+    admin_email = Column(String(255), nullable=False)
+    action = Column(String(100), nullable=False, index=True)
+    target_type = Column(String(50), nullable=True)
+    target_id = Column(String(100), nullable=True)
+    detail = Column(Text, server_default="")
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)

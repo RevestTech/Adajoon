@@ -9,11 +9,14 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.csrf import verify_csrf_token
+from app.database import get_db
 from app.middleware.admin_required import require_admin
 from app.models import User
 from app.services import vault_admin_service
+from app.services.audit_service import log_admin_action
 from app.vault_client import VaultSealed
 
 VAULT_SEALED_DETAIL = "Vault is temporarily unavailable (sealed) - try again shortly"
@@ -36,6 +39,7 @@ async def admin_set_secret(
     key: str,
     payload: SecretSetRequest,
     admin_user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
     _csrf: None = Depends(verify_csrf_token),
 ):
     value = payload.value.strip()
@@ -55,6 +59,9 @@ async def admin_set_secret(
 
     # Never log the value.
     logger.info("Admin %s set vault secret adajoon:%s", admin_user.email, key)
+    await log_admin_action(
+        db, admin_user, "set_secret", target_type="secret", target_id=key
+    )
     return {"success": True}
 
 
@@ -62,6 +69,7 @@ async def admin_set_secret(
 async def admin_clear_secret(
     key: str,
     admin_user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
     _csrf: None = Depends(verify_csrf_token),
 ):
     try:
@@ -77,4 +85,7 @@ async def admin_clear_secret(
         raise HTTPException(status_code=502, detail="Vault delete failed")
 
     logger.info("Admin %s cleared vault secret adajoon:%s", admin_user.email, key)
+    await log_admin_action(
+        db, admin_user, "clear_secret", target_type="secret", target_id=key
+    )
     return {"success": True}

@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 import time
 from datetime import datetime, timezone
@@ -44,36 +45,67 @@ async def _phase(name: str, coro):
         return _PHASE_FAILED
 
 
+async def _record_phase_status(name: str, phase_ok: bool) -> None:
+    """Persists one phase's last-run time/success into app_settings (a
+    fresh session, independent of the phase's own - safe even if that
+    phase's session is in a failed-transaction state). Admin -> Overview
+    reads this back per-phase, not just the cycle-level aggregate, so a
+    silently-failing phase (e.g. the iptv_full_sync deadlock seen in prod
+    this week) is visible without reading Railway logs directly."""
+    try:
+        async with async_session() as status_db:
+            await set_setting(
+                status_db,
+                f"sync_phase:{name}",
+                json.dumps(
+                    {
+                        "last_run": datetime.now(timezone.utc).isoformat(),
+                        "ok": phase_ok,
+                    }
+                ),
+            )
+    except Exception as e:
+        logger.warning("Failed to record phase status for %s: %s", name, e)
+
+
 async def run_cycle() -> bool:
     """Runs every sync phase. Returns True only if every phase succeeded, so
     callers can tell a real sync from one where every phase quietly failed."""
     ok = True
 
     async with async_session() as db:
-        if (
+        phase_ok = (
             await _phase("validate_all_channels", validate_all_channels(db))
-            is _PHASE_FAILED
-        ):
-            ok = False
+            is not _PHASE_FAILED
+        )
+    await _record_phase_status("validate_all_channels", phase_ok)
+    ok = ok and phase_ok
 
     async with async_session() as db:
-        if await _phase("validate_all_radio", validate_all_radio(db)) is _PHASE_FAILED:
-            ok = False
+        phase_ok = (
+            await _phase("validate_all_radio", validate_all_radio(db))
+            is not _PHASE_FAILED
+        )
+    await _record_phase_status("validate_all_radio", phase_ok)
+    ok = ok and phase_ok
 
     async with async_session() as db:
-        if await _phase("iptv_full_sync", full_sync(db)) is _PHASE_FAILED:
-            ok = False
+        phase_ok = await _phase("iptv_full_sync", full_sync(db)) is not _PHASE_FAILED
+    await _record_phase_status("iptv_full_sync", phase_ok)
+    ok = ok and phase_ok
 
     async with async_session() as db:
-        if (
+        phase_ok = (
             await _phase("sync_radio_stations", sync_radio_stations(db))
-            is _PHASE_FAILED
-        ):
-            ok = False
+            is not _PHASE_FAILED
+        )
+    await _record_phase_status("sync_radio_stations", phase_ok)
+    ok = ok and phase_ok
 
     async with async_session() as db:
-        if await _phase("sync_epg", sync_epg(db)) is _PHASE_FAILED:
-            ok = False
+        phase_ok = await _phase("sync_epg", sync_epg(db)) is not _PHASE_FAILED
+    await _record_phase_status("sync_epg", phase_ok)
+    ok = ok and phase_ok
 
     return ok
 
