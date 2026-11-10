@@ -234,6 +234,11 @@ class RadioStationOut(BaseModel):
         return _none_int(0)(v)
 
 
+class RadioForYouResponse(BaseModel):
+    stations: list[RadioStationOut]
+    tag: str | None = None
+
+
 class RadioSearchParams(BaseModel):
     query: str | None = None
     tag: str | None = None

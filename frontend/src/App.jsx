@@ -39,7 +39,7 @@ import {
   isAdminPath,
 } from "./hooks/useUrlState";
 import { fetchChannel, fetchStats } from "./api/channels";
-import { fetchStation } from "./api/radio";
+import { fetchForYouRadio, fetchStation } from "./api/radio";
 import useCatalogList from "./hooks/useCatalogList";
 import { recordWatchHistory } from "./api/history";
 import { openRadioPopoutWindow } from "./utils/radioPopout";
@@ -856,6 +856,15 @@ export default function App() {
           )}
           {showRecentRow && mode === "tv" && activeCategories.length === 0 && activeCountries.length === 0 && activeQualities.length === 0 && (
             <ForYouRow onSelect={openTvPlayer} />
+          )}
+          {showRecentRow && mode === "radio" && !showRadioFavorites && activeTags.length === 0 && activeRadioCountries.length === 0 && activeRadioQualities.length === 0 && (
+            <ForYouRow
+              onSelect={handleSelectStation}
+              fetchFn={fetchForYouRadio}
+              itemsKey="stations"
+              labelKey="tag"
+              imageField="favicon"
+            />
           )}
           {notFound ? (
             <div className="not-found-view">

@@ -10,6 +10,7 @@ from app.schemas import (
     MapBboxResponse,
     PaginatedRadio,
     RadioCountryOut,
+    RadioForYouResponse,
     RadioSearchParams,
     RadioStationOut,
 )
@@ -19,6 +20,7 @@ from app.services.radio_service import (
     MAP_NEARBY_DEFAULT_LIMIT,
     MAP_NEARBY_MAX_LIMIT,
     NOW_PLAYING_BATCH_MAX,
+    get_for_you_stations,
     get_map_bbox,
     get_nearby_stations,
     get_now_playing_batch,
@@ -67,6 +69,21 @@ async def list_radio_stations(
         page=page,
         per_page=per_page,
         total_pages=math.ceil(total / per_page) if total else 0,
+    )
+
+
+@router.get("/for-you", response_model=RadioForYouResponse)
+async def for_you(
+    session_id: str = Query(..., description="Client analytics session id"),
+    limit: int = Query(10, ge=1, le=20),
+    db: AsyncSession = Depends(get_db),
+):
+    """Stations tagged like the ones this browser session plays the most,
+    for a "For You" row - no login required. Radio's counterpart to
+    channels.py's /for-you."""
+    stations, tag = await get_for_you_stations(db, session_id, limit=limit)
+    return RadioForYouResponse(
+        stations=[RadioStationOut.model_validate(s) for s in stations], tag=tag
     )
 
 

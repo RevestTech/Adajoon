@@ -8,21 +8,39 @@ import { analytics } from "../analytics";
 const REFETCH_AFTER_PLAY_MS = 6000;
 
 /**
- * "For You in [Category]" row for the TV home (unfiltered, no-search) view.
- * Built from this browser session's own "Content Played" analytics events -
- * no login, no new tracking, and nothing shown until there's real history.
+ * "For You in [Category]" row for the TV or radio home (unfiltered,
+ * no-search) view. Built from this browser session's own "Content Played"
+ * analytics events - no login, no new tracking, and nothing shown until
+ * there's real history.
+ *
+ * @param {object} props
+ * @param {(item: object) => void} props.onSelect
+ * @param {(sessionId: string, limit?: number) => Promise<object>} [props.fetchFn]
+ *   Defaults to the TV fetcher. Pass `fetchForYouRadio` for the radio row.
+ * @param {string} [props.itemsKey] Response field holding the item array
+ *   ("channels" for TV, "stations" for radio).
+ * @param {string} [props.labelKey] Response field holding the group label
+ *   ("category" for TV, "tag" for radio).
+ * @param {string} [props.imageField] Item field holding the image URL
+ *   ("logo" for channels, "favicon" for stations).
  */
-export default function ForYouRow({ onSelect }) {
+export default function ForYouRow({
+  onSelect,
+  fetchFn = fetchForYou,
+  itemsKey = "channels",
+  labelKey = "category",
+  imageField = "logo",
+}) {
   const [channels, setChannels] = useState([]);
   const [category, setCategory] = useState(null);
   const [loading, setLoading] = useState(true);
   const refetchTimeoutRef = useRef(null);
 
   const loadRecommendations = () =>
-    fetchForYou(analytics.getSessionId())
+    fetchFn(analytics.getSessionId())
       .then((data) => {
-        setChannels(data.channels || []);
-        setCategory(data.category || null);
+        setChannels(data[itemsKey] || []);
+        setCategory(data[labelKey] || null);
       })
       .catch(() => {
         setChannels([]);
@@ -30,11 +48,11 @@ export default function ForYouRow({ onSelect }) {
 
   useEffect(() => {
     let cancelled = false;
-    fetchForYou(analytics.getSessionId())
+    fetchFn(analytics.getSessionId())
       .then((data) => {
         if (cancelled) return;
-        setChannels(data.channels || []);
-        setCategory(data.category || null);
+        setChannels(data[itemsKey] || []);
+        setCategory(data[labelKey] || null);
       })
       .catch(() => {
         if (!cancelled) setChannels([]);
@@ -46,7 +64,8 @@ export default function ForYouRow({ onSelect }) {
       cancelled = true;
       window.clearTimeout(refetchTimeoutRef.current);
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetchFn]);
 
   const handleSelect = (channel) => {
     // The row stays mounted across the player opening and closing, so drop
@@ -73,8 +92,8 @@ export default function ForYouRow({ onSelect }) {
             title={channel.name}
           >
             <div className="similar-rail-card-logo">
-              {channel.logo ? (
-                <img src={channel.logo} alt="" loading="lazy" />
+              {channel[imageField] ? (
+                <img src={channel[imageField]} alt="" loading="lazy" />
               ) : (
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                   <rect x="2" y="7" width="20" height="15" rx="2" ry="2" /><polyline points="17 2 12 7 7 2" />

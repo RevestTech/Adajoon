@@ -9,7 +9,7 @@ from sqlalchemy import Float, and_, cast, func, or_, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import RadioStation
+from app.models import AnalyticsEvent, RadioStation
 from app.redis_client import cache_get, cache_set
 from app.schemas import MapBboxResponse, MapCluster, MapStationPin, RadioSearchParams
 from app.services.icy_service import fetch_icy_title
@@ -18,6 +18,10 @@ from app.services.status_filters import apply_status_filters
 logger = logging.getLogger(__name__)
 
 RADIO_API = "https://de1.api.radio-browser.info"
+
+FOR_YOU_LOOKBACK_EVENTS = 50
+FOR_YOU_DEFAULT_LIMIT = 10
+FOR_YOU_MAX_LIMIT = 20
 
 # Zoom below this returns grid clusters; at/above returns individual pins.
 MAP_CLUSTER_ZOOM_MAX = 7
@@ -256,6 +260,62 @@ def get_radio_tags(limit: int = 60):
         {"name": "70s", "station_count": 270},
     ]
     return common_tags[:limit]
+
+
+async def get_for_you_stations(
+    db: AsyncSession, session_id: str, limit: int = FOR_YOU_DEFAULT_LIMIT
+) -> tuple[list[RadioStation], str | None]:
+    """Stations tagged like the ones this browser session has played the
+    most, for a "For You" row - no login required. Mirrors
+    channel_service.get_for_you_channels (tags instead of categories,
+    comma-separated instead of semicolon-separated)."""
+    if not session_id:
+        return [], None
+    limit = max(1, min(limit, FOR_YOU_MAX_LIMIT))
+
+    stmt = (
+        select(AnalyticsEvent.properties)
+        .where(
+            AnalyticsEvent.session_id == session_id,
+            AnalyticsEvent.event_name == "Content Played",
+        )
+        .order_by(AnalyticsEvent.created_at.desc())
+        .limit(FOR_YOU_LOOKBACK_EVENTS)
+    )
+    result = await db.execute(stmt)
+
+    played_ids: set[str] = set()
+    tag_counts: dict[str, int] = {}
+    for (props,) in result:
+        if not props or props.get("item_type") != "radio":
+            continue
+        item_id = props.get("item_id")
+        if isinstance(item_id, str) and item_id:
+            played_ids.add(item_id)
+        item_tags = props.get("item_category")
+        if not isinstance(item_tags, str):
+            continue
+        for tag in item_tags.split(","):
+            tag = tag.strip()
+            if tag:
+                tag_counts[tag] = tag_counts.get(tag, 0) + 1
+
+    if not tag_counts:
+        return [], None
+
+    top_tag = max(tag_counts, key=tag_counts.get)
+
+    filters = [
+        RadioStation.admin_hidden.is_(False),
+        RadioStation.url != "",
+        RadioStation.tags.ilike(f"%{top_tag}%"),
+    ]
+    if played_ids:
+        filters.append(RadioStation.id.notin_(played_ids))
+
+    stmt = select(RadioStation).where(*filters).order_by(func.random()).limit(limit)
+    result = await db.execute(stmt)
+    return list(result.scalars().all()), top_tag
 
 
 async def get_station_by_id(db: AsyncSession, station_id: str):

@@ -125,3 +125,18 @@ export async function fetchNowPlayingBatch(stationIds) {
   if (!res.ok) throw new Error("Failed to fetch now-playing batch");
   return res.json();
 }
+
+/**
+ * Stations tagged like the ones this browser session has played the most,
+ * for a "For You" row - no login required. Radio's counterpart to
+ * api/channels.js's fetchForYou.
+ * @param {string} sessionId
+ * @param {number} [limit]
+ * @returns {Promise<{stations: object[], tag: string|null}>}
+ */
+export async function fetchForYouRadio(sessionId, limit = 10) {
+  const params = new URLSearchParams({ session_id: sessionId, limit: String(limit) });
+  const res = await fetch(`${BASE}/for-you?${params}`);
+  if (!res.ok) throw new Error("Failed to fetch For You stations");
+  return res.json();
+}
