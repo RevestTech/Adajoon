@@ -92,6 +92,13 @@ MANAGED_SECRETS = [
         "description": "Authenticates calls to the catalog sync endpoints.",
         "sensitive": True,
     },
+    {
+        "key": "sentry_dsn",
+        "label": "Sentry DSN",
+        "description": "Error tracking. Leave unset to disable - Sentry is "
+        "never initialized without a DSN. Get a free DSN at sentry.io.",
+        "sensitive": True,
+    },
 ]
 
 _MANAGED_KEYS = {s["key"] for s in MANAGED_SECRETS}

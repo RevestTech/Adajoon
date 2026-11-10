@@ -1,5 +1,6 @@
 import { Component } from 'react';
 import '../styles/ErrorBoundary.css';
+import { reportError } from '../sentry';
 
 class ErrorBoundary extends Component {
   constructor(props) {
@@ -13,6 +14,7 @@ class ErrorBoundary extends Component {
 
   componentDidCatch(error, errorInfo) {
     console.error('Error caught by boundary:', error, errorInfo);
+    reportError(error, errorInfo);
     this.setState({
       error,
       errorInfo

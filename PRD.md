@@ -35,4 +35,4 @@ Self-hosted (own Postgres, no third-party service) — session/playback heartbea
 - Feature-gating enforcement — every advertised tier feature besides ad-removal is currently unenforced.
 - Ad impression/fill-rate tracking — no analytics events exist for this yet.
 - Error/incident visibility, a jobs-queue UI, audit logging — not worth it at this team's current size.
-- Multi-tenant/white-label support — `whitelabel.py` router exists but is unwired pending a `Tenant` model.
+- Multi-tenant/white-label support — was a dead, unwired router pending a `Tenant` model; deleted in the 2026-11-08 cleanup sweep.
