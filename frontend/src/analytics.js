@@ -222,6 +222,26 @@ export const analytics = {
       item_type: itemType,
     });
   },
+
+  trackAdRequested() {
+    this.track("Ad Requested", {});
+  },
+
+  trackAdImpression() {
+    this.track("Ad Impression", {});
+  },
+
+  trackAdError(reason) {
+    this.track("Ad Error", { reason: String(reason || "unknown").slice(0, 300) });
+  },
+
+  trackAdCompleted() {
+    this.track("Ad Completed", {});
+  },
+
+  trackAdSkipped() {
+    this.track("Ad Skipped", {});
+  },
 };
 
 window.addEventListener("beforeunload", () => {
