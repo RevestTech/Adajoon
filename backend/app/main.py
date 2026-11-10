@@ -65,6 +65,28 @@ except ImportError:
     PROMETHEUS_AVAILABLE = False
     logger.warning("prometheus-fastapi-instrumentator not installed, metrics disabled")
 
+# Error tracking - optional. No-op unless settings.sentry_dsn is set (vault
+# or env var); never raises on a missing/invalid DSN, since monitoring
+# should never be able to take the app down.
+if settings.sentry_dsn:
+    try:
+        import sentry_sdk
+        from sentry_sdk.integrations.fastapi import FastApiIntegration
+        from sentry_sdk.integrations.starlette import StarletteIntegration
+
+        sentry_sdk.init(
+            dsn=settings.sentry_dsn,
+            environment=settings.env,
+            release="adajoon@2.7.1",
+            integrations=[StarletteIntegration(), FastApiIntegration()],
+            traces_sample_rate=0.1,
+        )
+        logger.info("Sentry error tracking enabled (env=%s)", settings.env)
+    except Exception as e:
+        logger.warning("Sentry init failed, continuing without it: %s", e)
+else:
+    logger.info("Sentry DSN not set - error tracking disabled")
+
 # All database migrations are managed by Alembic.
 # Run `alembic upgrade head` to apply migrations.
 # See backend/alembic/versions/ for migration files.

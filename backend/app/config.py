@@ -140,6 +140,11 @@ class Settings(BaseSettings):
     # https://www.themoviedb.org/settings/api
     tmdb_api_key: str = _get_secret("tmdb_api_key")
 
+    # Error tracking (from vault) - optional. Sentry is not initialized
+    # (see main.py) when this is empty, so leaving it unset is a no-op,
+    # not a broken integration. Free tier: https://sentry.io
+    sentry_dsn: str = _get_secret("sentry_dsn")
+
     @property
     def cors_origins(self) -> list[str]:
         """Parse CORS origins from env var or use defaults."""
