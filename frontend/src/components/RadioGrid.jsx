@@ -295,22 +295,39 @@ export default function RadioGrid({
         {hasFilters && (
           <div className="active-filters">
             {showFavorites && (
-              <span className="filter-tag" onClick={() => onClearFilter("favorites")}>
+              <button
+                type="button"
+                className="filter-tag"
+                onClick={() => onClearFilter("favorites")}
+                aria-label="Remove filter: Favorites"
+              >
                 Favorites ✕
-              </span>
+              </button>
             )}
             {activeQualities.map((q) => {
               const opt = QUALITY_OPTIONS.find((o) => (o.key === "hide_dead" ? "hide_offline" : o.key) === q);
+              const label = opt ? opt.label : q;
               return (
-                <span key={q} className="filter-tag" onClick={() => onClearFilter("quality", q)}>
-                  {opt ? opt.label : q} ✕
-                </span>
+                <button
+                  key={q}
+                  type="button"
+                  className="filter-tag"
+                  onClick={() => onClearFilter("quality", q)}
+                  aria-label={`Remove filter: ${label}`}
+                >
+                  {label} ✕
+                </button>
               );
             })}
             {search && (
-              <span className="filter-tag" onClick={() => onClearFilter("search")}>
+              <button
+                type="button"
+                className="filter-tag"
+                onClick={() => onClearFilter("search")}
+                aria-label={`Remove filter: Search ${search}`}
+              >
                 Search: {search} ✕
-              </span>
+              </button>
             )}
             {activeTags.map((tag) => (
               <button 
@@ -459,6 +476,7 @@ function RadioCard({ station, onClick, favorited, onToggleFavorite, isGuest, vot
           className={`favorite-btn ${favorited ? "favorited" : ""}`}
           onClick={onToggleFavorite}
           title={favorited ? "Remove from favorites" : "Add to favorites"}
+          aria-label={favorited ? "Remove from favorites" : "Add to favorites"}
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill={favorited ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
@@ -589,6 +607,7 @@ function RadioRow({ station, onClick, favorited, onToggleFavorite, isGuest, vote
             className={`favorite-btn list-fav-btn ${favorited ? "favorited" : ""}`}
             onClick={onToggleFavorite}
             title={favorited ? "Remove from favorites" : "Add to favorites"}
+            aria-label={favorited ? "Remove from favorites" : "Add to favorites"}
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill={favorited ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
