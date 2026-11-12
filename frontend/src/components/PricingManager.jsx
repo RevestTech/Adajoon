@@ -21,6 +21,7 @@ const dollarsToCents = (dollars) => Math.round(Number(dollars || 0) * 100);
 function TierRow({ tier, onChange, onDelete, onAddFeature, onUpdateFeature, onDeleteFeature }) {
   const [name, setName] = useState(tier.name);
   const [price, setPrice] = useState(centsToDollars(tier.monthly_price_cents));
+  const [stripePriceId, setStripePriceId] = useState(tier.stripe_price_id_monthly || "");
   const [newFeatureLabel, setNewFeatureLabel] = useState("");
   const [newFeatureIsAddon, setNewFeatureIsAddon] = useState(false);
   const [newFeaturePrice, setNewFeaturePrice] = useState("");
@@ -35,7 +36,11 @@ function TierRow({ tier, onChange, onDelete, onAddFeature, onUpdateFeature, onDe
     if (resetTimeoutRef.current) clearTimeout(resetTimeoutRef.current);
     setSaveStatus("saving");
     try {
-      await onChange(tier.id, { name, monthly_price_cents: dollarsToCents(price) });
+      await onChange(tier.id, {
+        name,
+        monthly_price_cents: dollarsToCents(price),
+        stripe_price_id_monthly: stripePriceId.trim(),
+      });
       if (seq !== saveSeqRef.current) return; // a newer save has started since
       setSaveStatus("saved");
     } catch {
@@ -120,6 +125,25 @@ function TierRow({ tier, onChange, onDelete, onAddFeature, onUpdateFeature, onDe
         >
           Delete tier
         </button>
+      </div>
+
+      <div className="pricing-tier-row">
+        <label className="pricing-stripe-price-label">
+          Stripe Price ID
+          <input
+            className="pricing-input pricing-input-stripe-price"
+            value={stripePriceId}
+            onChange={(e) => setStripePriceId(e.target.value)}
+            onBlur={save}
+            placeholder="price_1AbC2dEfGhIjKlMn"
+            aria-label="Stripe Price ID"
+          />
+        </label>
+        {tier.monthly_price_cents > 0 && !stripePriceId && (
+          <span className="pricing-save-status pricing-save-status--error">
+            No Stripe price set - checkout for this tier will fail
+          </span>
+        )}
       </div>
 
       <ul className="pricing-feature-list">
