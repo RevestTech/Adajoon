@@ -3457,6 +3457,11 @@ body {
   border-radius: 999px;
 }
 
+.channel-player-modal .similar-rail {
+  padding: 14px 22px 4px;
+  box-sizing: border-box;
+}
+
 .channel-player-modal .feedback-bar--channel {
   display: flex;
   flex-direction: column;
@@ -3530,6 +3535,10 @@ body {
 
   .channel-modal-toolbar {
     padding: 12px 14px 14px;
+  }
+
+  .channel-player-modal .similar-rail {
+    padding: 12px 14px 4px;
   }
 
   .channel-player-modal .feedback-bar--channel {
@@ -4262,6 +4271,11 @@ body {
   color: #fff;
   border-color: rgba(233, 69, 96, 0.45);
   background: rgba(233, 69, 96, 0.2);
+}
+
+.radio-modal .similar-rail {
+  padding: 14px 12px 4px;
+  box-sizing: border-box;
 }
 
 .radio-modal .feedback-bar {
