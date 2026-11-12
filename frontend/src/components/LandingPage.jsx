@@ -48,10 +48,16 @@ export default function LandingPage({
     // container.
     if (!renderedRef.current) {
       googleBtnRef.current.innerHTML = "";
+      // Google renders a fixed-width iframe at exactly this many px - on a
+      // phone narrower than 320px (most phones, once card padding is
+      // subtracted) a hardcoded 320 overflows the card and gets clipped by
+      // the landing page's overflow:hidden, so part of the button becomes
+      // untappable. Cap it to the actual space available instead.
+      const width = Math.min(320, googleBtnRef.current.offsetWidth || 320);
       window.google.accounts.id.renderButton(googleBtnRef.current, {
         theme: "filled_black",
         size: "large",
-        width: 320,
+        width,
         text: "signin_with",
         shape: "pill",
       });
