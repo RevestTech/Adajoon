@@ -6396,6 +6396,19 @@ button:focus-visible {
   width: 80px;
 }
 
+.pricing-stripe-price-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.pricing-input-stripe-price {
+  width: 220px;
+  font-family: monospace;
+}
+
 .pricing-toggle {
   display: flex;
   align-items: center;
