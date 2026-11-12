@@ -55,4 +55,6 @@ yarn-error.log*
 .env.development
 .env.test
 .env.production
+
+# Claude Code worktrees (local agent scratch space)
 .claude/worktrees/
