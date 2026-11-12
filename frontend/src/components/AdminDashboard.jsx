@@ -776,6 +776,9 @@ export default function AdminDashboard({ onClose }) {
             </div>
           )}
         </div>
+        <div className="admin-version-badge" title="Deployed frontend build version">
+          v{__APP_VERSION__}
+        </div>
       </div>
   );
 }

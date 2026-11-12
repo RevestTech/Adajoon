@@ -7093,6 +7093,23 @@ button:focus-visible {
   color: rgba(255, 255, 255, 0.85);
 }
 
+/* Always-visible build indicator - admin pages scroll as a normal
+   document (unlike the main app's fixed shell), so this needs to be
+   actually fixed, not just placed at the end of the layout. */
+.admin-version-badge {
+  position: fixed;
+  bottom: 10px;
+  right: 14px;
+  z-index: 500;
+  font-size: 11px;
+  font-family: monospace;
+  color: var(--text-muted);
+  background: rgba(0, 0, 0, 0.4);
+  padding: 4px 10px;
+  border-radius: 6px;
+  user-select: text;
+}
+
 /* ── EPG Now/Next Tile Badge ── */
 .epg-tile-badge {
   display: flex;

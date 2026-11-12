@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.8.0] - 2026-11-12
+
+### Added
+- **Device limit enforcement**: Pro/Family tiers' advertised device caps (5/10 devices) are now actually enforced at login, instead of just advertised. Self-service device management added under Settings.
+- **Admin audit log**: who did what, when, for admin-write actions (user/content/secrets/pricing changes). New Admin → Audit Log tab.
+- **Admin ops visibility**: per-phase background sync status (last run, success/failure) surfaced in Admin → Overview, instead of only the cycle-level aggregate.
+- **Ad impression/fill-rate analytics**: `GET /api/admin/analytics/ads` reports requested/impression/error/completion counts and fill rate.
+- **Admin Pricing**: tiers can now have a Stripe Price ID set directly in the UI (previously only settable by editing the database), with a warning when a paid tier has none configured.
+- Always-visible build-version indicator on the Admin dashboard, so it's clear which release is actually deployed without checking Railway directly.
+- Radio "For You" row (session-based, no login required), matching TV's existing one.
+
+### Fixed
+- Google Sign-In button overflowed its container on narrow mobile screens and got clipped, making part of the rendered button untappable - fixed on desktop before, broken only on phones.
+- Google Sign-In button failures (e.g. a misconfigured OAuth origin) failed completely silently; now logged as an `Auth Login Failed` analytics event.
+- Admin nav bar: section labels ("Insights", "Manage") were visually indistinguishable from the actual clickable tabs next to them.
+
 ## [2.7.1] - 2026-11-08
 
 ### Fixed
