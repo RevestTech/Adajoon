@@ -7,6 +7,7 @@ import UserManager from "./UserManager";
 import SubscriptionManager from "./SubscriptionManager";
 import ContentModeration from "./ContentModeration";
 import SecretsManager from "./SecretsManager";
+import AuditLogViewer from "./AuditLogViewer";
 
 const TAB_TITLES = {
   overview: "Overview",
@@ -18,6 +19,7 @@ const TAB_TITLES = {
   movies: "Movies",
   subscriptions: "Subscriptions",
   secrets: "Secrets",
+  "audit-log": "Audit Log",
   releases: "Releases",
 };
 
@@ -198,6 +200,12 @@ export default function AdminDashboard({ onClose }) {
             onClick={() => setActiveTab("analytics")}
           >
             Analytics
+          </button>
+          <button
+            className={`admin-tab ${activeTab === "audit-log" ? "active" : ""}`}
+            onClick={() => setActiveTab("audit-log")}
+          >
+            Audit Log
           </button>
         </div>
         <div className="admin-tab-group">
@@ -748,6 +756,7 @@ export default function AdminDashboard({ onClose }) {
           {activeTab === "pricing" && <PricingManager />}
           {activeTab === "movies" && <MovieManager />}
           {activeTab === "secrets" && <SecretsManager />}
+          {activeTab === "audit-log" && <AuditLogViewer />}
 
           {activeTab === "releases" && (
             <div className="admin-releases">

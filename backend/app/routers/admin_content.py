@@ -16,6 +16,7 @@ from app.database import get_db
 from app.middleware.admin_required import require_admin
 from app.models import Channel, RadioStation, User
 from app.redis_client import cache_delete
+from app.services.audit_service import log_admin_action
 
 router = APIRouter(prefix="/api/admin", tags=["admin", "content"])
 logger = logging.getLogger(__name__)
@@ -86,6 +87,14 @@ async def admin_set_channel_hidden(
     logger.info(
         "Admin %s set channel %s admin_hidden=%s", admin_user.email, channel_id, hidden
     )
+    await log_admin_action(
+        db,
+        admin_user,
+        "set_channel_hidden",
+        target_type="channel",
+        target_id=channel_id,
+        detail=f"hidden={hidden}",
+    )
     return {"success": True, "admin_hidden": hidden}
 
 
@@ -145,5 +154,13 @@ async def admin_set_radio_hidden(
         await cache_delete(key)
     logger.info(
         "Admin %s set station %s admin_hidden=%s", admin_user.email, station_id, hidden
+    )
+    await log_admin_action(
+        db,
+        admin_user,
+        "set_radio_hidden",
+        target_type="radio_station",
+        target_id=station_id,
+        detail=f"hidden={hidden}",
     )
     return {"success": True, "admin_hidden": hidden}

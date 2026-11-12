@@ -26,6 +26,7 @@ from app.schemas import (
     PricingTierUpdate,
 )
 from app.services import pricing_service, settings_service
+from app.services.audit_service import log_admin_action
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/admin/pricing", tags=["admin", "pricing"])
@@ -59,6 +60,9 @@ async def admin_update_pricing_settings(
 ):
     await settings_service.set_bool_setting(db, "ads_enabled", payload.ads_enabled)
     logger.info("Admin %s set ads_enabled=%s", admin_user.email, payload.ads_enabled)
+    await log_admin_action(
+        db, admin_user, "set_ads_enabled", detail=f"ads_enabled={payload.ads_enabled}"
+    )
     return {"ads_enabled": payload.ads_enabled}
 
 
@@ -88,6 +92,9 @@ async def admin_create_tier(
         )
     tier = await pricing_service.create_tier(db, payload.model_dump())
     logger.info("Admin %s created pricing tier %s", admin_user.email, tier.key)
+    await log_admin_action(
+        db, admin_user, "create_tier", target_type="tier", target_id=tier.key
+    )
     return tier
 
 
@@ -106,6 +113,9 @@ async def admin_update_tier(
         db, tier, payload.model_dump(exclude_unset=True)
     )
     logger.info("Admin %s updated pricing tier %s", admin_user.email, tier.key)
+    await log_admin_action(
+        db, admin_user, "update_tier", target_type="tier", target_id=tier.key
+    )
     return tier
 
 
@@ -119,8 +129,12 @@ async def admin_delete_tier(
     tier = await pricing_service.get_tier(db, tier_id)
     if not tier:
         raise HTTPException(status_code=404, detail="Tier not found")
+    tier_key = tier.key
     await pricing_service.delete_tier(db, tier)
-    logger.info("Admin %s deleted pricing tier %s", admin_user.email, tier.key)
+    logger.info("Admin %s deleted pricing tier %s", admin_user.email, tier_key)
+    await log_admin_action(
+        db, admin_user, "delete_tier", target_type="tier", target_id=tier_key
+    )
     return {"success": True}
 
 
@@ -151,6 +165,9 @@ async def admin_create_feature(
         raise HTTPException(status_code=404, detail="Tier not found")
     feature = await pricing_service.create_feature(db, payload.model_dump())
     logger.info("Admin %s created pricing feature %s", admin_user.email, feature.key)
+    await log_admin_action(
+        db, admin_user, "create_feature", target_type="feature", target_id=feature.key
+    )
     return feature
 
 
@@ -169,6 +186,9 @@ async def admin_update_feature(
         db, feature, payload.model_dump(exclude_unset=True)
     )
     logger.info("Admin %s updated pricing feature %s", admin_user.email, feature.key)
+    await log_admin_action(
+        db, admin_user, "update_feature", target_type="feature", target_id=feature.key
+    )
     return feature
 
 
@@ -182,8 +202,12 @@ async def admin_delete_feature(
     feature = await pricing_service.get_feature(db, feature_id)
     if not feature:
         raise HTTPException(status_code=404, detail="Feature not found")
+    feature_key = feature.key
     await pricing_service.delete_feature(db, feature)
-    logger.info("Admin %s deleted pricing feature %s", admin_user.email, feature.key)
+    logger.info("Admin %s deleted pricing feature %s", admin_user.email, feature_key)
+    await log_admin_action(
+        db, admin_user, "delete_feature", target_type="feature", target_id=feature_key
+    )
     return {"success": True}
 
 
@@ -224,6 +248,13 @@ async def admin_create_discount(
 
     discount = await pricing_service.create_discount(db, payload.model_dump())
     logger.info("Admin %s created discount code %s", admin_user.email, discount.code)
+    await log_admin_action(
+        db,
+        admin_user,
+        "create_discount",
+        target_type="discount",
+        target_id=discount.code,
+    )
     return discount
 
 
@@ -242,6 +273,13 @@ async def admin_update_discount(
         db, discount, payload.model_dump(exclude_unset=True)
     )
     logger.info("Admin %s updated discount code %s", admin_user.email, discount.code)
+    await log_admin_action(
+        db,
+        admin_user,
+        "update_discount",
+        target_type="discount",
+        target_id=discount.code,
+    )
     return discount
 
 
@@ -255,6 +293,14 @@ async def admin_delete_discount(
     discount = await pricing_service.get_discount(db, discount_id)
     if not discount:
         raise HTTPException(status_code=404, detail="Discount not found")
+    discount_code = discount.code
     await pricing_service.delete_discount(db, discount)
-    logger.info("Admin %s deleted discount code %s", admin_user.email, discount.code)
+    logger.info("Admin %s deleted discount code %s", admin_user.email, discount_code)
+    await log_admin_action(
+        db,
+        admin_user,
+        "delete_discount",
+        target_type="discount",
+        target_id=discount_code,
+    )
     return {"success": True}

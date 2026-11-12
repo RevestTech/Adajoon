@@ -345,6 +345,30 @@ class EpgProgramme(Base):
     )
 
 
+class UserDevice(Base):
+    """A device/browser that has logged in as this user - backs the
+    per-tier device-limit enforcement in app.services.device_service."""
+
+    __tablename__ = "user_devices"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    device_id = Column(String(128), nullable=False)
+    label = Column(String(255), default="")
+    first_seen_at = Column(DateTime(timezone=True), server_default=func.now())
+    last_seen_at = Column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    user = relationship("User")
+
+    __table_args__ = (
+        Index("ix_user_device_unique", "user_id", "device_id", unique=True),
+    )
+
+
 class PricingTier(Base):
     """A subscription tier, editable by admins instead of hardcoded in the API."""
 
@@ -458,3 +482,21 @@ class AppSetting(Base):
     key = Column(String(100), primary_key=True)
     value = Column(Text, nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class AdminAuditLog(Base):
+    """Who did what, when, for admin actions that change state (grant/revoke
+    admin, comp/revoke a subscription, hide/unhide content, write a secret,
+    pricing changes). Logs the specific admin-write endpoints that already
+    exist - not a generic "audit everything" framework."""
+
+    __tablename__ = "admin_audit_log"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    admin_user_id = Column(Integer, nullable=False, index=True)
+    admin_email = Column(String(255), nullable=False)
+    action = Column(String(100), nullable=False, index=True)
+    target_type = Column(String(50), nullable=True)
+    target_id = Column(String(100), nullable=True)
+    detail = Column(Text, server_default="")
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)

@@ -44,9 +44,18 @@ from app.config import settings
 from app.csrf import generate_csrf_token, verify_csrf_token
 from app.database import get_db
 from app.limiter import limiter
-from app.models import Channel, Passkey, RadioStation, User, UserFavorite, UserVote
+from app.models import (
+    Channel,
+    Passkey,
+    RadioStation,
+    User,
+    UserDevice,
+    UserFavorite,
+    UserVote,
+)
 from app.redis_client import cache_get, cache_set
 from app.services.analytics_service import log_auth_event
+from app.services.device_service import enforce_device_limit
 
 logger = logging.getLogger(__name__)
 
@@ -188,10 +197,12 @@ async def require_user(
 
 class GoogleTokenRequest(BaseModel):
     credential: str
+    device_id: str | None = Field(None, max_length=128)
 
 
 class AppleTokenRequest(BaseModel):
     id_token: str
+    device_id: str | None = Field(None, max_length=128)
     user_name: str = ""
 
 
@@ -210,6 +221,7 @@ class PasskeyRegisterBody(BaseModel):
 class PasskeyLoginBody(BaseModel):
     credential: dict
     challenge_token: str
+    device_id: str | None = Field(None, max_length=128)
 
 
 # ===========================================================================
@@ -278,6 +290,7 @@ async def google_login(
 
     await db.commit()
     await db.refresh(user)
+    await enforce_device_limit(db, user, body.device_id)
     token = create_token(user.id, user.email, user.is_admin, user.role)
     _set_auth_cookies(response, user, token, request=request)
     logger.info("Google login ok user_id=%s", user.id)
@@ -472,6 +485,7 @@ async def apple_login(
 
     await db.commit()
     await db.refresh(user)
+    await enforce_device_limit(db, user, body.device_id)
     token = create_token(user.id, user.email, user.is_admin, user.role)
     _set_auth_cookies(response, user, token, request=request)
     logger.info("Apple login ok user_id=%s", user.id)
@@ -651,6 +665,7 @@ async def passkey_login(
 
     user.last_login_at = datetime.now(timezone.utc)
     await db.commit()
+    await enforce_device_limit(db, user, body.device_id)
 
     token = create_token(user.id, user.email, user.is_admin, user.role)
     _set_auth_cookies(response, user, token, request=request)
@@ -674,6 +689,52 @@ async def list_passkeys(
         {"id": pk.id, "name": pk.name, "created_at": str(pk.created_at)}
         for pk in passkeys
     ]
+
+
+# ===========================================================================
+# DEVICES (per-tier device-limit enforcement, see app.services.device_service)
+# ===========================================================================
+
+
+@router.get("/devices")
+async def list_devices(
+    user: User = Depends(require_user), db: AsyncSession = Depends(get_db)
+):
+    result = await db.execute(
+        select(UserDevice)
+        .where(UserDevice.user_id == user.id)
+        .order_by(UserDevice.last_seen_at.desc())
+    )
+    devices = result.scalars().all()
+    return [
+        {
+            "device_id": d.device_id,
+            "label": d.label,
+            "first_seen_at": str(d.first_seen_at),
+            "last_seen_at": str(d.last_seen_at),
+        }
+        for d in devices
+    ]
+
+
+@router.delete("/devices/{device_id}")
+async def remove_device(
+    device_id: str,
+    user: User = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+    _csrf: None = Depends(verify_csrf_token),
+):
+    result = await db.execute(
+        select(UserDevice).where(
+            UserDevice.user_id == user.id, UserDevice.device_id == device_id
+        )
+    )
+    device = result.scalar_one_or_none()
+    if not device:
+        raise HTTPException(status_code=404, detail="Device not found")
+    await db.delete(device)
+    await db.commit()
+    return {"success": True}
 
 
 # ===========================================================================

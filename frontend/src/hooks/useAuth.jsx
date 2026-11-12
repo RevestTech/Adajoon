@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, useMemo } from "react";
 import { startRegistration, startAuthentication } from "@simplewebauthn/browser";
 import { authenticatedFetch, getCsrfToken } from "../utils/csrf";
+import { getDeviceId } from "../utils/deviceId";
 import { analytics } from "../analytics";
 
 const USER_KEY = "adajoon_user";
@@ -33,10 +34,11 @@ export function AuthProvider({ children }) {
       const res = await authenticatedFetch(`${API_BASE}/google`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ credential }),
+        body: JSON.stringify({ credential, device_id: getDeviceId() }),
       });
       if (!res.ok) {
-        const err = new Error("Login failed");
+        const body = await res.json().catch(() => null);
+        const err = new Error(body?.detail || "Login failed");
         err.status = res.status;
         throw err;
       }
@@ -60,10 +62,11 @@ export function AuthProvider({ children }) {
       const res = await authenticatedFetch(`${API_BASE}/apple`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id_token: idToken, user_name: userName || "" }),
+        body: JSON.stringify({ id_token: idToken, user_name: userName || "", device_id: getDeviceId() }),
       });
       if (!res.ok) {
-        const err = new Error("Apple login failed");
+        const body = await res.json().catch(() => null);
+        const err = new Error(body?.detail || "Apple login failed");
         err.status = res.status;
         throw err;
       }
@@ -137,10 +140,11 @@ export function AuthProvider({ children }) {
       const verRes = await authenticatedFetch(`${API_BASE}/passkey/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ credential, challenge_token }),
+        body: JSON.stringify({ credential, challenge_token, device_id: getDeviceId() }),
       });
       if (!verRes.ok) {
-        const err = new Error("Passkey authentication failed");
+        const body = await verRes.json().catch(() => null);
+        const err = new Error(body?.detail || "Passkey authentication failed");
         err.status = verRes.status;
         throw err;
       }
