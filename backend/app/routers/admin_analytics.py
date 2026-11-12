@@ -352,3 +352,57 @@ async def get_top_content(
         {"item_name": row[0], "item_type": row[1], "play_count": row[2]}
         for row in result.all()
     ]
+
+
+_AD_EVENT_NAMES = (
+    "Ad Requested",
+    "Ad Impression",
+    "Ad Error",
+    "Ad Completed",
+    "Ad Skipped",
+)
+
+
+@router.get("/ads")
+async def get_ad_performance(
+    days: int = Query(default=7, ge=1, le=90),
+    admin_user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Ad impression/fill-rate summary for the specified time period.
+
+    Fill rate = impressions / requests (a request that doesn't become an
+    impression means the ad server returned no fill, or the ad errored
+    before it could render). Per-day trend for any one of these counts is
+    already available via GET /events-over-time?event_name=<name>.
+    """
+    logger.info("Admin %s requested ad performance for %d days", admin_user.email, days)
+
+    cutoff_date = datetime.utcnow() - timedelta(days=days)
+
+    result = await db.execute(
+        select(
+            AnalyticsEvent.event_name,
+            func.count(AnalyticsEvent.id).label("count"),
+        )
+        .where(AnalyticsEvent.event_name.in_(_AD_EVENT_NAMES))
+        .where(AnalyticsEvent.created_at >= cutoff_date)
+        .group_by(AnalyticsEvent.event_name)
+    )
+    counts = {name: 0 for name in _AD_EVENT_NAMES}
+    counts.update({row.event_name: row.count for row in result.all()})
+
+    requested = counts["Ad Requested"]
+    impressions = counts["Ad Impression"]
+    fill_rate = round(impressions / requested, 4) if requested else None
+
+    return {
+        "period_days": days,
+        "requested": requested,
+        "impressions": impressions,
+        "errors": counts["Ad Error"],
+        "completed": counts["Ad Completed"],
+        "skipped": counts["Ad Skipped"],
+        "fill_rate": fill_rate,
+    }

@@ -12,6 +12,7 @@ import {
 } from '../utils/ads';
 import { useAuth } from './useAuth';
 import useSubscription from './useSubscription';
+import analytics from '../analytics';
 
 export default function useAds(videoElementRef, adContainerRef) {
   const [adPlaying, setAdPlaying] = useState(false);
@@ -87,12 +88,20 @@ export default function useAds(videoElementRef, adContainerRef) {
           onAdStarted: () => {
             setAdPlaying(true);
             videoElement.pause(); // Pause main content during ad
+            analytics.trackAdImpression();
           },
           onAdComplete: finishPreRoll,
-          onAdSkipped: finishPreRoll,
-          onAllAdsComplete: finishPreRoll,
+          onAdSkipped: () => {
+            analytics.trackAdSkipped();
+            finishPreRoll();
+          },
+          onAllAdsComplete: () => {
+            analytics.trackAdCompleted();
+            finishPreRoll();
+          },
           onAdError: (adErrorEvent) => {
             console.error('Ad error:', adErrorEvent.getError());
+            analytics.trackAdError(adErrorEvent.getError?.()?.getMessage?.());
             adsManager.destroy();
             finishPreRoll();
           },
@@ -115,6 +124,7 @@ export default function useAds(videoElementRef, adContainerRef) {
       google.ima.AdErrorEvent.Type.AD_ERROR,
       (adErrorEvent) => {
         console.error('Ad loading error:', adErrorEvent.getError());
+        analytics.trackAdError(adErrorEvent.getError?.()?.getMessage?.());
         finishPreRoll();
       },
       false
@@ -186,6 +196,7 @@ export default function useAds(videoElementRef, adContainerRef) {
       if (videoElement) {
         const width = videoElement.offsetWidth || 640;
         const height = videoElement.offsetHeight || 360;
+        analytics.trackAdRequested();
         requestAds(adsLoaderRef.current, adDisplayContainerRef.current, width, height);
       }
 
