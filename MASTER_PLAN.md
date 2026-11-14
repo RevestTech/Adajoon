@@ -63,11 +63,11 @@ Found via 10 parallel read-only review agents (header/nav, filter bar, grid/list
 - Redundant `.filter-group-label`s (e.g. "System Status:") eat horizontal space in what should be a scrolling filter-chip row.
 
 ## Mobile UX — proposed improvements (not bugs, new interaction patterns)
-Prototyped interactively (not yet implemented in the real app) — see the Adajoon mobile prototype artifact from this session:
-1. Bottom tab bar for TV/Radio/Map/Movies, replacing the cramped top-header icon row.
-2. Full-screen search overlay on tap, instead of a small inline-expanding search bar.
-3. Swipe left/right in the channel/station player to jump to the next/previous item, instead of closing the modal and tapping another card.
-4. Filters as a tap-to-open bottom sheet instead of a horizontally-scrolling chip row.
-5. Pull-to-refresh on the channel/station grid.
+Prototyped interactively — see the Adajoon mobile prototype artifact from this session. Status per item:
+1. Bottom tab bar for TV/Radio/Map/Movies, replacing the cramped top-header icon row. Not started — this is a navigation-architecture change, not a drop-in fix.
+2. Full-screen search overlay on tap, instead of a small inline-expanding search bar. Not started.
+3. Swipe left/right in the channel/station player to jump to the next/previous item, instead of closing the modal and tapping another card. Not started.
+4. **Shipped** (`MobileFilterSheet.jsx`): on real phones (≤640px), the Verified/Live Now/Has Stream/etc. filter row opens as a tap-to-open bottom sheet with a sticky "Show results" button, instead of a horizontal-scroll strip. Tablets (641-768px) keep the scroll row; desktop is unchanged (the wrapper is `display: contents` there). Applied to both `ChannelGrid.jsx` and `RadioGrid.jsx`.
+5. Pull-to-refresh on the channel/station grid. Not started.
 
 38+ stale branches (old merged `claude/*` feature branches, plus merged dependabot branches that didn't auto-delete) remain on GitHub — this session's git/GitHub access blocks branch deletion (confirmed: local `git push --delete` gets HTTP 403 from the sandbox proxy; no available GitHub tool exposes ref deletion). Needs cleanup via GitHub's UI directly — last known status: not yet done.
