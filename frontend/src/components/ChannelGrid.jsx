@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback, memo } from "react";
 import ViewToggle from "./ViewToggle";
 import VoteIndicator from "./VoteIndicator";
 import QuickFilters from "./QuickFilters";
+import MobileFilterSheet from "./MobileFilterSheet";
 import { fetchEpgNowBatch } from "../api/epg";
 import { formatTimeLeft, epgProgressPercent } from "../utils/epgTime";
 import EpgGridView from "./EpgGridView";
@@ -292,6 +293,7 @@ export default function ChannelGrid({
           )}
         </div>
         <div className="content-toolbar">
+          <MobileFilterSheet activeCount={activeQualities.length}>
           <div className="quality-filter">
             <span className="filter-group-label">System Status:</span>
             {QUALITY_OPTIONS.filter(opt => opt.group === "base" || opt.group === "system").map((opt) => {
@@ -348,6 +350,7 @@ export default function ChannelGrid({
               );
             })}
           </div>
+          </MobileFilterSheet>
           <button
             type="button"
             className="tv-guide-btn"
