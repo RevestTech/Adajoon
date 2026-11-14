@@ -22,10 +22,12 @@ async def search_channels(db: AsyncSession, params: ChannelSearchParams):
 
     if params.query:
         pattern = f"%{params.query}%"
+        country_codes_matching = select(Country.code).where(Country.name.ilike(pattern))
         filter_cond = or_(
             Channel.name.ilike(pattern),
             Channel.alt_names.ilike(pattern),
             Channel.network.ilike(pattern),
+            Channel.country_code.in_(country_codes_matching),
         )
         query = query.where(filter_cond)
         count_query = count_query.where(filter_cond)
