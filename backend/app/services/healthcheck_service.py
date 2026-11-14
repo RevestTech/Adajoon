@@ -20,6 +20,24 @@ COMMON_HEADERS = {
 
 async def probe_stream(url: str) -> dict:
     """Probe a stream URL and return status info."""
+    try:
+        return await asyncio.wait_for(_probe_stream_inner(url), timeout=PROBE_TIMEOUT)
+    except (TimeoutError, asyncio.TimeoutError):
+        return {
+            "url": url,
+            "status": "timeout",
+            "detail": f"No response within {PROBE_TIMEOUT}s",
+            "response_time_ms": PROBE_TIMEOUT * 1000,
+        }
+
+
+async def _probe_stream_inner(url: str) -> dict:
+    """The actual probe. httpx's `timeout` only bounds each individual read -
+    a live stream whose server ignores Range (the GET fallback below, common
+    for Icecast/Shoutcast servers, which is also why they fail the HEAD
+    check first) keeps trickling bytes forever, so httpx.get() never
+    considers the response "complete" and never times out on its own. The
+    outer wait_for in probe_stream() is what actually bounds this."""
     start = time.monotonic()
     result = {"url": url, "status": "offline", "detail": "", "response_time_ms": 0}
 
