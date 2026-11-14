@@ -21,6 +21,7 @@ Update this when something ships or a known gap changes. If this and `PRD.md`/`T
 - **Production incident (2026-11-09, resolved):** site was unreachable — `www.adajoon.com`/`adajoon.com` were bound to the **backend** service instead of **frontend** in Railway (visitors got the API's bare JSON instead of the site). Moved both custom domains to frontend. Root cause/timing unconfirmed (no Railway audit-log access from this session); not caused by any code change here.
 - **Production incident (2026-11-08, resolved):** `start.sh` never ran migrations, so prod's schema was stuck behind the committed Alembic chain (`/api/categories` and the worker's validator both 500ing on a missing `admin_hidden` column). Fixed: `alembic upgrade head` now runs on every boot.
 - Error tracking added (Sentry, optional — inert without a DSN): backend (`main.py`) and frontend (`src/sentry.js`, wired into `ErrorBoundary`). No DSN configured yet — see Open items.
+- Mobile UX critical-bug pass (2026-11-14, #111): landing-page scroll trap, unstyled Settings/Pricing modals, cramped filter bar, EPG now-line drift, and the header-search cascade conflict that shrank search to 32px/12px-font on phones — all fixed. Search by country (typed, not just picked from the sidebar) added to both TV and radio search. Details and what's still open: see Mobile UX sections below.
 
 ## Known tech debt / explicitly deferred
 - **No uptime/reachability monitoring.** Nothing watches whether the public site actually responds — the 2026-11-09 domain incident was only caught because the user noticed manually. Needs an uptime check (e.g. UptimeRobot, Better Stack) hitting `adajoon.com` with alerts to a real destination. Not something this session can set up unilaterally (third-party account signup).
@@ -38,36 +39,39 @@ Update this when something ships or a known gap changes. If this and `PRD.md`/`T
 | #99 | python 3.12→3.15-slim (dependabot, supersedes #9) | Open — 3-version jump, too risky to merge right after the 2026-11-14 outage without dedicated testing. |
 | #105 | `@vitest/ui` 4→5 (dependabot) | Open — CI red (Lint Frontend, Test Frontend both fail). Needs `vitest` core bumped alongside it, not just the UI companion package. |
 
-## Mobile UX — 10-agent review (2026-11-14), not yet fixed
-Found via 10 parallel read-only review agents (header/nav, filter bar, grid/list, player modals, touch targets, typography, bottom-stacking, settings/pricing, landing page, map/EPG, loading states) prompted by a user-reported screenshot of oversized/empty channel cards (that specific bug is already fixed, PR #109). Nothing below has been fixed yet — tracked here so it isn't lost.
+## Mobile UX — 10-agent review (2026-11-14)
+Found via 10 parallel read-only review agents (header/nav, filter bar, grid/list, player modals, touch targets, typography, bottom-stacking, settings/pricing, landing page, map/EPG, loading states) prompted by a user-reported screenshot of oversized/empty channel cards (that specific bug is already fixed, PR #109).
 
-**Critical (actually broken, not just cramped):**
-- Landing page (`LandingPage.jsx`/`.landing-page`) has `overflow: hidden` with no scroll fallback. On an iPhone with Safari + Apple login + passkeys (the common real-world config), estimated content height (~665px) exceeds usable viewport height after the address bar — "Continue as guest" and the Passkey button can be pushed off-screen with no way to reach them.
-- `SettingsPage.jsx` and `PricingPage.jsx` use `.admin-modal-overlay`/`.admin-modal` classes that have **zero CSS rules anywhere in the codebase** — these pages render as unstyled inline HTML (no overlay/backdrop/centering/scroll-clamp, unstyled close button). Not mobile-specific, but worse there.
-- Filter bar (`.quality-filter`, index.css ~2150 base rule) has `flex-wrap: wrap` from the desktop rule, never reset to `nowrap` in the mobile override (~4685) that's supposed to turn it into a horizontal-scroll row (comment there says so) — causes the cramped 2-line wrap a user screenshotted.
-- EPG grid (`EpgGridView.jsx:114`) hardcodes the channel-column offset as `160px` for the "now" red line position, but CSS shrinks that column to `100px` on mobile (index.css:7789) — the current-time indicator renders 60px off from the actual time on phones.
+**Critical — fixed (PR #111):**
+- Landing page (`LandingPage.jsx`/`.landing-page`) had `overflow: hidden` with no scroll fallback — on an iPhone with Safari + Apple login + passkeys, content could exceed the usable viewport with "Continue as guest"/Passkey pushed off-screen and unreachable. Fixed: `overflow-y: auto`.
+- `SettingsPage.jsx`/`PricingPage.jsx`'s `.admin-modal-overlay`/`.admin-modal` had **zero CSS anywhere** — unstyled inline HTML, no backdrop/centering/scroll-clamp, unstyled close button. Fixed: real overlay/modal/close CSS, mirroring the existing `.modal-overlay`/`.modal-content` pattern; `.admin-close` sized to 44px.
+- Filter bar (`.quality-filter`) had `flex-wrap: wrap` from the desktop rule, never reset to `nowrap` in the mobile override meant to turn it into a horizontal-scroll row — this was the cramped filter bar in the original screenshot. Fixed.
+- EPG grid (`EpgGridView.jsx:114`) hardcoded the channel-column offset as `160px` for the "now" line, while CSS shrinks that column to `100px` on mobile — the time indicator rendered 60px off on phones. Fixed: both now read one `--epg-col` custom property, so they can't drift apart again.
 
-**High (real usability problems):**
-- Touch targets under 44px in ~10 places: `.modal-close` (every modal's close button, no fixed size at all), `.modal-favorite-btn`/`.modal-minimize`/`.modal-popout`/`.modal-share-btn` (player modal header, 36px), `.favorite-btn` has a gap at 481-768px widths (still 38px), header icon buttons `.pricing-nav-btn`/`.whats-new-btn`/`.theme-toggle-btn` (36px, no mobile override), collapsed `.header-search` (32px wide), `.world-map-zoom-btn`/`.world-map-zoom-reset` (shrinks the *wrong* way: 36→32→28px as screens get smaller), radio map pins `.radio-garden-map__marker` (10×10px), pagination buttons (~30-34px), `.ai-search-btn` (38px).
-- iOS Safari auto-zoom bug: `.search-input` is 13-15px on mobile (index.css:4603, 4747) — any input under 16px triggers an unwanted page-zoom on focus on iOS.
-- List view (`.list-row`, index.css:2425) has fixed-width columns (42+88+100+44px) that were never adjusted for mobile — on a 375px screen the channel name column gets squeezed to almost nothing.
-- Header has three separate, overlapping mobile media-query blocks (`@768px`, `@480px`, `@640px`) for the same selectors, fighting each other via `!important` — actual rendered behavior is an unintended mix, not deliberate design. Needs consolidation into one block per selector.
-- `.back-to-top` and the PWA `.install-prompt` don't account for the mini-player (`.mini-player`) being open, and neither adds `env(safe-area-inset-bottom)` consistently — can overlap the mini-player's playback controls or sit in the iPhone home-indicator zone.
-- Skeleton loaders (`.skeleton-card`) don't share a class with `.channel-card`, so they don't match its `min-height` — real content visibly jumps in size once it loads.
-- `.stream-switcher` (player modal) has no `flex-wrap` — 3+ simultaneous streams can overflow a narrow screen with no visual scroll affordance.
-- Channel modal title (`.channel-modal-header h3`) has no overflow/ellipsis handling — long channel names wrap to 2 lines and crowd the row of action icons next to it.
+**High — fixed (PR #111):**
+- `.header-search`/`.search-input` had two of the three overlapping mobile media-query blocks fighting each other — a `@640px` block silently undid a `@768px` block's accessible sizing, shrinking the collapsed search box to 32px and its font to 12px (under the 16px that avoids iOS Safari's auto-zoom-on-focus). Fixed by removing the regressing duplicate. The remaining overlapping blocks for *other* selectors are untouched — full consolidation is still open, see below.
+- Header icon buttons `.pricing-nav-btn`/`.whats-new-btn`/`.theme-toggle-btn` were 36px with no mobile override. Fixed: 44px at ≤640/860px.
 
-**Medium (readability/polish):**
-- Several text elements drop to 8-9px on mobile (`.channel-tag`, `.channel-stream-badge`, `.filter-group-label`, `.recent-item-name`) — below comfortable reading size.
-- EPG channel names/programme titles are cramped at the mobile grid-column width (~100px) and 4-hour window — mostly truncated.
-- Redundant `.filter-group-label`s (e.g. "System Status:") eat horizontal space in what should be a scrolling filter-chip row.
+**High — still open:**
+- More touch targets under 44px: `.modal-close`, `.modal-favorite-btn`/`.modal-minimize`/`.modal-popout`/`.modal-share-btn` (player modal header, 36px), `.favorite-btn` gap at 481-768px (38px), `.world-map-zoom-btn`/`.world-map-zoom-reset` (shrinks the *wrong* way as screens narrow), radio map pins `.radio-garden-map__marker` (10×10px), pagination buttons, `.ai-search-btn`.
+- List view (`.list-row`) has fixed-width columns never adjusted for mobile — the channel name column gets squeezed to almost nothing on a 375px screen.
+- The header's three overlapping mobile media-query blocks (`@768px`, `@480px`, `@640px`) still need full consolidation into one block per selector — PR #111 only removed the one pair that was actively regressing search; the rest fight via `!important` with effectively-accidental results.
+- `.back-to-top`/`.install-prompt` don't account for the mini-player being open, and don't add `env(safe-area-inset-bottom)` consistently.
+- Skeleton loaders (`.skeleton-card`) don't match `.channel-card`'s sizing — layout jumps when real content loads.
+- `.stream-switcher` has no `flex-wrap` for 3+ streams.
+- `.channel-modal-header h3` has no overflow/ellipsis handling for long titles.
 
-## Mobile UX — proposed improvements (not bugs, new interaction patterns)
-Prototyped interactively — see the Adajoon mobile prototype artifact from this session. Status per item:
-1. Bottom tab bar for TV/Radio/Map/Movies, replacing the cramped top-header icon row. Not started — this is a navigation-architecture change, not a drop-in fix.
-2. Full-screen search overlay on tap, instead of a small inline-expanding search bar. Not started.
-3. Swipe left/right in the channel/station player to jump to the next/previous item, instead of closing the modal and tapping another card. Not started.
-4. **Shipped** (`MobileFilterSheet.jsx`): on real phones (≤640px), the Verified/Live Now/Has Stream/etc. filter row opens as a tap-to-open bottom sheet with a sticky "Show results" button, instead of a horizontal-scroll strip. Tablets (641-768px) keep the scroll row; desktop is unchanged (the wrapper is `display: contents` there). Applied to both `ChannelGrid.jsx` and `RadioGrid.jsx`.
-5. Pull-to-refresh on the channel/station grid. Not started.
+**Medium — still open:**
+- Several text elements drop to 8-9px on mobile (`.channel-tag`, `.channel-stream-badge`, `.filter-group-label`, `.recent-item-name`).
+- EPG channel names/programme titles are cramped at the mobile grid-column width.
+- Redundant `.filter-group-label`s eat horizontal space in the filter-chip row.
+
+## Mobile UX — design exploration (2026-11-14)
+After the bug review, went further into forward-looking design, not just fixes:
+1. Prototyped 5 new interaction patterns as a standalone interactive artifact (bottom tab bar, full-screen search, swipe-to-change-channel in the player, filters as a bottom sheet, pull-to-refresh), then iterated it into a fuller app-flow mockup (first-run picker, home rows, redesigned cards, a persistent mini-player, search-by-country) after review against real reference apps (Apple Music Radio, myTuner, generic radio-station apps).
+2. Ran 20 parallel "expert opinion" agents across specific mobile-design topics (bottom sheets, gestures, dark mode, micro-interactions, loading states, card trends, typography, color/contrast, onboarding, empty states, search, player conventions, personalization, toasts, tab bars, settings screens, live indicators, maps, platform conventions, PWA install) and synthesized them into a ranked set of recommendations.
+3. **Cross-checked the synthesis against the real codebase before building anything** — several of the recommended patterns already exist in some form and don't need new work: a persistent `MiniPlayer.jsx` (logo/name/play-pause/expand/stop), a `ForYouRow.jsx` ("For You in [category]", built from session analytics, no login needed), `QuickFilters.jsx` (verified/live/highly-rated chips), and country-based browsing (`Sidebar.jsx`'s country list, `activeCountries` filter state). The prototype's synthetic "no real artwork" card redesign also doesn't apply as-is — real channel/station cards already render actual logos (`channel.logo`/`station.favicon`).
+4. What's genuinely new and still just a prototype, not implemented: bottom tab bar replacing the top-header icon row, full-screen search overlay, swipe left/right in the player to change channel/station, pull-to-refresh, long-press quick actions on a card, first-run country/genre picker, a "Continue watching/listening" row distinct from "For You", pure-black player background during playback, grouped settings sections. See the Adajoon mobile prototype artifact from this session for all of these working interactively.
+5. **Shipped for real:** search by country/name together (PR #111) — `search_channels`/`search_stations`' free-text query now also matches against the country's display name (via the `Country` table), not just channel/station name — so typing "Japan" surfaces Japanese channels without needing the Sidebar's separate click-to-pick-a-country list. Filters as a tap-to-open bottom sheet (PR #112) — on real phones (≤640px), the Verified/Live Now/Has Stream/etc. filter row now opens as a bottom sheet with a sticky "Show results" button instead of a horizontal-scroll strip (`MobileFilterSheet.jsx`, wrapping `ChannelGrid.jsx`/`RadioGrid.jsx`'s existing filter markup unchanged; tablets/desktop are untouched). The rest of item 4 above is unstarted and needs its own scoped PRs (the tab bar in particular is a navigation-architecture change, not a drop-in fix, and deserves its own review before starting).
 
 38+ stale branches (old merged `claude/*` feature branches, plus merged dependabot branches that didn't auto-delete) remain on GitHub — this session's git/GitHub access blocks branch deletion (confirmed: local `git push --delete` gets HTTP 403 from the sandbox proxy; no available GitHub tool exposes ref deletion). Needs cleanup via GitHub's UI directly — last known status: not yet done.
