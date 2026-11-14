@@ -9,7 +9,7 @@ from sqlalchemy import Float, and_, cast, func, or_, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import AnalyticsEvent, RadioStation
+from app.models import AnalyticsEvent, Country, RadioStation
 from app.redis_client import cache_get, cache_set
 from app.schemas import MapBboxResponse, MapCluster, MapStationPin, RadioSearchParams
 from app.services.icy_service import fetch_icy_title
@@ -158,9 +158,11 @@ async def search_radio(db: AsyncSession, params: RadioSearchParams):
 
     if params.query:
         pattern = f"%{params.query}%"
+        country_codes_matching = select(Country.code).where(Country.name.ilike(pattern))
         cond = or_(
             RadioStation.name.ilike(pattern),
             RadioStation.tags.ilike(pattern),
+            RadioStation.country_code.in_(country_codes_matching),
         )
         query = query.where(cond)
         count_query = count_query.where(cond)

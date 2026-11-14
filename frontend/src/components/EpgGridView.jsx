@@ -111,7 +111,7 @@ export default function EpgGridView({ channels, onClose, onSelectChannel }) {
           {loading && channels.length === 0 ? null : (
             <>
               {nowPct >= 0 && nowPct <= 100 && (
-                <div className="epg-grid-now-line" style={{ left: `calc(160px + (100% - 160px) * ${nowPct / 100})` }} />
+                <div className="epg-grid-now-line" style={{ left: `calc(var(--epg-col) + (100% - var(--epg-col)) * ${nowPct / 100})` }} />
               )}
               {channels.map((ch) => {
                 const programmes = schedule[ch.id] || [];
