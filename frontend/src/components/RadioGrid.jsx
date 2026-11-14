@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import ViewToggle from "./ViewToggle";
 import VoteIndicator from "./VoteIndicator";
+import MobileFilterSheet from "./MobileFilterSheet";
 import { RADIO_COLLECTIONS } from "../data/radioCollections";
 import { handleCardKey } from "../utils/keyboardNav";
 import { fetchNowPlayingBatch } from "../api/radio";
@@ -217,6 +218,7 @@ export default function RadioGrid({
           )}
         </div>
         <div className="content-toolbar">
+          <MobileFilterSheet activeCount={activeQualities.length}>
           <div className="quality-filter">
             <span className="filter-group-label">System Status:</span>
             {QUALITY_OPTIONS.filter(opt => opt.group === "base" || opt.group === "system").map((opt) => {
@@ -273,6 +275,7 @@ export default function RadioGrid({
               );
             })}
           </div>
+          </MobileFilterSheet>
           <ViewToggle viewMode={viewMode} onViewToggle={onViewToggle} />
         </div>
       </div>

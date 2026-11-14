@@ -2169,6 +2169,18 @@ body {
   align-self: stretch;
 }
 
+/* ── MobileFilterSheet: on mobile, the status/community filter row (above)
+   opens as a tap-to-open bottom sheet instead of a horizontal-scroll row.
+   On tablet/desktop this is all neutral (display: contents) - the wrapped
+   .quality-filter renders exactly where and how it did before. ── */
+.filter-sheet-root { display: contents; }
+.filter-sheet-trigger { display: none; }
+.filter-sheet-backdrop { display: none; }
+.filter-sheet { display: contents; }
+.filter-sheet-handle,
+.filter-sheet-apply { display: none; }
+.filter-sheet-body { display: contents; }
+
 .btn-icon {
   font-size: 14px;
   line-height: 1;
@@ -4705,7 +4717,114 @@ body {
   .quality-btn { padding: 6px 10px; font-size: 11px; white-space: nowrap; }
   .filter-group-label { font-size: 9px; margin: 0 2px 0 4px; }
   .filter-separator { height: 16px; margin: 0 4px; }
+}
 
+/* On real phones (not tablets - the 768px block above still gives tablets
+   the horizontal-scroll row), the status/community filter row opens as a
+   tap-to-open bottom sheet with a sticky "Show results" footer instead. */
+@media (max-width: 640px) {
+  .filter-sheet-root { display: block; }
+
+  .filter-sheet-trigger {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--bg-elevated);
+    color: var(--text-secondary);
+    font-size: 13px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+  }
+
+  .filter-sheet-trigger-count {
+    background: var(--accent);
+    color: #fff;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 1px 6px;
+    min-width: 16px;
+    text-align: center;
+  }
+
+  .filter-sheet-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 1999;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+  }
+  .filter-sheet-backdrop.open { opacity: 1; pointer-events: auto; }
+
+  .filter-sheet {
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: var(--bg-secondary);
+    border-radius: 16px 16px 0 0;
+    max-height: 70vh;
+    padding: 0 16px calc(16px + env(safe-area-inset-bottom, 0px));
+    z-index: 2000;
+    transform: translateY(100%);
+    transition: transform 0.25s ease;
+  }
+  .filter-sheet.open { transform: translateY(0); }
+
+  .filter-sheet-handle {
+    display: block;
+    width: 36px;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--border);
+    margin: 10px auto 12px;
+    flex-shrink: 0;
+  }
+
+  .filter-sheet-body {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    overflow-y: auto;
+    min-height: 0;
+  }
+  /* Inside the sheet, the filter row reads top-to-bottom, not as one
+     horizontal-scroll line - it has the full sheet width available. */
+  .filter-sheet-body .quality-filter {
+    flex-wrap: wrap;
+    overflow: visible;
+    width: 100%;
+  }
+  .filter-sheet-body .quality-filter::after { display: none; }
+
+  .filter-sheet-apply {
+    display: block;
+    flex-shrink: 0;
+    width: 100%;
+    margin-top: 12px;
+    padding: 13px;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: var(--accent);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 700;
+    font-family: inherit;
+    cursor: pointer;
+  }
+}
+
+@media (max-width: 768px) {
   /* Grids */
   .channel-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
   .thumb-grid   { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
