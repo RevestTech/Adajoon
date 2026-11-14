@@ -35,5 +35,39 @@ Update this when something ships or a known gap changes. If this and `PRD.md`/`T
 |---|---|---|
 | #9 | python 3.12→3.14-slim (Docker base) | Open — sandbox couldn't reach `deb.debian.org` to actually build+test the image, so left unmerged. `psycopg2-binary`'s removal (#77) clears one blocker; `asyncpg` still has no `cp314` wheel. Needs validation outside this sandbox. |
 | #28 | Adajoon ECC agent-tooling bundle | Open — not app code; its own checklist calls for human review first. |
+| #99 | python 3.12→3.15-slim (dependabot, supersedes #9) | Open — 3-version jump, too risky to merge right after the 2026-11-14 outage without dedicated testing. |
+| #105 | `@vitest/ui` 4→5 (dependabot) | Open — CI red (Lint Frontend, Test Frontend both fail). Needs `vitest` core bumped alongside it, not just the UI companion package. |
+
+## Mobile UX — 10-agent review (2026-11-14), not yet fixed
+Found via 10 parallel read-only review agents (header/nav, filter bar, grid/list, player modals, touch targets, typography, bottom-stacking, settings/pricing, landing page, map/EPG, loading states) prompted by a user-reported screenshot of oversized/empty channel cards (that specific bug is already fixed, PR #109). Nothing below has been fixed yet — tracked here so it isn't lost.
+
+**Critical (actually broken, not just cramped):**
+- Landing page (`LandingPage.jsx`/`.landing-page`) has `overflow: hidden` with no scroll fallback. On an iPhone with Safari + Apple login + passkeys (the common real-world config), estimated content height (~665px) exceeds usable viewport height after the address bar — "Continue as guest" and the Passkey button can be pushed off-screen with no way to reach them.
+- `SettingsPage.jsx` and `PricingPage.jsx` use `.admin-modal-overlay`/`.admin-modal` classes that have **zero CSS rules anywhere in the codebase** — these pages render as unstyled inline HTML (no overlay/backdrop/centering/scroll-clamp, unstyled close button). Not mobile-specific, but worse there.
+- Filter bar (`.quality-filter`, index.css ~2150 base rule) has `flex-wrap: wrap` from the desktop rule, never reset to `nowrap` in the mobile override (~4685) that's supposed to turn it into a horizontal-scroll row (comment there says so) — causes the cramped 2-line wrap a user screenshotted.
+- EPG grid (`EpgGridView.jsx:114`) hardcodes the channel-column offset as `160px` for the "now" red line position, but CSS shrinks that column to `100px` on mobile (index.css:7789) — the current-time indicator renders 60px off from the actual time on phones.
+
+**High (real usability problems):**
+- Touch targets under 44px in ~10 places: `.modal-close` (every modal's close button, no fixed size at all), `.modal-favorite-btn`/`.modal-minimize`/`.modal-popout`/`.modal-share-btn` (player modal header, 36px), `.favorite-btn` has a gap at 481-768px widths (still 38px), header icon buttons `.pricing-nav-btn`/`.whats-new-btn`/`.theme-toggle-btn` (36px, no mobile override), collapsed `.header-search` (32px wide), `.world-map-zoom-btn`/`.world-map-zoom-reset` (shrinks the *wrong* way: 36→32→28px as screens get smaller), radio map pins `.radio-garden-map__marker` (10×10px), pagination buttons (~30-34px), `.ai-search-btn` (38px).
+- iOS Safari auto-zoom bug: `.search-input` is 13-15px on mobile (index.css:4603, 4747) — any input under 16px triggers an unwanted page-zoom on focus on iOS.
+- List view (`.list-row`, index.css:2425) has fixed-width columns (42+88+100+44px) that were never adjusted for mobile — on a 375px screen the channel name column gets squeezed to almost nothing.
+- Header has three separate, overlapping mobile media-query blocks (`@768px`, `@480px`, `@640px`) for the same selectors, fighting each other via `!important` — actual rendered behavior is an unintended mix, not deliberate design. Needs consolidation into one block per selector.
+- `.back-to-top` and the PWA `.install-prompt` don't account for the mini-player (`.mini-player`) being open, and neither adds `env(safe-area-inset-bottom)` consistently — can overlap the mini-player's playback controls or sit in the iPhone home-indicator zone.
+- Skeleton loaders (`.skeleton-card`) don't share a class with `.channel-card`, so they don't match its `min-height` — real content visibly jumps in size once it loads.
+- `.stream-switcher` (player modal) has no `flex-wrap` — 3+ simultaneous streams can overflow a narrow screen with no visual scroll affordance.
+- Channel modal title (`.channel-modal-header h3`) has no overflow/ellipsis handling — long channel names wrap to 2 lines and crowd the row of action icons next to it.
+
+**Medium (readability/polish):**
+- Several text elements drop to 8-9px on mobile (`.channel-tag`, `.channel-stream-badge`, `.filter-group-label`, `.recent-item-name`) — below comfortable reading size.
+- EPG channel names/programme titles are cramped at the mobile grid-column width (~100px) and 4-hour window — mostly truncated.
+- Redundant `.filter-group-label`s (e.g. "System Status:") eat horizontal space in what should be a scrolling filter-chip row.
+
+## Mobile UX — proposed improvements (not bugs, new interaction patterns)
+Prototyped interactively (not yet implemented in the real app) — see the Adajoon mobile prototype artifact from this session:
+1. Bottom tab bar for TV/Radio/Map/Movies, replacing the cramped top-header icon row.
+2. Full-screen search overlay on tap, instead of a small inline-expanding search bar.
+3. Swipe left/right in the channel/station player to jump to the next/previous item, instead of closing the modal and tapping another card.
+4. Filters as a tap-to-open bottom sheet instead of a horizontally-scrolling chip row.
+5. Pull-to-refresh on the channel/station grid.
 
 38+ stale branches (old merged `claude/*` feature branches, plus merged dependabot branches that didn't auto-delete) remain on GitHub — this session's git/GitHub access blocks branch deletion (confirmed: local `git push --delete` gets HTTP 403 from the sandbox proxy; no available GitHub tool exposes ref deletion). Needs cleanup via GitHub's UI directly — last known status: not yet done.
