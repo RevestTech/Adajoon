@@ -5267,6 +5267,17 @@ body {
   color: var(--text-primary);
 }
 
+.landing-version {
+  position: fixed;
+  bottom: 10px;
+  right: 14px;
+  z-index: 2001;
+  font-size: 11px;
+  font-family: monospace;
+  color: rgba(255, 255, 255, 0.35);
+  user-select: text;
+}
+
 @media (max-width: 600px) {
   .landing-content {
     padding: 24px 16px;

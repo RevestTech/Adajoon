@@ -216,6 +216,9 @@ export default function LandingPage({
           </svg>
         </button>
       </div>
+      <div className="landing-version" title="Deployed frontend build version">
+        v{__APP_VERSION__}
+      </div>
     </div>
   );
 }
