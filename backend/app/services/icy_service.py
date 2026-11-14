@@ -18,6 +18,16 @@ ICY_TIMEOUT = 4.0
 # buffer an unbounded amount of "audio" before giving up.
 ICY_MAX_METAINT = 1_000_000
 
+# httpx's `timeout` only bounds each individual read - a station that
+# trickles bytes just under that interval keeps the connection (and the
+# task) alive indefinitely. Caller-side concurrency limits (e.g.
+# NOW_PLAYING_BATCH_CONCURRENCY) only bound one request's own batch, not the
+# total across simultaneous requests, so a process-wide cap plus a hard
+# wall-clock deadline is what actually keeps this bounded under real
+# traffic against thousands of uncontrolled third-party stream servers.
+_MAX_CONCURRENT_FETCHES = 40
+_fetch_semaphore = asyncio.Semaphore(_MAX_CONCURRENT_FETCHES)
+
 _STREAM_TITLE_RE = re.compile(rb"StreamTitle='([^']*)'")
 
 
@@ -47,6 +57,17 @@ async def fetch_icy_title(stream_url: str) -> str | None:
     don't enable it) or couldn't be reached in time."""
     if not stream_url:
         return None
+    async with _fetch_semaphore:
+        try:
+            return await asyncio.wait_for(
+                _fetch_icy_title_inner(stream_url), timeout=ICY_TIMEOUT
+            )
+        except (TimeoutError, asyncio.TimeoutError) as e:
+            logger.debug("ICY fetch timed out for %s: %s", stream_url, e)
+            return None
+
+
+async def _fetch_icy_title_inner(stream_url: str) -> str | None:
     try:
         async with httpx.AsyncClient(
             timeout=ICY_TIMEOUT, follow_redirects=True
