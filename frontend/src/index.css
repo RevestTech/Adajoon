@@ -1641,6 +1641,65 @@ body {
   opacity: 0.7;
 }
 
+/* ── BottomTabBar: real phones get TV/Radio/Map/Movies as a persistent
+   bottom row instead of the header's top icon strip (which is hidden
+   below). It replaces .app-footer's slot in the #root flex column, so
+   it needs no position:fixed of its own - and because every other
+   fixed bottom element (.mini-player, .back-to-top) already measures
+   itself off --footer-bar-height, bumping that one variable at this
+   breakpoint is enough to keep them all above it automatically. ── */
+.mobile-tab-bar {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  :root {
+    --footer-bar-height: 60px;
+  }
+
+  .app-footer {
+    display: none;
+  }
+
+  .header-center {
+    display: none;
+  }
+
+  .mobile-tab-bar {
+    display: flex;
+    flex-shrink: 0;
+    height: var(--footer-bar-height);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    background: var(--bg-secondary);
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    z-index: 99;
+  }
+
+  .mobile-tab-bar-btn {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    border: none;
+    background: none;
+    color: var(--text-muted);
+    font-size: 10px;
+    font-weight: 600;
+    min-height: 44px;
+    cursor: pointer;
+  }
+
+  .mobile-tab-bar-btn.active {
+    color: var(--accent);
+  }
+
+  .mobile-tab-bar-label {
+    line-height: 1;
+  }
+}
+
 /* Back to Top Button */
 .back-to-top {
   position: fixed;
@@ -7669,7 +7728,7 @@ button:focus-visible {
   position: fixed;
   left: 16px;
   right: 16px;
-  bottom: 16px;
+  bottom: calc(var(--footer-bar-height) + 16px);
   z-index: 1000;
   display: flex;
   align-items: center;

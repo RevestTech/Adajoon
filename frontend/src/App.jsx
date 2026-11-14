@@ -16,6 +16,7 @@ import RecentlyPlayed from "./components/RecentlyPlayed";
 import ForYouRow from "./components/ForYouRow";
 import BackToTop from "./components/BackToTop";
 import InstallPrompt from "./components/InstallPrompt";
+import BottomTabBar from "./components/BottomTabBar";
 import AISearchModal from "./components/AISearchModal";
 import WhatsNewModal from "./components/WhatsNewModal";
 import WorldMap from "./components/WorldMap";
@@ -1122,6 +1123,7 @@ export default function App() {
         <span>&copy; {new Date().getFullYear()} Revest Technology. All rights reserved.</span>
         <span className="footer-version">v{__APP_VERSION__}</span>
       </footer>
+      <BottomTabBar mode={mode} onModeSwitch={handleModeSwitch} />
     </>
   );
 }
