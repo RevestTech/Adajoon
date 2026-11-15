@@ -230,8 +230,8 @@ const WorldMap = ({
           {/* Render country paths */}
           {worldMapPaths.map((countryPath) => (
             <path
-              key={countryPath.id}
-              id={countryPath.id}
+              key={`${countryPath.id}-${countryPath.name}`}
+              data-country-code={countryPath.id}
               d={countryPath.d}
               className="world-map-path"
               fill={getCountryColor(countryPath.id, hoveredCountry === countryPath.id)}
