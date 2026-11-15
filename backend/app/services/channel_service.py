@@ -163,14 +163,28 @@ async def get_for_you_channels(
 
 async def get_channel_by_id(db: AsyncSession, channel_id: str):
     result = await db.execute(
-        select(Channel).where(Channel.id == channel_id, Channel.admin_hidden.is_(False))
+        select(Channel).where(
+            Channel.id == channel_id,
+            Channel.admin_hidden.is_(False),
+            Channel.is_nsfw.is_(False),
+        )
     )
     return result.scalar_one_or_none()
 
 
 async def get_channel_streams(db: AsyncSession, channel_id: str):
+    # Mirrors get_channel_by_id's is_nsfw/admin_hidden exclusion - a channel
+    # that can't be looked up shouldn't still be reachable by fetching its
+    # streams directly with a known id.
     result = await db.execute(
-        select(Stream).where(Stream.channel_id == channel_id).order_by(Stream.id)
+        select(Stream)
+        .join(Channel, Channel.id == Stream.channel_id)
+        .where(
+            Stream.channel_id == channel_id,
+            Channel.admin_hidden.is_(False),
+            Channel.is_nsfw.is_(False),
+        )
+        .order_by(Stream.id)
     )
     return result.scalars().all()
 
