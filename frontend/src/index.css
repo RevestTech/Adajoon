@@ -1673,6 +1673,12 @@ body {
     background: var(--bg-secondary);
     border-top: 1px solid rgba(255, 255, 255, 0.08);
     z-index: 99;
+    transform: translateY(0);
+    transition: transform 0.2s ease;
+  }
+
+  .mobile-tab-bar--hidden {
+    transform: translateY(100%);
   }
 
   .mobile-tab-bar-btn {
