@@ -542,7 +542,9 @@ async def passkey_register_options(
 
 
 @router.post("/passkey/register")
+@limiter.limit("10/minute")
 async def passkey_register(
+    request: Request,
     body: PasskeyRegisterBody,
     user: User = Depends(require_user),
     db: AsyncSession = Depends(get_db),
@@ -585,7 +587,8 @@ async def passkey_register(
 
 
 @router.post("/passkey/login-options")
-async def passkey_login_options():
+@limiter.limit("10/minute")
+async def passkey_login_options(request: Request):
     options = generate_authentication_options(
         rp_id=settings.webauthn_rp_id,
         user_verification=UserVerificationRequirement.REQUIRED,
@@ -598,9 +601,10 @@ async def passkey_login_options():
 
 
 @router.post("/passkey/login")
+@limiter.limit("10/minute")
 async def passkey_login(
-    body: PasskeyLoginBody,
     request: Request,
+    body: PasskeyLoginBody,
     response: Response,
     db: AsyncSession = Depends(get_db),
 ):
