@@ -18,12 +18,14 @@ function formatWatchedAt(isoString) {
 }
 
 function ParentalControlsTab() {
-  const { kidsModeEnabled, hasPin, loading, setPin, toggleKidsMode, removePin } =
+  const { kidsModeEnabled, hasPin, loading, setPin, toggleKidsMode, removePin, verifyPin } =
     useParentalControls();
   const [pinInput, setPinInput] = useState("");
   const [removeInput, setRemoveInput] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [pendingDisable, setPendingDisable] = useState(false);
+  const [disablePinInput, setDisablePinInput] = useState("");
 
   const handleSetPin = async (e) => {
     e.preventDefault();
@@ -53,6 +55,46 @@ function ParentalControlsTab() {
     }
   };
 
+  const handleToggleKidsMode = async (checked) => {
+    if (checked) {
+      setMessage("");
+      try {
+        await toggleKidsMode(true);
+      } catch (err) {
+        setMessage(err.message || "Failed to enable kids mode");
+      }
+      return;
+    }
+    // Turning off requires the PIN - don't disable immediately.
+    if (hasPin) {
+      setPendingDisable(true);
+      setMessage("");
+    } else {
+      await toggleKidsMode(false);
+    }
+  };
+
+  const handleConfirmDisable = async (e) => {
+    e.preventDefault();
+    setMessage("");
+    setBusy(true);
+    try {
+      const ok = await verifyPin(disablePinInput);
+      if (!ok) {
+        setMessage("Incorrect PIN.");
+        return;
+      }
+      await toggleKidsMode(false, disablePinInput);
+      setPendingDisable(false);
+      setDisablePinInput("");
+      setMessage("Kids mode turned off.");
+    } catch (err) {
+      setMessage(err.message || "Failed to turn off kids mode");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   if (loading) return <div className="settings-loading">Loading…</div>;
 
   return (
@@ -66,14 +108,45 @@ function ParentalControlsTab() {
         <input
           type="checkbox"
           checked={kidsModeEnabled}
-          disabled={busy || (!kidsModeEnabled && !hasPin)}
-          onChange={(e) => toggleKidsMode(e.target.checked)}
+          disabled={busy || pendingDisable || (!kidsModeEnabled && !hasPin)}
+          onChange={(e) => handleToggleKidsMode(e.target.checked)}
         />
       </label>
       {!hasPin && (
         <p className="settings-section-hint settings-section-hint--warn">
           Set a PIN below before enabling kids mode, so you can turn it back off.
         </p>
+      )}
+      {pendingDisable && (
+        <form className="settings-form" onSubmit={handleConfirmDisable}>
+          <input
+            type="password"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            minLength={4}
+            maxLength={6}
+            placeholder="Enter PIN to turn off kids mode"
+            value={disablePinInput}
+            onChange={(e) => setDisablePinInput(e.target.value)}
+            className="settings-input"
+            autoFocus
+          />
+          <button type="submit" className="settings-btn" disabled={busy || disablePinInput.length < 4}>
+            Confirm
+          </button>
+          <button
+            type="button"
+            className="settings-btn"
+            disabled={busy}
+            onClick={() => {
+              setPendingDisable(false);
+              setDisablePinInput("");
+              setMessage("");
+            }}
+          >
+            Cancel
+          </button>
+        </form>
       )}
 
       <h3 className="settings-section-title">Parental PIN</h3>

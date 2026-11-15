@@ -84,33 +84,36 @@ export default function useParentalControls() {
   };
 
   /**
-   * Toggle kids mode on/off.
+   * Toggle kids mode on/off. Disabling it requires `pin` when a PIN is set -
+   * the server enforces this regardless (see parental.py's toggle_kids_mode),
+   * this is just so callers can surface the server's rejection.
    */
-  const toggleKidsMode = async (enabled) => {
+  const toggleKidsMode = async (enabled, pin) => {
     try {
       const response = await authenticatedFetch(`${BASE}/parental/kids-mode`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ enabled }),
+        body: JSON.stringify({ enabled, ...(pin ? { pin } : {}) }),
       });
-      
+
       if (!response.ok) {
-        throw new Error('Failed to toggle kids mode');
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.detail || 'Failed to toggle kids mode');
       }
-      
+
       const data = await response.json();
       setKidsModeEnabled(data.kids_mode_enabled);
-      
+
       // Clear unlock state when enabling kids mode
       if (enabled) {
         clearPinUnlock();
         setPinUnlockedState(false);
       }
-      
+
       return true;
     } catch (error) {
       console.error('Failed to toggle kids mode:', error);
-      return false;
+      throw error;
     }
   };
 
