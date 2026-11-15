@@ -65,6 +65,9 @@ Found via 10 parallel read-only review agents (header/nav, filter bar, grid/list
 - `.stream-switcher` has no `flex-wrap` for 3+ streams.
 - `.channel-modal-header h3` has no overflow/ellipsis handling for long titles.
 
+**High — fixed (2026-11-15, user-reported with a real-phone screenshot):**
+- `.channel-card` (grid/card view) had no `min-width: 0`, so on a 2-up mobile grid (`repeat(2, 1fr)`) its default `min-width: auto` sized the card to fit `.channel-meta`'s chip row on one unwrapped line regardless of `flex-wrap: wrap` on the row itself - harmless for TV's short 1-2 chip meta row, but radio's denser one (country + up to 2 tags + bitrate + status badge, often 4-5 chips) forced the card wider than its grid column and visibly spilled into the next card. Fixed with `min-width: 0` on `.channel-card`; verified both TV and radio card view at a real phone viewport, plus desktop, with no regression.
+
 **Medium — still open:**
 - Several text elements drop to 8-9px on mobile (`.channel-tag`, `.channel-stream-badge`, `.filter-group-label`, `.recent-item-name`).
 - EPG channel names/programme titles are cramped at the mobile grid-column width.

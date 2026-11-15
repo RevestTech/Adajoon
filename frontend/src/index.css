@@ -2626,6 +2626,13 @@ body {
   text-align: center;
   gap: 18px;
   min-height: 280px;
+  /* Without this, a grid item's default min-width:auto sizes it to fit
+     .channel-meta's content on one unwrapped line (flex-wrap alone
+     doesn't override that) - harmless for TV's short 1-2 chip meta row,
+     but radio's denser one (country + tags + bitrate + status, often
+     4-5 chips) forced the card wider than its grid column and spilled
+     into the next card on a 2-up mobile grid. */
+  min-width: 0;
 }
 
 .channel-card:hover {
