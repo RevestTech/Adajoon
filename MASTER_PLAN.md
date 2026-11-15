@@ -8,7 +8,7 @@ Update this when something ships or a known gap changes. If this and `PRD.md`/`T
 - Admin dashboard as a standalone page: users, subscriptions, content moderation, pricing/ads toggle, secrets UI, ops health (#71, #55, #70), split by domain into `admin.py`/`admin_users.py`/`admin_content.py`/`admin_analytics.py` (#80).
 - Self-hosted analytics: sessions, playback, auth funnel, navigation paths (`docs/CUSTOM_ANALYTICS.md`).
 - Stripe billing: checkout, promo codes, webhook sync, admin comp/revoke (#66, #55); checkout/portal endpoints rate-limited (#76).
-- Parental controls: PIN set/verify/remove (current-PIN required, rate-limited), kids mode.
+- Parental controls: PIN set/verify/remove (current-PIN required, rate-limited). **Kids mode toggle itself is cosmetic only — see 2026-11-15 audit below, not actually fixed yet.**
 - Auth: Google/Apple/passkeys + dev-login bypass for local testing (#69).
 - Secrets migrated from static Vault token to AppRole (per `revest-vault`'s AGENTS.md); 12 managed secrets including optional `sentry_dsn`.
 - Security-review pass closing CSRF/JWT-default/auth-bypass gaps (verified against code 2026-11-08: all present).
@@ -27,9 +27,21 @@ Update this when something ships or a known gap changes. If this and `PRD.md`/`T
 - **No uptime/reachability monitoring.** Nothing watches whether the public site actually responds — the 2026-11-09 domain incident was only caught because the user noticed manually. Needs an uptime check (e.g. UptimeRobot, Better Stack) hitting `adajoon.com` with alerts to a real destination. Not something this session can set up unilaterally (third-party account signup).
 - Sentry is wired but has no DSN set — error tracking is currently a no-op until one is configured (Admin → Secrets → Sentry DSN, or `SENTRY_DSN`/`VITE_SENTRY_DSN`).
 - No PR merged in this session had a true GitHub-enforced approval — the session's single GitHub identity can't self-approve its own PRs, so merges went through on CI/diff checks via direct API, not a review gate. Consider branch protection if a harder gate is wanted.
-- Feature-gating enforcement is a no-op — tiers don't actually restrict anything but ad-removal. Real monetization gap, not just a dev one.
+- Feature-gating enforcement is a no-op — tiers don't restrict anything except ads (ad-removal itself was also broken until 2026-11-15, see Shipped above; now fixed). 4K quality and offline downloads are advertised as paid Pro/Family features but nothing checks for them anywhere. Real monetization gap, not just a dev one.
 - No ad impression/fill-rate analytics.
 - No audit logging, jobs-queue UI, or staging environment (deliberate, per team size — revisit if team/scale grows; the two 2026-11-08/09 incidents are evidence staging + monitoring may now be worth the cost).
+
+## Codebase audit — 2026-11-15
+60-subagent review (20 dimensions each for wiring errors / best practices / security), every finding adversarially re-verified before being counted. 108 confirmed findings total: 30 wiring errors, 52 best-practice issues, 26 security findings. Full list with evidence: `docs/AUDIT_2026-11-15.md`. None of these are fixed yet — reported, not yet actioned.
+
+Top criticals:
+- **Kids Mode does nothing.** Toggle saves and shows "on" in the UI, but no backend route or frontend grid ever filters content by it. Safety-relevant, affects every user who enables it.
+- **Rate limiting is almost entirely off.** `SlowAPIMiddleware` is never registered, so the global `100/minute` default never applies — only the handful of routes with an explicit `@limiter.limit(...)` are actually limited.
+- **AI search (`/api/search/ai`, text and radio) is open to abuse and partly broken.** No auth, no rate limit, blocking (sync) Anthropic SDK call inside an async handler; the radio-search variant always returns zero results (`int(uuid_string)` always throws).
+- **Vault secret rotation can silently no-op.** If a same-named env var is still set on the Railway service (which the team's own old runbook told people to do), it permanently wins over the vault value with no error — so "rotating" a leaked secret via the admin Secrets UI may not actually rotate anything, while the UI tells the admin it worked.
+- **Admin audit log has zero tamper-evidence** — no hash chain, no DB-level write protection — so it can't be trusted as evidence if an admin account is compromised.
+- **CI lint/test gates are no-ops.** Frontend lint/test failures and backend mypy are all piped to `|| true` / not run, so CI has been green regardless of real lint or test failures.
+- 4K quality and offline downloads (advertised Pro/Family features) are never enforced anywhere (see tech debt above).
 
 ## Open items
 | PR | What | Status |
