@@ -1,91 +1,148 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { renderHook, act } from '@testing-library/react';
+import { renderHook, act, waitFor } from '@testing-library/react';
 import { useVotes } from '../hooks/useVotes';
+import { authenticatedFetch } from '../utils/csrf';
+
+vi.mock('../utils/csrf', () => ({
+  authenticatedFetch: vi.fn(),
+}));
+
+function jsonResponse(body, ok = true) {
+  return { ok, json: async () => body };
+}
 
 describe('useVotes', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    localStorage.clear();
   });
 
-  it('initializes with empty votes', () => {
+  it('initializes with no votes or summaries loaded', () => {
     const { result } = renderHook(() => useVotes());
 
-    expect(result.current.votes).toEqual({});
+    expect(result.current.getMyVotesFor('tv', 'ch1')).toEqual([]);
+    expect(result.current.getSummaryFor('tv', 'ch1')).toEqual({});
   });
 
-  it('records upvote', () => {
+  it('loadMyVotes populates per-item votes from the server', async () => {
+    authenticatedFetch.mockResolvedValueOnce(
+      jsonResponse({ ch1: ['like'] })
+    );
     const { result } = renderHook(() => useVotes());
 
-    act(() => {
-      result.current.vote('tv', 'ch1', 'upvote');
+    await act(async () => {
+      await result.current.loadMyVotes('tv');
     });
 
-    expect(result.current.votes['tv:ch1']).toBe('upvote');
+    expect(authenticatedFetch).toHaveBeenCalledWith(
+      '/api/auth/votes/me?item_type=tv'
+    );
+    expect(result.current.getMyVotesFor('tv', 'ch1')).toEqual(['like']);
   });
 
-  it('records downvote', () => {
+  it('loadMyVotes only fetches once per item type until resetLoaded', async () => {
+    authenticatedFetch.mockResolvedValue(jsonResponse({}));
     const { result } = renderHook(() => useVotes());
 
-    act(() => {
-      result.current.vote('tv', 'ch1', 'downvote');
+    await act(async () => {
+      await result.current.loadMyVotes('tv');
+      await result.current.loadMyVotes('tv');
     });
+    expect(authenticatedFetch).toHaveBeenCalledTimes(1);
 
-    expect(result.current.votes['tv:ch1']).toBe('downvote');
+    act(() => {
+      result.current.resetLoaded();
+    });
+    await act(async () => {
+      await result.current.loadMyVotes('tv');
+    });
+    expect(authenticatedFetch).toHaveBeenCalledTimes(2);
   });
 
-  it('changes vote from upvote to downvote', () => {
+  it('submitVote adds a vote and updates the summary optimistically', async () => {
+    authenticatedFetch.mockResolvedValueOnce(jsonResponse({ status: 'added' }));
     const { result } = renderHook(() => useVotes());
 
-    act(() => {
-      result.current.vote('tv', 'ch1', 'upvote');
+    await act(async () => {
+      await result.current.submitVote('tv', 'ch1', 'like');
     });
-    expect(result.current.votes['tv:ch1']).toBe('upvote');
 
-    act(() => {
-      result.current.vote('tv', 'ch1', 'downvote');
-    });
-    expect(result.current.votes['tv:ch1']).toBe('downvote');
+    expect(authenticatedFetch).toHaveBeenCalledWith(
+      '/api/auth/votes',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          item_type: 'tv',
+          item_id: 'ch1',
+          vote_type: 'like',
+        }),
+      })
+    );
+    expect(result.current.getMyVotesFor('tv', 'ch1')).toEqual(['like']);
+    expect(result.current.getSummaryFor('tv', 'ch1')).toEqual({ like: 1 });
   });
 
-  it('removes vote when clicking same vote type', () => {
+  it('submitVote removes a vote (toggle off) when the server reports removed', async () => {
+    authenticatedFetch.mockResolvedValueOnce(jsonResponse({ status: 'added' }));
     const { result } = renderHook(() => useVotes());
 
-    act(() => {
-      result.current.vote('tv', 'ch1', 'upvote');
+    await act(async () => {
+      await result.current.submitVote('tv', 'ch1', 'like');
     });
-    expect(result.current.votes['tv:ch1']).toBe('upvote');
+    expect(result.current.getMyVotesFor('tv', 'ch1')).toEqual(['like']);
 
-    act(() => {
-      result.current.vote('tv', 'ch1', 'upvote');
+    authenticatedFetch.mockResolvedValueOnce(jsonResponse({ status: 'removed' }));
+    await act(async () => {
+      await result.current.submitVote('tv', 'ch1', 'like');
     });
-    expect(result.current.votes['tv:ch1']).toBeUndefined();
+
+    expect(result.current.getMyVotesFor('tv', 'ch1')).toEqual([]);
+    expect(result.current.getSummaryFor('tv', 'ch1')).toEqual({ like: 0 });
   });
 
-  it('handles multiple items', () => {
+  it('submitVote returns null and leaves state unchanged on a failed request', async () => {
+    authenticatedFetch.mockResolvedValueOnce(jsonResponse({}, false));
     const { result } = renderHook(() => useVotes());
 
-    act(() => {
-      result.current.vote('tv', 'ch1', 'upvote');
-      result.current.vote('tv', 'ch2', 'downvote');
-      result.current.vote('radio', 'st1', 'upvote');
+    let returned;
+    await act(async () => {
+      returned = await result.current.submitVote('tv', 'ch1', 'like');
     });
 
-    expect(result.current.votes['tv:ch1']).toBe('upvote');
-    expect(result.current.votes['tv:ch2']).toBe('downvote');
-    expect(result.current.votes['radio:st1']).toBe('upvote');
+    expect(returned).toBeNull();
+    expect(result.current.getMyVotesFor('tv', 'ch1')).toEqual([]);
   });
 
-  it('persists votes to localStorage', () => {
+  it('loadSummary populates vote counts for multiple items', async () => {
+    authenticatedFetch.mockResolvedValueOnce(
+      jsonResponse({ ch1: { like: 3, dislike: 1 }, ch2: { like: 0 } })
+    );
     const { result } = renderHook(() => useVotes());
 
-    act(() => {
-      result.current.vote('tv', 'ch1', 'upvote');
+    await act(async () => {
+      await result.current.loadSummary('tv', ['ch1', 'ch2']);
     });
 
-    expect(localStorage.setItem).toHaveBeenCalled();
-    const calls = localStorage.setItem.mock.calls;
-    const voteCall = calls.find(c => c[0] === 'adajoon_votes');
-    expect(voteCall).toBeDefined();
+    await waitFor(() => {
+      expect(result.current.getSummaryFor('tv', 'ch1')).toEqual({
+        like: 3,
+        dislike: 1,
+      });
+    });
+    expect(result.current.getSummaryFor('tv', 'ch2')).toEqual({ like: 0 });
+  });
+
+  it('tracks votes for different item types independently', async () => {
+    authenticatedFetch
+      .mockResolvedValueOnce(jsonResponse({ status: 'added' }))
+      .mockResolvedValueOnce(jsonResponse({ status: 'added' }));
+    const { result } = renderHook(() => useVotes());
+
+    await act(async () => {
+      await result.current.submitVote('tv', 'ch1', 'like');
+      await result.current.submitVote('radio', 'st1', 'dislike');
+    });
+
+    expect(result.current.getMyVotesFor('tv', 'ch1')).toEqual(['like']);
+    expect(result.current.getMyVotesFor('radio', 'st1')).toEqual(['dislike']);
   });
 });

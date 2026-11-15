@@ -15,7 +15,9 @@ describe('useAuth', () => {
     });
 
     expect(result.current.user).toBeNull();
-    expect(result.current.loading).toBe(true);
+    // user is now read synchronously from localStorage at mount - loading
+    // only flips true during an actual login attempt, not on initial read.
+    expect(result.current.loading).toBe(false);
   });
 
   it('loads user from localStorage', async () => {
@@ -57,17 +59,42 @@ describe('useAuth', () => {
     expect(localStorage.removeItem).toHaveBeenCalledWith('adajoon_user');
   });
 
-  it('updates user info', async () => {
+  it('updates user info after a successful dev login', async () => {
+    // setUser isn't part of the public API - the only way the hook updates
+    // `user` is through a real login flow (or the background /me refresh).
+    // No CSRF cookie exists in jsdom, so authenticatedFetch fetches one
+    // first - keyed by URL (not call order) since analytics also calls
+    // fetch independently (e.g. its own batched page-view send).
+    global.fetch.mockImplementation((url) => {
+      if (String(url).includes('/api/csrf/token')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ csrf_token: 'test-csrf-token' }),
+        });
+      }
+      if (String(url).includes('/dev-login')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            user: { id: 2, email: 'new@example.com', name: 'New User' },
+          }),
+        });
+      }
+      // Anything else (e.g. the background /me refresh effect) fails
+      // closed rather than resolving ok with {} - that effect does
+      // setUser(data) unconditionally and would stomp the login above.
+      return Promise.resolve({ ok: false, json: async () => ({}) });
+    });
+
     const { result } = renderHook(() => useAuth(), {
       wrapper: AuthProvider,
     });
 
-    const newUser = { id: 2, email: 'new@example.com', name: 'New User' };
-
-    act(() => {
-      result.current.setUser(newUser);
+    await act(async () => {
+      await result.current.loginWithDev('new@example.com');
     });
 
+    const newUser = { id: 2, email: 'new@example.com', name: 'New User' };
     expect(result.current.user).toEqual(newUser);
     expect(localStorage.setItem).toHaveBeenCalledWith(
       'adajoon_user',

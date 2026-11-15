@@ -386,7 +386,6 @@ export default function RadioGrid({
             <div className={viewMode === "list" ? "channel-list" : viewMode === "thumb" ? "thumb-grid" : "channel-grid"}>
               {visibleStations.map((st) => {
                 const props = {
-                  key: st.id,
                   station: st,
                   onClick: () => onSelect(st),
                   favorited: !isGuest && isFavorite(st.id),
@@ -400,9 +399,11 @@ export default function RadioGrid({
                   voteSummary: getVoteSummary ? getVoteSummary(st.id) : {},
                   nowPlaying: nowPlaying[st.id],
                 };
-                if (viewMode === "list") return <RadioRow {...props} />;
-                if (viewMode === "thumb") return <RadioThumb {...props} />;
-                return <RadioCard {...props} />;
+                // key must be a literal JSX attribute, not spread via
+                // {...props} - see ChannelGrid.jsx's identical fix.
+                if (viewMode === "list") return <RadioRow key={st.id} {...props} />;
+                if (viewMode === "thumb") return <RadioThumb key={st.id} {...props} />;
+                return <RadioCard key={st.id} {...props} />;
               })}
             </div>
 

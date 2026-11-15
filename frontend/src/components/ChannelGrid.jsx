@@ -491,7 +491,6 @@ export default function ChannelGrid({
                 const countryName = countryObj ? countryObj.name : ch.country_code;
 
                 const props = {
-                  key: ch.id,
                   channel: ch,
                   onSelectChannel: handleSelectChannel,
                   favorited: !isGuest && isFavorite(ch.id),
@@ -502,9 +501,13 @@ export default function ChannelGrid({
                   showCountry: showCountryInList,
                   nowProgramme: epgNow[ch.id],
                 };
-                if (viewMode === "list") return <ChannelRow {...props} />;
-                if (viewMode === "thumb") return <ChannelThumb {...props} />;
-                return <ChannelCard {...props} />;
+                // key must be a literal JSX attribute, not spread via
+                // {...props} - React silently drops a spread "key" and
+                // falls back to array index, which breaks reconciliation
+                // across re-filters/re-sorts (wrong item keeps wrong state).
+                if (viewMode === "list") return <ChannelRow key={ch.id} {...props} />;
+                if (viewMode === "thumb") return <ChannelThumb key={ch.id} {...props} />;
+                return <ChannelCard key={ch.id} {...props} />;
               })}
             </div>
 

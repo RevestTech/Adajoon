@@ -99,8 +99,9 @@ describe('useUrlState', () => {
       });
       
       const call = window.history.replaceState.mock.calls[0];
-      expect(call[2]).toContain('cat=News,Sports');
-      expect(call[2]).toContain('country=US,GB');
+      // URLSearchParams.toString() always percent-encodes commas per spec.
+      expect(call[2]).toContain('cat=News%2CSports');
+      expect(call[2]).toContain('country=US%2CGB');
     });
 
     it('omits default values', () => {
@@ -143,8 +144,9 @@ describe('useUrlState', () => {
       window.location.pathname = '/tv/channel/123';
       
       popPlayerState();
-      
-      expect(window.history.pushState).toHaveBeenCalledWith(null, '', '/?');
+
+      // No query params to preserve - no trailing "?" is appended.
+      expect(window.history.pushState).toHaveBeenCalledWith(null, '', '/');
     });
 
     it('preserves filters when returning to listing', () => {
