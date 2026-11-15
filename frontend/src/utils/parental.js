@@ -1,53 +1,12 @@
 /**
  * Parental control utilities.
+ *
+ * Adult-content filtering itself is enforced server-side (channels'
+ * is_nsfw column, radio's tag-keyword filter in radio_service.py) based on
+ * the signed-in user's kids_mode_enabled - not here. A client-side filter
+ * can't be the actual security boundary since it's trivially bypassed by
+ * calling the API directly.
  */
-
-// Adult content keywords/patterns (case-insensitive)
-const NSFW_KEYWORDS = [
-  'xxx', 'adult', 'porn', 'sex', 'erotic', 'sexy', 'nude', 'playboy',
-  'penthouse', 'hustler', '18+', '+18', 'adults only', 'mature',
-];
-
-// Adult categories
-const NSFW_CATEGORIES = [
-  'XXX', 'Adult', 'Erotic', 'Porn', 'xxx',
-];
-
-/**
- * Check if content should be hidden in kids mode.
- * @param {Object} item - Channel or station object
- * @returns {boolean} - True if content is adult/NSFW
- */
-export function isAdultContent(item) {
-  if (!item) return false;
-  
-  const name = (item.name || '').toLowerCase();
-  const categories = (item.categories || '').toLowerCase();
-  const tags = (item.tags || '').toLowerCase();
-  
-  // Check name for NSFW keywords
-  for (const keyword of NSFW_KEYWORDS) {
-    if (name.includes(keyword)) return true;
-  }
-  
-  // Check categories/tags
-  const contentTags = `${categories} ${tags}`;
-  for (const cat of NSFW_CATEGORIES) {
-    if (contentTags.includes(cat.toLowerCase())) return true;
-  }
-  
-  return false;
-}
-
-/**
- * Filter content list for kids mode.
- * @param {Array} items - List of channels or stations
- * @returns {Array} - Filtered list without adult content
- */
-export function filterAdultContent(items) {
-  if (!items || !Array.isArray(items)) return [];
-  return items.filter(item => !isAdultContent(item));
-}
 
 /**
  * Store PIN unlock timestamp in session storage.
