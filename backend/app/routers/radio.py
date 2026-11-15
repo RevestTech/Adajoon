@@ -5,7 +5,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.models import User
 from app.redis_client import cache_get, cache_set
+from app.routers.auth import get_current_user
 from app.schemas import (
     MapBboxResponse,
     PaginatedRadio,
@@ -51,6 +53,7 @@ async def list_radio_stations(
     page: int = Query(1, ge=1),
     per_page: int = Query(40, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
+    current_user: User | None = Depends(get_current_user),
 ):
     params = RadioSearchParams(
         query=query,
@@ -62,7 +65,8 @@ async def list_radio_stations(
         page=page,
         per_page=per_page,
     )
-    stations, total = await search_radio(db, params)
+    exclude_adult = bool(current_user and current_user.kids_mode_enabled)
+    stations, total = await search_radio(db, params, exclude_adult=exclude_adult)
     return PaginatedRadio(
         stations=[RadioStationOut.model_validate(s) for s in stations],
         total=total,
@@ -77,19 +81,28 @@ async def for_you(
     session_id: str = Query(..., description="Client analytics session id"),
     limit: int = Query(10, ge=1, le=20),
     db: AsyncSession = Depends(get_db),
+    current_user: User | None = Depends(get_current_user),
 ):
     """Stations tagged like the ones this browser session plays the most,
     for a "For You" row - no login required. Radio's counterpart to
     channels.py's /for-you."""
-    stations, tag = await get_for_you_stations(db, session_id, limit=limit)
+    exclude_adult = bool(current_user and current_user.kids_mode_enabled)
+    stations, tag = await get_for_you_stations(
+        db, session_id, limit=limit, exclude_adult=exclude_adult
+    )
     return RadioForYouResponse(
         stations=[RadioStationOut.model_validate(s) for s in stations], tag=tag
     )
 
 
 @router.get("/stations/{station_id}", response_model=RadioStationOut)
-async def get_radio_station(station_id: str, db: AsyncSession = Depends(get_db)):
-    station = await get_station_by_id(db, station_id)
+async def get_radio_station(
+    station_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User | None = Depends(get_current_user),
+):
+    exclude_adult = bool(current_user and current_user.kids_mode_enabled)
+    station = await get_station_by_id(db, station_id, exclude_adult=exclude_adult)
     if not station:
         raise HTTPException(status_code=404, detail="Station not found")
     return RadioStationOut.model_validate(station)

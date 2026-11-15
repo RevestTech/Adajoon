@@ -23,6 +23,28 @@ FOR_YOU_LOOKBACK_EVENTS = 50
 FOR_YOU_DEFAULT_LIMIT = 10
 FOR_YOU_MAX_LIMIT = 20
 
+# Radio has no is_nsfw column like Channel does - stations are tagged
+# free-text by Radio-Browser, so this filters RadioStation.tags by keyword
+# for kids-mode users (see routers/radio.py's exclude_adult param, threaded
+# through from the request's current_user.kids_mode_enabled).
+ADULT_TAG_KEYWORDS = (
+    "xxx",
+    "adult",
+    "porn",
+    "sex",
+    "erotic",
+    "nude",
+    "playboy",
+    "penthouse",
+    "hustler",
+    "18+",
+)
+
+
+def _exclude_adult_clause():
+    return and_(*[~RadioStation.tags.ilike(f"%{kw}%") for kw in ADULT_TAG_KEYWORDS])
+
+
 # Zoom below this returns grid clusters; at/above returns individual pins.
 MAP_CLUSTER_ZOOM_MAX = 7
 MAP_DEFAULT_LIMIT = 500
@@ -150,11 +172,17 @@ async def sync_radio_stations(db: AsyncSession) -> int:
     return count
 
 
-async def search_radio(db: AsyncSession, params: RadioSearchParams):
+async def search_radio(
+    db: AsyncSession, params: RadioSearchParams, exclude_adult: bool = False
+):
     query = select(RadioStation).where(RadioStation.admin_hidden.is_(False))
     count_query = select(func.count(RadioStation.id)).where(
         RadioStation.admin_hidden.is_(False)
     )
+    if exclude_adult:
+        adult_clause = _exclude_adult_clause()
+        query = query.where(adult_clause)
+        count_query = count_query.where(adult_clause)
 
     if params.query:
         pattern = f"%{params.query}%"
@@ -265,7 +293,10 @@ def get_radio_tags(limit: int = 60):
 
 
 async def get_for_you_stations(
-    db: AsyncSession, session_id: str, limit: int = FOR_YOU_DEFAULT_LIMIT
+    db: AsyncSession,
+    session_id: str,
+    limit: int = FOR_YOU_DEFAULT_LIMIT,
+    exclude_adult: bool = False,
 ) -> tuple[list[RadioStation], str | None]:
     """Stations tagged like the ones this browser session has played the
     most, for a "For You" row - no login required. Mirrors
@@ -314,16 +345,23 @@ async def get_for_you_stations(
     ]
     if played_ids:
         filters.append(RadioStation.id.notin_(played_ids))
+    if exclude_adult:
+        filters.append(_exclude_adult_clause())
 
     stmt = select(RadioStation).where(*filters).order_by(func.random()).limit(limit)
     result = await db.execute(stmt)
     return list(result.scalars().all()), top_tag
 
 
-async def get_station_by_id(db: AsyncSession, station_id: str):
+async def get_station_by_id(
+    db: AsyncSession, station_id: str, exclude_adult: bool = False
+):
+    filters = [RadioStation.id == station_id, RadioStation.admin_hidden.is_(False)]
+    if exclude_adult:
+        filters.append(_exclude_adult_clause())
     result = await db.execute(
         select(RadioStation).where(
-            RadioStation.id == station_id, RadioStation.admin_hidden.is_(False)
+            *filters,
         )
     )
     return result.scalar_one_or_none()
