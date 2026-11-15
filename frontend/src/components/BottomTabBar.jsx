@@ -1,3 +1,5 @@
+import { useEffect, useRef, useState } from "react";
+
 /**
  * Bottom tab bar for TV/Radio/Map/Movies, shown only on real phones
  * (see .mobile-tab-bar's media query in index.css) in place of the
@@ -5,6 +7,13 @@
  * Header.jsx's mode-switcher exactly: same `mode`/`onModeSwitch` props,
  * same four destinations, just laid out as a persistent bottom row
  * instead of a top icon strip.
+ *
+ * On a phone that isn't installed as a standalone PWA, the browser's
+ * own bottom toolbar (Safari/Chrome) is always on screen too, so this
+ * bar and the browser's stack into two full rows. Auto-hiding on
+ * scroll-down and revealing on scroll-up (the same pattern X/Instagram
+ * use on mobile web) keeps that doubled-up footprint to a minimum -
+ * it only shows at rest or when the user scrolls back up to navigate.
  */
 const TABS = [
   {
@@ -60,9 +69,41 @@ const TABS = [
   },
 ];
 
+const SCROLL_THRESHOLD = 8;
+const TOP_BUFFER = 40;
+
 export default function BottomTabBar({ mode, onModeSwitch }) {
+  const [hidden, setHidden] = useState(false);
+  const lastRef = useRef({ el: null, top: 0 });
+
+  useEffect(() => {
+    // Scroll events don't bubble, but they do reach capture-phase
+    // listeners on ancestors - this catches scrolling inside whichever
+    // per-mode container (.content-body, the map view, etc.) is active,
+    // without needing to know which one that is.
+    const onScroll = (e) => {
+      const el = e.target;
+      if (!el || typeof el.scrollTop !== "number") return;
+      const last = lastRef.current;
+      if (last.el !== el) {
+        lastRef.current = { el, top: el.scrollTop };
+        return;
+      }
+      const delta = el.scrollTop - last.top;
+      if (el.scrollTop > TOP_BUFFER && delta > SCROLL_THRESHOLD) setHidden(true);
+      else if (delta < -SCROLL_THRESHOLD || el.scrollTop <= TOP_BUFFER) setHidden(false);
+      lastRef.current = { el, top: el.scrollTop };
+    };
+    document.addEventListener("scroll", onScroll, true);
+    return () => document.removeEventListener("scroll", onScroll, true);
+  }, []);
+
   return (
-    <nav className="mobile-tab-bar" aria-label="Main navigation">
+    <nav
+      className={`mobile-tab-bar${hidden ? " mobile-tab-bar--hidden" : ""}`}
+      aria-label="Main navigation"
+      aria-hidden={hidden}
+    >
       {TABS.map((tab) => {
         const active = mode === tab.key;
         return (
@@ -73,6 +114,7 @@ export default function BottomTabBar({ mode, onModeSwitch }) {
             onClick={() => onModeSwitch(tab.key)}
             aria-current={active ? "page" : undefined}
             aria-label={tab.label}
+            tabIndex={hidden ? -1 : 0}
           >
             {tab.icon(active)}
             <span className="mobile-tab-bar-label">{tab.label}</span>
