@@ -58,7 +58,6 @@ Found via 10 parallel read-only review agents (header/nav, filter bar, grid/list
 
 **High — still open:**
 - More touch targets under 44px: `.modal-close`, `.modal-favorite-btn`/`.modal-minimize`/`.modal-popout`/`.modal-share-btn` (player modal header, 36px), `.favorite-btn` gap at 481-768px (38px), `.world-map-zoom-btn`/`.world-map-zoom-reset` (shrinks the *wrong* way as screens narrow), radio map pins `.radio-garden-map__marker` (10×10px), pagination buttons, `.ai-search-btn`.
-- List view (`.list-row`) has fixed-width columns never adjusted for mobile — the channel name column gets squeezed to almost nothing on a 375px screen.
 - The header's three overlapping mobile media-query blocks (`@768px`, `@480px`, `@640px`) still need full consolidation into one block per selector — PR #111 only removed the one pair that was actively regressing search; the rest fight via `!important` with effectively-accidental results.
 - `.back-to-top`/`.install-prompt` don't account for the mini-player being open, and don't add `env(safe-area-inset-bottom)` consistently.
 - Skeleton loaders (`.skeleton-card`) don't match `.channel-card`'s sizing — layout jumps when real content loads.
@@ -66,10 +65,11 @@ Found via 10 parallel read-only review agents (header/nav, filter bar, grid/list
 - `.channel-modal-header h3` has no overflow/ellipsis handling for long titles.
 
 **High — fixed (2026-11-15, user-reported with a real-phone screenshot):**
+- List view (`.list-row`) had fixed-width columns (88px/100px, sized for desktop) never adjusted for mobile, squeezing the channel name into a sliver on a 375-430px screen; several text elements had also been shrunk as low as 8px on top of that (`.channel-stream-badge`, `.list-row-name`, `.list-meta-item`). Fixed: shrunk the status/vote columns at the 768px/480px breakpoints to give the name/meta column real room, raised the undersized text to a readable floor, and fixed a `.list-row-meta` overflow bug this surfaced (country/genre text was overlapping the status badge once given more room — now clips cleanly). Separately, radio's list view lost ALL of its metadata (country/genre/bitrate) on phones — a `.list-row-tags { display: none; }` rule at ≤480px was written assuming it only hid TV's secondary tag chips, but TV doesn't even use that class; `.list-row-tags` is radio's *only* metadata display. Fixed to keep the first chip (country code) instead of hiding everything.
 - `.channel-card` (grid/card view) had no `min-width: 0`, so on a 2-up mobile grid (`repeat(2, 1fr)`) its default `min-width: auto` sized the card to fit `.channel-meta`'s chip row on one unwrapped line regardless of `flex-wrap: wrap` on the row itself - harmless for TV's short 1-2 chip meta row, but radio's denser one (country + up to 2 tags + bitrate + status badge, often 4-5 chips) forced the card wider than its grid column and visibly spilled into the next card. Fixed with `min-width: 0` on `.channel-card`; verified both TV and radio card view at a real phone viewport, plus desktop, with no regression.
 
 **Medium — still open:**
-- Several text elements drop to 8-9px on mobile (`.channel-tag`, `.channel-stream-badge`, `.filter-group-label`, `.recent-item-name`).
+- Several other text elements still drop to 8-9px on mobile (`.channel-tag` outside list view, `.filter-group-label`, `.recent-item-name`) - the list-view-specific instances above are fixed, this is the remaining surface.
 - EPG channel names/programme titles are cramped at the mobile grid-column width.
 - Redundant `.filter-group-label`s eat horizontal space in the filter-chip row.
 
