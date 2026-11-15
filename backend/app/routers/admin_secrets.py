@@ -7,12 +7,13 @@ a general vault browser/editor.
 
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.csrf import verify_csrf_token
 from app.database import get_db
+from app.limiter import limiter
 from app.middleware.admin_required import require_admin
 from app.models import User
 from app.services import vault_admin_service
@@ -35,7 +36,9 @@ async def admin_list_secrets(admin_user: User = Depends(require_admin)):
 
 
 @router.put("/{key}")
+@limiter.limit("10/minute")
 async def admin_set_secret(
+    request: Request,
     key: str,
     payload: SecretSetRequest,
     admin_user: User = Depends(require_admin),
@@ -66,7 +69,9 @@ async def admin_set_secret(
 
 
 @router.delete("/{key}")
+@limiter.limit("10/minute")
 async def admin_clear_secret(
+    request: Request,
     key: str,
     admin_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),

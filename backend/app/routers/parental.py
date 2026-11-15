@@ -29,6 +29,7 @@ class VerifyPinRequest(BaseModel):
 
 class UpdateModeRequest(BaseModel):
     enabled: bool
+    pin: str | None = None  # required to disable kids mode when a PIN is set
 
 
 # ---------------------------------------------------------------------------
@@ -106,14 +107,36 @@ async def verify_parental_pin(
 
 
 @router.post("/kids-mode")
+@limiter.limit("10/minute")
 async def toggle_kids_mode(
-    request: UpdateModeRequest,
+    request: Request,
+    mode_request: UpdateModeRequest,
     user: User = Depends(require_user),
     db: AsyncSession = Depends(get_db),
     _csrf: None = Depends(verify_csrf_token),
 ):
-    """Enable or disable kids mode."""
-    user.kids_mode_enabled = request.enabled
+    """Enable or disable kids mode. Turning it off requires the current PIN
+    (if one is set) - otherwise the toggle is defeated by anyone who can
+    reach Settings, which is the entire point of a kids-mode PIN."""
+    if not mode_request.enabled and user.parental_pin_hash:
+        if not mode_request.pin:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="PIN required to disable kids mode",
+            )
+        try:
+            valid = bcrypt.checkpw(
+                mode_request.pin.encode("utf-8"),
+                user.parental_pin_hash.encode("utf-8"),
+            )
+        except Exception:
+            valid = False
+        if not valid:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid PIN"
+            )
+
+    user.kids_mode_enabled = mode_request.enabled
     await db.commit()
 
     return {
