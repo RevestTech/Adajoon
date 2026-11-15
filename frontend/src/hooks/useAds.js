@@ -10,7 +10,6 @@ import {
   areAdsSupported,
   shouldShowAds,
 } from '../utils/ads';
-import { useAuth } from './useAuth';
 import useSubscription from './useSubscription';
 import analytics from '../analytics';
 
@@ -18,8 +17,12 @@ export default function useAds(videoElementRef, adContainerRef) {
   const [adPlaying, setAdPlaying] = useState(false);
   const [adsEnabled, setAdsEnabled] = useState(false);
 
-  const { user } = useAuth();
-  const { adsEnabled: adsEnabledGlobally, adsSettingResolved } = useSubscription();
+  const { adsEnabled: adsEnabledGlobally, adsSettingResolved, isPremium } = useSubscription();
+  // isPremium() itself isn't referentially stable (useSubscription returns a
+  // fresh closure every render), so compute the boolean once here and depend
+  // on that below - otherwise the ads-setup effect would re-run, and tear
+  // down/recreate the IMA loader, on every single render.
+  const isPremiumUser = isPremium();
 
   const adsLoaderRef = useRef(null);
   const adsManagerRef = useRef(null);
@@ -59,7 +62,7 @@ export default function useAds(videoElementRef, adContainerRef) {
     if (!adsSettingResolved) return;
     adsSettingResolvedRef.current = true;
 
-    const shouldEnable = areAdsSupported() && shouldShowAds(user, adsEnabledGlobally);
+    const shouldEnable = areAdsSupported() && shouldShowAds(isPremiumUser, adsEnabledGlobally);
     adsEnabledRef.current = shouldEnable;
     setAdsEnabled(shouldEnable);
 
@@ -143,7 +146,7 @@ export default function useAds(videoElementRef, adContainerRef) {
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [videoElementRef, adContainerRef, user, adsEnabledGlobally, adsSettingResolved, finishPreRoll]);
+  }, [videoElementRef, adContainerRef, isPremiumUser, adsEnabledGlobally, adsSettingResolved, finishPreRoll]);
 
   /**
    * Request and play a pre-roll ad before content. Resolves once the ad

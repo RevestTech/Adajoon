@@ -108,19 +108,13 @@ export function areAdsSupported() {
 
 /**
  * Determine if ads should be shown (based on the admin ads kill switch and
- * user tier).
- * @param {Object} user - Current user object
+ * the user's real subscription status).
+ * @param {boolean} isPremiumUser - From useSubscription().isPremium() - true
+ *   for an active, non-free, non-expired tier. Anonymous and free-tier users
+ *   both come through as false here, same as before.
  * @param {boolean} adsEnabled - Admin-controlled global ads switch
  */
-export function shouldShowAds(user, adsEnabled = true) {
+export function shouldShowAds(isPremiumUser, adsEnabled = true) {
   if (!adsEnabled) return false;
-
-  // Show ads to:
-  // - Anonymous users
-  // - Free tier users
-  // Don't show to premium subscribers
-  if (!user) return true;
-
-  const tier = user.subscription_tier || 'free';
-  return tier === 'free';
+  return !isPremiumUser;
 }
