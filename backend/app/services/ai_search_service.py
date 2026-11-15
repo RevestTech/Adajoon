@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.models import Channel, EpgProgramme, RadioStation
 from app.redis_client import cache_get, cache_set
+from app.schemas import RadioStationOut
 from app.services.epg_service import search_on_now
 
 logger = logging.getLogger(__name__)
@@ -352,11 +353,11 @@ async def ai_search_channels(db: AsyncSession, query: str) -> dict:
     try:
         import anthropic
 
-        client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+        client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
 
         channel_context = json.dumps(summaries, separators=(",", ":"))
 
-        message = client.messages.create(
+        message = await client.messages.create(
             model=settings.ai_model,
             max_tokens=1024,
             system=(
@@ -447,11 +448,11 @@ async def ai_search_radio(db: AsyncSession, query: str) -> dict:
     try:
         import anthropic
 
-        client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+        client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
 
         station_context = json.dumps(summaries, separators=(",", ":"))
 
-        message = client.messages.create(
+        message = await client.messages.create(
             model=settings.ai_model,
             max_tokens=1024,
             system=(
@@ -485,36 +486,26 @@ async def ai_search_radio(db: AsyncSession, query: str) -> dict:
         station_ids = parsed.get("station_ids", [])
         explanation = parsed.get("explanation", "")
 
-        # Convert to integers for DB lookup
-        int_ids = []
-        for sid in station_ids:
-            try:
-                int_ids.append(int(sid))
-            except (ValueError, TypeError):
-                continue
+        # RadioStation.id is a UUID string (Radio-Browser's stationuuid), not
+        # an integer - no conversion needed, unlike Channel's string ids
+        # which also don't need one above. (A previous version of this code
+        # ran int(sid) here, which always raised and silently dropped every
+        # match, so AI radio search always returned zero results.)
+        station_ids = [sid for sid in station_ids if isinstance(sid, str) and sid]
 
-        if int_ids:
+        if station_ids:
             result = await db.execute(
-                select(RadioStation).where(RadioStation.id.in_(int_ids))
+                select(RadioStation).where(RadioStation.id.in_(station_ids))
             )
             stations = result.scalars().all()
-            id_order = {sid: idx for idx, sid in enumerate(int_ids)}
+            id_order = {sid: idx for idx, sid in enumerate(station_ids)}
             stations = sorted(stations, key=lambda s: id_order.get(s.id, 999))
         else:
             stations = []
 
         response = {
             "stations": [
-                {
-                    "id": s.id,
-                    "name": s.name,
-                    "favicon": s.favicon or "",
-                    "tags": s.tags or "",
-                    "country_code": s.country_code or "",
-                    "url": s.url or "",
-                    "url_resolved": s.url_resolved or "",
-                }
-                for s in stations
+                RadioStationOut.model_validate(s).model_dump() for s in stations
             ],
             "explanation": explanation,
             "query": query,
@@ -647,18 +638,7 @@ async def _fallback_search(
         limit=FALLBACK_RESULT_LIMIT,
     )
     return {
-        "stations": [
-            {
-                "id": s.id,
-                "name": s.name,
-                "favicon": s.favicon or "",
-                "tags": s.tags or "",
-                "country_code": s.country_code or "",
-                "url": s.url or "",
-                "url_resolved": s.url_resolved or "",
-            }
-            for s in stations
-        ],
+        "stations": [RadioStationOut.model_validate(s).model_dump() for s in stations],
         "explanation": f"Found {len(stations)} stations matching '{query}' using keyword search.",
         "query": query,
         "source": "fallback",
