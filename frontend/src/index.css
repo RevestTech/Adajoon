@@ -4633,7 +4633,11 @@ body {
     --sidebar-width: 300px;
   }
   .header-stats { display: none; }
-  .sidebar { width: var(--sidebar-width); min-width: var(--sidebar-width); }
+  /* :not(...) so this doesn't fight the collapse rule above - same specificity,
+     and this block comes later in the file, so without it this always won at
+     769-1024px and silently un-collapsed the sidebar's width (while its body
+     stayed display:none), leaving a blank sidebar-width gap with no content. */
+  .sidebar:not(.sidebar--rail-collapsed) { width: var(--sidebar-width); min-width: var(--sidebar-width); }
   .search-container { max-width: 360px; }
 }
 
