@@ -4882,6 +4882,13 @@ body {
     width: 100%;
   }
   .filter-sheet-body .quality-filter::after { display: none; }
+  /* .quality-btn's font-size is tuned for the cramped horizontal-scroll
+     row (11px/10px at the 768px/480px breakpoints below) - the sheet has
+     the full width to itself and wraps, so there's no reason for its
+     chips to read smaller than the "Show results" button right under
+     them. Override wins on specificity (two classes vs. one) regardless
+     of source order, so it holds at every phone width this sheet shows. */
+  .filter-sheet-body .quality-btn { font-size: 14px; padding: 8px 12px; }
 
   .filter-sheet-apply {
     display: block;
