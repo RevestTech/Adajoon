@@ -169,7 +169,11 @@
 
 @media (max-width: 768px) {
   .radio-garden-map__ride {
-    bottom: max(16px, env(safe-area-inset-bottom, 0px));
+    /* Below this width the maplibre attribution strip spans nearly the
+       full width instead of hugging the right edge, so the button needs
+       real clearance above it (attribution is ~34px tall incl. margin)
+       instead of the 16px that's enough once they no longer overlap. */
+    bottom: max(44px, calc(28px + env(safe-area-inset-bottom, 0px)));
     padding: 11px 22px;
     font-size: 14px;
   }
