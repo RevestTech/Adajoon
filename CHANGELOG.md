@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.8.1] - 2026-11-23
+
+### Fixed
+- **Validator worker crash-loop**: the hourly channel/radio health-checker was intermittently crash-restarting mid-pass (confirmed in production logs: 10+ unexplained restarts over 5 days, almost always before completing a single validation phase). Root cause was `probe_stream()` fully buffering whatever body a misbehaving stream server sent regardless of request method or `Range` header - a handful of unbounded live feeds running concurrently was enough to exhaust memory and kill the worker before it ever logged a result. Every probe read is now capped at a couple KB.
+- **Apple Sign-In stuck on "Completing sign-in..."**: production's CSP had no allowance (inline or nonce) for the Apple Sign-In popup's relay script, so the browser silently dropped it - the popup never posted the login token back or closed itself. This broke Apple Sign-In completely in production. Fixed with a per-request CSP nonce scoped to just that one response.
+
 ## [2.8.0] - 2026-11-12
 
 ### Added
