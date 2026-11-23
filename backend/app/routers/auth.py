@@ -2,6 +2,7 @@ import asyncio
 import base64
 import json
 import logging
+import secrets
 from datetime import datetime, timedelta, timezone
 
 import httpx
@@ -413,8 +414,19 @@ async def apple_callback(request: Request, response: Response):
 
         # No COOP header — defaults to unsafe-none, allowing popup postMessage back to opener
 
+        # Production CSP's script-src has no 'unsafe-inline' (see
+        # security_headers.py) and this page's relay logic can't be an
+        # external file - it needs to embed the token/user data this
+        # request just received. Without a matching nonce here, the
+        # browser silently drops this whole <script> block: the popup
+        # never postMessages or closes, and the user is stuck staring at
+        # "Completing sign-in..." forever. SecurityHeadersMiddleware reads
+        # this same value off request.state to add it to the CSP header.
+        csp_nonce = secrets.token_urlsafe(16)
+        request.state.csp_nonce = csp_nonce
+
         html_content = f"""<!DOCTYPE html><html><head><title>Signing in...</title></head>
-<body><p>Completing sign-in...</p><script>
+<body><p>Completing sign-in...</p><script nonce="{csp_nonce}">
 try {{
   var data = {{ type:"apple-signin", idToken:{safe_id_token}, userData:{safe_user_data} }};
   var allowed = {safe_origins};

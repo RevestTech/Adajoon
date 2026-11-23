@@ -45,13 +45,25 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
         # Content Security Policy (production only)
         if settings.env == "production":
+            # A route that must return an inline <script> (currently just
+            # the Apple Sign-In popup relay in auth.py - it embeds the
+            # token/user data that request just received, so it can't be
+            # an external file) sets this on request.state; everything
+            # else keeps running with zero inline-script allowance.
+            script_src = (
+                "script-src 'self' 'unsafe-eval' https://accounts.google.com "
+                "https://appleid.cdn-apple.com https://www.gstatic.com "
+                "https://imasdk.googleapis.com"
+            )
+            csp_nonce = getattr(request.state, "csp_nonce", None)
+            if csp_nonce:
+                script_src += f" 'nonce-{csp_nonce}'"
+
             # CSP tailored for your streaming app with OAuth support
             csp_directives = [
                 "default-src 'self'",
                 # OAuth + Chromecast + IMA SDK (no inline scripts remain - see frontend/public/*.js)
-                "script-src 'self' 'unsafe-eval' https://accounts.google.com "
-                "https://appleid.cdn-apple.com https://www.gstatic.com "
-                "https://imasdk.googleapis.com",
+                script_src,
                 "worker-src 'self' blob:",  # MapLibre GL web workers
                 # OAuth + Google Fonts
                 "style-src 'self' 'unsafe-inline' https://accounts.google.com "
