@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import maplibregl from "maplibre-gl";
+// maplibre-gl v6 dropped its default export (named exports only) - a
+// namespace import keeps every maplibregl.X usage below unchanged.
+import * as maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
+// v6 ships as ESM-only and resolves its worker via import.meta.url, which
+// doesn't reliably survive bundling - `?worker&url` makes Vite bundle+hash
+// the worker chunk correctly and hand back that URL for setWorkerUrl below.
+import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 import {
   fetchRadioMap,
   fetchRadioMapNearby,
@@ -8,6 +14,12 @@ import {
   fetchRadioStations,
 } from "../api/radio";
 import "./RadioGardenMap.css";
+
+// Without this, the Worker silently fails to load in production builds
+// only (Vite's SPA fallback serves index.html for the unhashed path
+// maplibre looks for, so "Worker failed to load" is the only symptom -
+// dev mode doesn't hit this at all, which is why it's easy to miss).
+maplibregl.setWorkerUrl(maplibreWorkerUrl);
 
 const DEFAULT_STYLE =
   import.meta.env.VITE_MAP_STYLE_URL || "https://tiles.openfreemap.org/styles/dark";
