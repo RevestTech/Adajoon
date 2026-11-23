@@ -130,7 +130,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Adajoon",
     description="Online TV Channel Browser & Search",
-    version="2.8.0",
+    version="2.8.1",
     lifespan=lifespan,
 )
 
