@@ -1,5 +1,6 @@
 """Test authentication endpoints."""
 
+import re
 from unittest.mock import patch
 
 import pytest
@@ -7,6 +8,7 @@ from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.models import User, UserVote
 from app.routers.auth import create_token
 
@@ -242,3 +244,51 @@ async def test_logout_clears_cookies(client: AsyncClient):
     # In a real test with cookies, we'd verify they're cleared
     # For now, just check the endpoint works
     assert response.json()["status"] == "logged_out"
+
+
+@pytest.mark.unit
+async def test_apple_callback_script_nonce_matches_csp_in_production(
+    client: AsyncClient,
+):
+    """Regression test: the Apple Sign-In popup relay page embeds an inline
+    <script> (it has to - it carries the id_token/user data this request
+    just received, so it can't be an external file), but production's CSP
+    (SecurityHeadersMiddleware) has no 'unsafe-inline' for script-src. With
+    no nonce wired through, the browser silently drops that whole <script>
+    block: the popup never postMessages the token back or closes itself,
+    and the user is left staring at "Completing sign-in..." forever. The
+    nonce on the <script> tag and the 'nonce-...' on the CSP header must be
+    the exact same value, or this is just as broken.
+    """
+    original_env = settings.env
+    settings.env = "production"
+    try:
+        response = await client.post(
+            "/api/auth/apple/callback",
+            data={"id_token": "fake.jwt.token", "user": ""},
+        )
+    finally:
+        settings.env = original_env
+
+    assert response.status_code == 200
+    csp = response.headers.get("content-security-policy", "")
+    assert csp, "production response must carry a CSP header"
+
+    script_src = next(d for d in csp.split(";") if "script-src" in d)
+    assert "'unsafe-inline'" not in script_src, (
+        "this test is only meaningful while script-src has no "
+        "'unsafe-inline' - if that changes, the nonce plumbing is moot"
+    )
+
+    nonce_match = re.search(r"'nonce-([^']+)'", script_src)
+    assert (
+        nonce_match
+    ), f"script-src has no nonce to allow the relay script: {script_src}"
+
+    tag_match = re.search(r'<script nonce="([^"]+)">', response.text)
+    assert tag_match, "relay page's <script> tag has no nonce attribute"
+
+    assert nonce_match.group(1) == tag_match.group(1), (
+        "CSP header nonce and <script> tag nonce must match exactly, or "
+        "the browser still blocks the script"
+    )
