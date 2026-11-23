@@ -31,9 +31,21 @@ Update this when something ships or a known gap changes. If this and `PRD.md`/`T
 - **No uptime/reachability monitoring.** Nothing watches whether the public site actually responds — the 2026-11-09 domain incident was only caught because the user noticed manually. Needs an uptime check (e.g. UptimeRobot, Better Stack) hitting `adajoon.com` with alerts to a real destination. Not something this session can set up unilaterally (third-party account signup).
 - Sentry is wired but has no DSN set — error tracking is currently a no-op until one is configured (Admin → Secrets → Sentry DSN, or `SENTRY_DSN`/`VITE_SENTRY_DSN`).
 - No PR merged in this session had a true GitHub-enforced approval — the session's single GitHub identity can't self-approve its own PRs, so merges went through on CI/diff checks via direct API, not a review gate. Consider branch protection if a harder gate is wanted.
-- Feature-gating enforcement is a no-op — tiers don't actually restrict anything but ad-removal. Real monetization gap, not just a dev one.
+- Feature-gating enforcement is a no-op — tiers don't restrict anything except ads (ad-removal itself was also broken until 2026-11-15, see Shipped above; now fixed). 4K quality and offline downloads are advertised as paid Pro/Family features but nothing checks for them anywhere. Real monetization gap, not just a dev one.
 - No ad impression/fill-rate analytics.
 - No audit logging, jobs-queue UI, or staging environment (deliberate, per team size — revisit if team/scale grows; the two 2026-11-08/09 incidents are evidence staging + monitoring may now be worth the cost).
+
+## Codebase audit — 2026-11-15
+60-subagent review (20 dimensions each for wiring errors / best practices / security), every finding adversarially re-verified before being counted. 108 confirmed findings total: 30 wiring errors, 52 best-practice issues, 26 security findings. Full list with evidence: `docs/AUDIT_2026-11-15.md`. Most top criticals were fixed the same day/week this audit ran — status below, kept current (the full findings doc is a point-in-time snapshot, not updated per-finding).
+
+Top criticals:
+- ~~Kids Mode does nothing.~~ **Fixed same day** — see "Shipped" above (backend now filters by `kids_mode_enabled`, PIN required to disable).
+- ~~Rate limiting is almost entirely off (`SlowAPIMiddleware` never registered).~~ **Fixed** (#118) — middleware now registered, global default applies.
+- ~~AI search (`/api/search/ai`) open to abuse, radio variant always returns zero results.~~ **Fixed** (#119) — rate limit added, async Anthropic client, radio UUID bug fixed.
+- **Vault secret rotation can silently no-op** — still open. If a same-named env var is still set on the Railway service (which the team's own old runbook told people to do), it permanently wins over the vault value with no error — so "rotating" a leaked secret via the admin Secrets UI may not actually rotate anything, while the UI tells the admin it worked.
+- **Admin audit log has zero tamper-evidence** — still open. No hash chain, no DB-level write protection — so it can't be trusted as evidence if an admin account is compromised.
+- ~~CI lint/test gates are no-ops (`|| true`).~~ **Fixed** (#120) — real ESLint config, real test gate, mypy/Prettier now visible.
+- **4K quality and offline downloads** (advertised Pro/Family features) are never enforced anywhere — still open (see tech debt above).
 
 ## Open items
 | PR | What | Status |
