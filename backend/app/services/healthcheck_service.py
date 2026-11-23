@@ -18,6 +18,29 @@ COMMON_HEADERS = {
 }
 
 
+async def _read_capped(response: httpx.Response, cap: int) -> bytes:
+    """Read at most `cap` bytes from a streamed response, then stop.
+
+    A stream source that ignores HEAD/Range semantics and keeps pushing an
+    unbounded live feed must never be allowed to fill up process memory -
+    this was traced to the validator worker's intermittent crash-restarts
+    (httpx's non-streaming get()/head() fully buffer whatever body a server
+    sends, regardless of the request method or headers)."""
+    chunks = []
+    total = 0
+    async for chunk in response.aiter_bytes():
+        remaining = cap - total
+        if remaining <= 0:
+            break
+        if len(chunk) > remaining:
+            chunk = chunk[:remaining]
+        chunks.append(chunk)
+        total += len(chunk)
+        if total >= cap:
+            break
+    return b"".join(chunks)
+
+
 async def probe_stream(url: str) -> dict:
     """Probe a stream URL and return status info."""
     try:
@@ -32,12 +55,25 @@ async def probe_stream(url: str) -> dict:
 
 
 async def _probe_stream_inner(url: str) -> dict:
-    """The actual probe. httpx's `timeout` only bounds each individual read -
-    a live stream whose server ignores Range (the GET fallback below, common
-    for Icecast/Shoutcast servers, which is also why they fail the HEAD
-    check first) keeps trickling bytes forever, so httpx.get() never
-    considers the response "complete" and never times out on its own. The
-    outer wait_for in probe_stream() is what actually bounds this."""
+    """The actual probe.
+
+    Two independent bounds are both needed here, for two different failure
+    modes seen in production:
+
+    - A live stream whose server ignores Range/HEAD and just trickles bytes
+      forever bounds neither request count nor total size - httpx's own
+      `timeout` only bounds the gap between reads, not the overall call, so
+      it never fires on its own. The outer wait_for in probe_stream() is
+      what bounds wall-clock time for this case.
+    - A server that ignores HEAD/Range and instead sends its full (or
+      unbounded live) body fast, well within that same timeout window,
+      doesn't trip the wait_for at all - but client.get()/head() buffer
+      whatever a server sends in full before returning, so a handful of
+      these running concurrently was enough to crash the validator worker.
+      Every read below goes through client.stream() (closed before the
+      body is drained) and _read_capped, so no call here can ever buffer
+      more than a couple KB regardless of how much a server actually sends.
+    """
     start = time.monotonic()
     result = {"url": url, "status": "offline", "detail": "", "response_time_ms": 0}
 
@@ -49,13 +85,14 @@ async def _probe_stream_inner(url: str) -> dict:
             verify=False,
         ) as client:
             if ".m3u8" in url:
-                resp = await client.get(url)
-                elapsed = int((time.monotonic() - start) * 1000)
-                result["response_time_ms"] = elapsed
+                async with client.stream("GET", url) as resp:
+                    result["response_time_ms"] = int((time.monotonic() - start) * 1000)
+                    status_code = resp.status_code
+                    body = await _read_capped(resp, 2000) if status_code == 200 else b""
 
-                if resp.status_code == 200:
-                    body = resp.text[:2000]
-                    if "#EXTM3U" in body or "#EXTINF" in body or "#EXT-X" in body:
+                if status_code == 200:
+                    text = body[:2000].decode("utf-8", errors="ignore")
+                    if "#EXTM3U" in text or "#EXTINF" in text or "#EXT-X" in text:
                         result["status"] = "online"
                         result["detail"] = "HLS manifest valid"
                     else:
@@ -63,29 +100,34 @@ async def _probe_stream_inner(url: str) -> dict:
                         result["detail"] = "Response is not a valid HLS manifest"
                 else:
                     result["status"] = "offline"
-                    result["detail"] = f"HTTP {resp.status_code}"
+                    result["detail"] = f"HTTP {status_code}"
             else:
-                resp = await client.head(url)
-                elapsed = int((time.monotonic() - start) * 1000)
-                result["response_time_ms"] = elapsed
-
-                if resp.status_code < 400:
-                    result["status"] = "online"
+                async with client.stream("HEAD", url) as resp:
+                    result["response_time_ms"] = int((time.monotonic() - start) * 1000)
+                    status_code = resp.status_code
                     content_type = resp.headers.get("content-type", "")
-                    result["detail"] = f"HTTP {resp.status_code}, {content_type[:60]}"
-                elif resp.status_code == 405:
-                    resp = await client.get(url, headers={"Range": "bytes=0-1024"})
-                    elapsed = int((time.monotonic() - start) * 1000)
-                    result["response_time_ms"] = elapsed
-                    if resp.status_code < 400:
+
+                if status_code < 400:
+                    result["status"] = "online"
+                    result["detail"] = f"HTTP {status_code}, {content_type[:60]}"
+                elif status_code == 405:
+                    async with client.stream(
+                        "GET", url, headers={"Range": "bytes=0-1024"}
+                    ) as resp2:
+                        result["response_time_ms"] = int(
+                            (time.monotonic() - start) * 1000
+                        )
+                        status_code2 = resp2.status_code
+                        await _read_capped(resp2, 1025)
+                    if status_code2 < 400:
                         result["status"] = "online"
-                        result["detail"] = f"HTTP {resp.status_code} (GET fallback)"
+                        result["detail"] = f"HTTP {status_code2} (GET fallback)"
                     else:
                         result["status"] = "offline"
-                        result["detail"] = f"HTTP {resp.status_code}"
+                        result["detail"] = f"HTTP {status_code2}"
                 else:
                     result["status"] = "offline"
-                    result["detail"] = f"HTTP {resp.status_code}"
+                    result["detail"] = f"HTTP {status_code}"
 
     except httpx.TimeoutException:
         result["response_time_ms"] = PROBE_TIMEOUT * 1000
