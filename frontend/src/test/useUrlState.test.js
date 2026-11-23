@@ -12,7 +12,10 @@ describe('useUrlState', () => {
       hash: '',
     };
     
-    // Mock history
+    // Mock history. jsdom (as bundled by vitest 5+) defines window.history as a
+    // getter-only property, so it has to be deleted before it can be reassigned -
+    // same pattern already used above for window.location.
+    delete window.history;
     window.history = {
       pushState: vi.fn(),
       replaceState: vi.fn(),
