@@ -2563,6 +2563,9 @@ body {
   display: flex;
   gap: 6px;
   align-items: center;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 .list-meta-item {
@@ -2623,6 +2626,13 @@ body {
   text-align: center;
   gap: 18px;
   min-height: 280px;
+  /* Without this, a grid item's default min-width:auto sizes it to fit
+     .channel-meta's content on one unwrapped line (flex-wrap alone
+     doesn't override that) - harmless for TV's short 1-2 chip meta row,
+     but radio's denser one (country + tags + bitrate + status, often
+     4-5 chips) forced the card wider than its grid column and spilled
+     into the next card on a 2-up mobile grid. */
+  min-width: 0;
 }
 
 .channel-card:hover {
@@ -4623,7 +4633,11 @@ body {
     --sidebar-width: 300px;
   }
   .header-stats { display: none; }
-  .sidebar { width: var(--sidebar-width); min-width: var(--sidebar-width); }
+  /* :not(...) so this doesn't fight the collapse rule above - same specificity,
+     and this block comes later in the file, so without it this always won at
+     769-1024px and silently un-collapsed the sidebar's width (while its body
+     stayed display:none), leaving a blank sidebar-width gap with no content. */
+  .sidebar:not(.sidebar--rail-collapsed) { width: var(--sidebar-width); min-width: var(--sidebar-width); }
   .search-container { max-width: 360px; }
 }
 
@@ -4872,6 +4886,13 @@ body {
     width: 100%;
   }
   .filter-sheet-body .quality-filter::after { display: none; }
+  /* .quality-btn's font-size is tuned for the cramped horizontal-scroll
+     row (11px/10px at the 768px/480px breakpoints below) - the sheet has
+     the full width to itself and wraps, so there's no reason for its
+     chips to read smaller than the "Show results" button right under
+     them. Override wins on specificity (two classes vs. one) regardless
+     of source order, so it holds at every phone width this sheet shows. */
+  .filter-sheet-body .quality-btn { font-size: 14px; padding: 8px 12px; }
 
   .filter-sheet-apply {
     display: block;
@@ -4895,12 +4916,16 @@ body {
   .channel-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
   .thumb-grid   { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
 
-  /* List rows */
-  .list-row { padding: 10px 12px; gap: 10px; }
+  /* List rows. Status/vote columns are sized for desktop (88px/100px) -
+     on a narrow phone that leaves very little of the row for the name/meta
+     column, which is why everything there reads cramped and small even
+     before font-size is considered. Shrink them back to give that column
+     real room. */
+  .list-row { padding: 10px 12px; gap: 10px; grid-template-columns: 36px 1fr 72px 84px 40px; }
   .list-row-logo { width: 36px; height: 36px; }
   .list-row-name { font-size: 13px; }
-  .list-row-tags .channel-tag { font-size: 9px; padding: 1px 5px; }
-  .list-row-actions .channel-stream-badge { font-size: 9px; padding: 2px 6px; }
+  .list-row-tags .channel-tag { font-size: 10px; padding: 1px 5px; }
+  .channel-stream-badge { font-size: 10px; padding: 2px 6px; }
 
   /* Cards */
   .channel-card { padding: 12px 10px; gap: 10px; min-height: 180px; }
@@ -4971,7 +4996,7 @@ body {
   .channel-name { font-size: 12px !important; }
   .channel-meta { gap: 3px !important; }
   .channel-tag { font-size: 9px !important; padding: 1px 5px !important; }
-  .channel-stream-badge { font-size: 8px !important; padding: 2px 5px !important; }
+  .channel-stream-badge { font-size: 10px !important; padding: 2px 5px !important; }
   .favorite-btn { width: 44px; height: 44px; }
   .favorite-btn svg { width: 18px; height: 18px; }
 
@@ -4983,10 +5008,17 @@ body {
 
   .thumb-grid { grid-template-columns: 1fr; gap: 10px; }
 
-  .list-row { padding: 8px 10px; gap: 8px; }
+  .list-row { padding: 8px 10px; gap: 8px; grid-template-columns: 30px 1fr 56px 64px 36px; }
   .list-row-logo { width: 30px; height: 30px; border-radius: 6px; }
-  .list-row-name { font-size: 12px; }
-  .list-row-tags { display: none; }
+  .list-row-name { font-size: 13px; }
+  .list-meta-item { font-size: 12px; }
+  /* .list-row-tags is TV's secondary category-chip row (country/genre is
+     shown separately via .list-row-meta there) - but it's radio's ONLY
+     metadata display (RadioRow has no .list-row-meta equivalent), so
+     hiding it outright blanked a radio station's country/genre/bitrate
+     entirely on phones. Keep just the first chip (country code) instead
+     of dropping all of it. */
+  .list-row-tags .channel-tag:not(:first-child) { display: none; }
   .list-fav-btn svg { width: 14px; height: 14px; }
 
   /* Modal → bottom sheet */

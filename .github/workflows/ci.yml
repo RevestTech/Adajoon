@@ -30,18 +30,31 @@ jobs:
           python -m pip install --upgrade pip
           pip install flake8 black isort mypy
           pip install -r requirements.txt
-      
+
       - name: Run black
         working-directory: backend
         run: black --check --diff app/
-      
+
       - name: Run isort
         working-directory: backend
         run: isort --check-only --diff app/
-      
+
       - name: Run flake8
         working-directory: backend
         run: flake8 app/ --max-line-length=120 --extend-ignore=E203,W503
+
+      # Was pulled as a dependency but never invoked at all, so no type
+      # checking has ever happened here (2026-11-15 audit). It now actually
+      # runs and its output is real, but it's not a hard gate yet: the
+      # codebase has never been type-checked before, so there are ~180
+      # pre-existing errors across ~57/61 files (a baseline, not a
+      # regression) - see MASTER_PLAN.md. continue-on-error still surfaces
+      # this step as failed/yellow in the Actions UI (unlike `|| true`,
+      # which would report it as a silent, lying green pass).
+      - name: Run mypy
+        working-directory: backend
+        continue-on-error: true
+        run: mypy app/
 
   lint-frontend:
     name: Lint Frontend
@@ -62,11 +75,19 @@ jobs:
       
       - name: Run ESLint
         working-directory: frontend
-        run: npx eslint src/ --ext .js,.jsx || true
-      
+        run: npx eslint src/ --ext .js,.jsx
+
+      # No file in the repo has ever been run through Prettier (no config,
+      # and 98/~110 src files currently differ from its defaults - a
+      # pre-existing baseline, not a regression). continue-on-error still
+      # surfaces this as failed/yellow in the Actions UI, unlike the
+      # previous `|| true`, which silently reported a lying green pass.
+      # A dedicated repo-wide reformat PR is needed before this can gate
+      # for real - see MASTER_PLAN.md.
       - name: Check formatting
         working-directory: frontend
-        run: npx prettier --check "src/**/*.{js,jsx,css}" || true
+        continue-on-error: true
+        run: npx prettier --check "src/**/*.{js,jsx,css}"
 
   test-backend:
     name: Test Backend
@@ -150,7 +171,7 @@ jobs:
       
       - name: Run tests
         working-directory: frontend
-        run: npm test -- --run || echo "Tests not yet implemented"
+        run: npm test -- --run
       
       - name: Build
         working-directory: frontend

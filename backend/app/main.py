@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.middleware.gzip import GZipMiddleware
@@ -129,13 +130,18 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Adajoon",
     description="Online TV Channel Browser & Search",
-    version="2.8.0",
+    version="2.8.1",
     lifespan=lifespan,
 )
 
-# Add rate limiting
+# Add rate limiting. SlowAPIMiddleware is what actually applies
+# limiter.py's default_limits=["100/minute"] to every route that has no
+# explicit @limiter.limit(...) of its own - without it, that default is
+# computed but never enforced, and only the handful of routes carrying
+# their own decorator are rate-limited at all.
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
 
 # Add WWW redirect (first, before any other processing)
 app.add_middleware(WWWRedirectMiddleware)

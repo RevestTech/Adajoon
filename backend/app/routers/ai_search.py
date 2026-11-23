@@ -1,11 +1,12 @@
 """AI-powered natural language search endpoints."""
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.database import get_db
+from app.limiter import limiter
 from app.services.ai_search_service import ai_search_channels, ai_search_radio
 
 router = APIRouter(prefix="/api/search", tags=["ai-search"])
@@ -21,7 +22,9 @@ class AISearchRequest(BaseModel):
 
 
 @router.post("/ai")
+@limiter.limit("20/minute")
 async def ai_search(
+    request: Request,
     body: AISearchRequest,
     db: AsyncSession = Depends(get_db),
 ):
@@ -29,7 +32,10 @@ async def ai_search(
     AI-powered natural language search for channels or radio stations.
 
     Uses Claude to understand intent and find matching content.
-    Falls back to smart keyword matching if AI is unavailable.
+    Falls back to smart keyword matching if AI is unavailable. Rate-limited
+    tighter than the site-wide default - each call can hit the Claude API,
+    so this is reachable by anonymous users (no auth required, matching the
+    rest of search/browse) but needs its own cost/abuse ceiling.
     """
     if not settings.ai_search_enabled:
         raise HTTPException(status_code=503, detail="AI search is currently disabled")
