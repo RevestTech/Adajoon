@@ -7798,6 +7798,10 @@ button:focus-visible {
   color: var(--text-muted, #9090a0);
 }
 
+.install-prompt-ios-share-icon {
+  vertical-align: -2px;
+}
+
 .install-prompt-actions {
   display: flex;
   align-items: center;
