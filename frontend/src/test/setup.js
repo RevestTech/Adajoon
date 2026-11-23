@@ -7,14 +7,19 @@ afterEach(() => {
   cleanup();
 });
 
-// Mock localStorage
+// Mock localStorage. jsdom (as bundled by vitest 5+) defines window.localStorage
+// as a getter-only property, so a plain `global.localStorage = ...` assignment
+// throws - defineProperty with a getter sidesteps that regardless of jsdom version.
 const localStorageMock = {
   getItem: vi.fn(),
   setItem: vi.fn(),
   removeItem: vi.fn(),
   clear: vi.fn(),
 };
-global.localStorage = localStorageMock;
+Object.defineProperty(global, 'localStorage', {
+  configurable: true,
+  get: () => localStorageMock,
+});
 
 // Mock fetch
 global.fetch = vi.fn();
