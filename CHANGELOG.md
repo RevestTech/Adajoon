@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.9.0] - 2026-11-24
+
+### Added
+- **iOS PWA install instructions**: `InstallPrompt` only ever listened for `beforeinstallprompt`/`appinstalled`, Chrome/Android-only events iOS Safari never fires - it rendered nothing for any iOS visitor. Now detects iPhone/iPadOS Safari and shows manual "Tap Share, then Add to Home Screen" instructions instead.
+
+### Fixed
+- **Critical XSS advisory in the map library** (GHSA-jrc7-96c5-q579): bumped `maplibre-gl` 5→6, with the two follow-up fixes the major bump needed - a named-export import and explicit Web Worker URL registration (the worker silently failed to load in production builds only).
+- **Backend Docker build was broken** by an unvetted `python:3.15-slim` bump (no prebuilt `pydantic-core` wheel yet for that CPython version); reverted to `3.12-slim`.
+- **Frontend production build failed on Railway** after a routine `vitest`/`@vitest/ui` bump: the regenerated lockfile was missing cross-platform optional-dependency entries that Railway's stricter `npm ci` (npm 11.x) rejects, even though CI's `npm ci` tolerated it. Regenerated correctly.
+- `vitest` 5 test-suite breakage from a newer bundled jsdom (`window.localStorage`/`window.history` became getter-only) and a previously-transitive `@testing-library/dom` peer no longer being hoisted.
+- Stale/inaccurate claims in `docs/AUDIT_2026-11-15.md` and its `MASTER_PLAN.md` summary corrected to reflect what's actually been fixed since.
+
+### Security
+- Bumped `pytest-cov`, `itsdangerous`, `uvicorn` (backend) and `@simplewebauthn/browser` (frontend) to their latest patch/minor versions.
+
 ## [2.8.1] - 2026-11-23
 
 ### Fixed
