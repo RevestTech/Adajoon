@@ -1,6 +1,12 @@
 // Service Worker for Adajoon PWA
-const CACHE_NAME = 'adajoon-v2.6.2';
+const CACHE_NAME = 'adajoon-v2.9.0';
 const RUNTIME_CACHE = 'adajoon-runtime-v2';
+const OFFLINE_FALLBACK = new Response(
+  '<!doctype html><html><head><meta charset="utf-8"><title>Offline</title></head>' +
+  '<body style="font-family:sans-serif;text-align:center;padding:3rem 1rem;">' +
+  '<h1>You’re offline</h1><p>Check your connection and reload the page.</p></body></html>',
+  { status: 503, headers: { 'Content-Type': 'text/html' } }
+);
 
 // Assets to cache on install
 const PRECACHE_ASSETS = [
@@ -107,7 +113,10 @@ self.addEventListener('fetch', (event) => {
           }
           return response;
         })
-        .catch(() => caches.match(request).then((cached) => cached || caches.match('/index.html')))
+        .catch(() =>
+          caches.match(request).then((cached) => cached
+            || caches.match('/index.html').then((shell) => shell || OFFLINE_FALLBACK))
+        )
     );
     return;
   }
@@ -141,9 +150,14 @@ self.addEventListener('fetch', (event) => {
         })
         .catch((error) => {
           console.error('[SW] Fetch failed:', error);
-          // Return offline page for HTML requests
-          if (request.headers.get('accept').includes('text/html')) {
-            return caches.match('/index.html');
+          // Return offline page for HTML requests. request.headers.get()
+          // returns null when a fetch carries no Accept header at all (e.g.
+          // a plain fetch() call), so that's checked before .includes() -
+          // calling .includes() on null previously threw here, masking the
+          // original network error with a confusing second one.
+          const accept = request.headers.get('accept');
+          if (accept && accept.includes('text/html')) {
+            return caches.match('/index.html').then((cached) => cached || OFFLINE_FALLBACK);
           }
           throw error;
         });
