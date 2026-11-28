@@ -21,7 +21,7 @@ pytest-cov==7.1.0
 respx==0.21.1
 faker==40.63.0
 itsdangerous==2.2.0
-bcrypt==4.1.2
+bcrypt==5.0.0
 stripe==8.2.0
 redis[hiredis]==5.0.1
 python-multipart==0.0.9
