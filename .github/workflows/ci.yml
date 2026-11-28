@@ -276,6 +276,10 @@ jobs:
     runs-on: ubuntu-latest
     needs: [build-images]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      packages: read
+      security-events: write
 
     steps:
       - uses: actions/checkout@v4
@@ -288,6 +292,18 @@ jobs:
         # and Docker references must be all-lowercase - Trivy has been failing
         # to even parse the ref on every push to main as a result.
         run: echo "IMAGE_PREFIX_LOWER=$(echo '${{ env.IMAGE_PREFIX }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
+
+      - name: Log in to Container Registry
+        # This job runs on its own runner with no Docker daemon state shared
+        # with build-images, and ghcr.io packages here aren't public - without
+        # logging in, Trivy's image pull falls through docker/containerd/podman
+        # (all unavailable in this job) to its "remote" registry fetch, which
+        # then gets a 401 with no credentials to send.
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Run Trivy vulnerability scanner (Backend)
         uses: aquasecurity/trivy-action@master
