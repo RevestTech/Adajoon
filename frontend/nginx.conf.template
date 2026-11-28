@@ -1,3 +1,7 @@
+# Re-resolve the backend's internal hostname on this short a TTL instead of
+# caching it for the life of the nginx process - see start.sh for why.
+resolver ${DNS_RESOLVER} valid=10s;
+
 server {
     listen ${PORT};
     server_name localhost;
@@ -16,7 +20,20 @@ server {
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
 
     location /api/ {
-        proxy_pass ${BACKEND_URL}/api/;
+        # A literal proxy_pass target (no nginx variable involved) is
+        # resolved once, at config-load time, and then nginx never looks it
+        # up again no matter what the `resolver` directive or its TTL says -
+        # that static resolution is what let this proxy keep talking to a
+        # backend container Railway had already replaced. Putting the target
+        # in a variable forces a fresh DNS lookup through `resolver` on
+        # each new upstream connection instead.
+        # Note: with a variable in proxy_pass, nginx does NOT do its usual
+        # location-prefix-for-proxy_pass-URI substitution (confirmed by
+        # testing this change against a live nginx instance) - the request's
+        # own URI has to be forwarded explicitly via $request_uri instead,
+        # or every request would reach the backend as a bare "/api/".
+        set $backend_upstream ${BACKEND_URL};
+        proxy_pass $backend_upstream$request_uri;
         proxy_http_version 1.1;
         proxy_set_header Connection "";
         proxy_set_header Host $host;
