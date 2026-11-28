@@ -19,7 +19,7 @@ pytest==9.0.2
 pytest-asyncio==1.4.1.post1
 pytest-cov==7.1.0
 respx==0.21.1
-faker==24.0.0
+faker==40.63.0
 itsdangerous==2.2.0
 bcrypt==4.1.2
 stripe==8.2.0
