@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.9.1] - 2026-11-27
+
+### Fixed
+- **Production outage: `/api/*` returning 502/504 after deploys, recurring over several days.** `nginx.conf.template`'s `proxy_pass` used a literal backend hostname, which nginx resolves via DNS once at config-load time and never again - since Railway redeploys the whole project together on any push, every deploy handed the backend a new internal IP this already-running nginx process had no way to learn about, until a manual restart forced a fresh process. Fixed by giving nginx a `resolver` directive (reading the container's real DNS server from `/etc/resolv.conf`) and moving the backend target into an nginx variable, forcing a fresh DNS lookup with a short TTL instead of caching forever.
+- **Service worker crashed with an uncaught error instead of degrading gracefully on any network failure**: `sw.js`'s fetch-failure handler called `.includes()` on a possibly-null `Accept` header, and its offline fallback could resolve to `undefined` - both fixed.
+
 ## [2.9.0] - 2026-11-24
 
 ### Added
