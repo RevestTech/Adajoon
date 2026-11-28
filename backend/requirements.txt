@@ -25,5 +25,5 @@ bcrypt==4.1.2
 stripe==8.2.0
 redis[hiredis]==5.0.1
 python-multipart==0.0.9
-anthropic==0.42.0
+anthropic==2.13.0
 sentry-sdk[fastapi]==2.19.2
